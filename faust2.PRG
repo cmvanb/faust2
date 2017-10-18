@@ -7,23 +7,31 @@ COMPILER_OPTIONS _case_sensitive;
 
 program Faust2;
 const
+    // DIV command helpers
+    REGION_FULL_SCREEN = 0;
+    SCROLL_FOREGROUND_HORIZONTAL = 1;
+    SCROLL_FOREGROUND_VERTICAL   = 2;
+    SCROLL_BACKGROUND_HORIZONTAL = 4;
+    SCROLL_BACKGROUND_VERTICAL   = 8;
+    FONT_ALIGNMENT_CENTERED = 4;
+
     // settings
-    screenWidth = 640;
-    screenHeight = 400;
-    halfScreenWidth = screenWidth / 2;
-    halfScreenHeight = screenHeight / 2;
+    SCREEN_WIDTH = 640;
+    SCREEN_HEIGHT = 400;
+    HALF_SCREEN_WIDTH = SCREEN_WIDTH / 2;
+    HALF_SCREEN_HEIGHT = SCREEN_HEIGHT / 2;
 
     // file paths
-    gfxMainPath = "main.fpg";
-    fntMenuPath = "16x16-w-arcade.fnt";
-    fntGamePath = "game.fnt";
+    GFX_MAIN_PATH = "main.fpg";
+    FNT_MENU_PATH = "16x16-w-arcade.fnt";
+    FNT_GAME_PATH = "game.fnt";
 
     // enums
-    menuOption_NONE = 0;
-    menuOption_PLAY = 1;
-    gameState_NOT_STARTED = 0;
-    gameState_ACTIVE      = 1;
-    gameState_GAME_OVER   = 2;
+    MENU_OPTION_NONE = 0;
+    MENU_OPTION_PLAY = 1;
+    GAME_STATE_NOT_STARTED = 0;
+    GAME_STATE_ACTIVE      = 1;
+    GAME_STATE_GAME_OVER   = 2;
 
 global
     // resources
@@ -40,9 +48,9 @@ begin
     set_fps(60, 4);
 
     // load resources
-    gfxMain = load_fpg(gfxMainPath);
-    fntMenu = load_fnt(fntMenuPath);
-    //fntGame = load_fnt(fntGamePath); // TODO: find font
+    gfxMain = load_fpg(GFX_MAIN_PATH);
+    fntMenu = load_fnt(FNT_MENU_PATH);
+    //fntGame = load_fnt(FNT_GAME_PATH); // TODO: find font
 
     // show title screen
     TitleScreen();
@@ -52,33 +60,34 @@ end
 
 function TitleScreen()
 private
-    selected = menuOption_NONE;
+    selected = MENU_OPTION_NONE;
     txtTitle;
 
 begin
     // initialization
     clear_screen();
-
-    // background
-    put_screen(gfxMain, 1);
-
-    // instructions
-    txtTitle = write(fntMenu, halfScreenWidth, halfScreenHeight, 4, "PRESS ANY KEY TO PLAY");
+    put_screen(gfxMain, gfxMain + 1);
+    txtTitle = write(
+        fntMenu, 
+        HALF_SCREEN_WIDTH, 
+        HALF_SCREEN_HEIGHT, 
+        FONT_ALIGNMENT_CENTERED, 
+        "PRESS ANY KEY TO PLAY");
 
     // wait for input
     repeat
         if (scan_code != 0)
-            selected = menuOption_PLAY;
+            selected = MENU_OPTION_PLAY;
         end
 
         frame;
-    until (selected != menuOption_NONE)
+    until (selected != MENU_OPTION_NONE)
 
     // clean up
     delete_text(txtTitle);
 
     // handle selection
-    if (selected == menuOption_PLAY)
+    if (selected == MENU_OPTION_PLAY)
         GameManager();
     end
 end
@@ -87,33 +96,88 @@ end
 
 function GameManager()
 private
-    state = gameState_NOT_STARTED;
+    state = GAME_STATE_NOT_STARTED;
+    scrollBackground = 0;
 
 begin
     // initialization
     clear_screen();
 
     // graphics
-    put_screen(gfxMain, 2);
+    start_scroll(
+        scrollBackground, 
+        gfxMain, gfxMain + 200, 0, 
+        REGION_FULL_SCREEN, 
+        SCROLL_FOREGROUND_HORIZONTAL + SCROLL_FOREGROUND_VERTICAL);
 
     // gameplay
-    state = gameState_ACTIVE;
+    state = GAME_STATE_ACTIVE;
     playerCharacter = PlayerCharacter(40, 40);
 
     repeat
         // TODO: gameplay goes here
 
         frame;
-    until (state == gameState_GAME_OVER)
+    until (state == GAME_STATE_GAME_OVER)
 end
 
 
 
 process PlayerCharacter(x, y)
+private
+    walkSpeed = 4;
+    velocityX;
+    velocityY;
+    mouseCursor;
+
 begin
     // initialization
-    graph = gfxMain + 3;
+    graph = gfxMain + 100;
+    mouseCursor = MouseCursor();
+
     loop
+        // movement input
+        if (key(_a))
+            velocityX = -walkSpeed;
+        else
+            if (key(_d))
+                velocityX = +walkSpeed;
+            else
+                velocityX = 0;
+            end
+        end
+
+        if (key(_w))
+            velocityY = -walkSpeed;
+        else
+            if (key(_s))
+                velocityY = +walkSpeed;
+            else
+                velocityY = 0;
+            end
+        end
+
+        // TODO: Normalize velocity vector.
+
+        // apply velocity
+        x += velocityX;
+        y += velocityY;
+
+        // look at the mouse cursor
+        angle = get_angle(mouseCursor);
+        frame;
+    end
+end
+
+
+
+process MouseCursor()
+begin
+    // initialization
+    graph = gfxMain + 300;
+    loop
+        x = mouse.x;
+        y = mouse.y;
         frame;
     end
 end
