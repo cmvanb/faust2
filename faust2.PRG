@@ -13,7 +13,15 @@ const
     SCROLL_FOREGROUND_VERTICAL   = 2;
     SCROLL_BACKGROUND_HORIZONTAL = 4;
     SCROLL_BACKGROUND_VERTICAL   = 8;
-    FONT_ALIGNMENT_CENTERED = 4;
+    FONT_ANCHOR_TOP_LEFT      = 0;
+    FONT_ANCHOR_TOP_CENTER    = 1;
+    FONT_ANCHOR_TOP_RIGHT     = 2;
+    FONT_ANCHOR_CENTER_LEFT   = 3;
+    FONT_ANCHOR_CENTERED      = 4;
+    FONT_ANCHOR_CENTER_RIGHT  = 5;
+    FONT_ANCHOR_BOTTOM_LEFT   = 6;
+    FONT_ANCHOR_BOTTOM_CENTER = 7;
+    FONT_ANCHOR_BOTTOM_RIGHT  = 8;
 
     // settings
     SCREEN_WIDTH = 640;
@@ -36,6 +44,7 @@ const
 global
     // resources
     gfxMain;
+    fntSystem;
     fntMenu;
     fntGame;
 
@@ -49,6 +58,7 @@ begin
 
     // load resources
     gfxMain = load_fpg(GFX_MAIN_PATH);
+    fntSystem = 0;
     fntMenu = load_fnt(FNT_MENU_PATH);
     //fntGame = load_fnt(FNT_GAME_PATH); // TODO: find font
 
@@ -71,7 +81,7 @@ begin
         fntMenu, 
         HALF_SCREEN_WIDTH, 
         HALF_SCREEN_HEIGHT, 
-        FONT_ALIGNMENT_CENTERED, 
+        FONT_ANCHOR_CENTERED, 
         "PRESS ANY KEY TO PLAY");
 
     // wait for input
@@ -114,6 +124,10 @@ begin
     state = GAME_STATE_ACTIVE;
     playerCharacter = PlayerCharacter(40, 40);
 
+    // user interface
+    DrawFPSCounter();
+
+    // game loop
     repeat
         // TODO: gameplay goes here
 
@@ -132,7 +146,7 @@ private
 
 begin
     // initialization
-    graph = gfxMain + 100;
+    graph = gfxMain + 900;
     mouseCursor = MouseCursor();
 
     loop
@@ -178,6 +192,36 @@ begin
     loop
         x = mouse.x;
         y = mouse.y;
+        frame;
+    end
+end
+
+
+
+process DrawFPSCounter()
+private
+    txtFPSCounterLabel;
+    txtFPSCounter;
+
+begin
+    x = 40;
+    y = 10;
+
+    txtFPSCounterLabel = write(
+        fntSystem, 
+        x, 
+        y, 
+        FONT_ANCHOR_TOP_RIGHT,
+        "FPS: ");
+
+    txtFPSCounter= write_int(
+        fntSystem, 
+        x, 
+        y, 
+        FONT_ANCHOR_TOP_LEFT, 
+        offset fps);
+
+    loop
         frame;
     end
 end

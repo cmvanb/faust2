@@ -1,0 +1,7 @@
+# DIV builds
+faust2.exe
+faust2.zip
+stdout.txt
+
+# DIV DLLs (get them from nightly update on the forums)
+*.dll
