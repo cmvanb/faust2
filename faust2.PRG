@@ -214,7 +214,7 @@ begin
         FONT_ANCHOR_TOP_RIGHT,
         "FPS: ");
 
-    txtFPSCounter= write_int(
+    txtFPSCounter = write_int(
         fntSystem, 
         x, 
         y, 
