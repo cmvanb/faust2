@@ -7,7 +7,7 @@ COMPILER_OPTIONS _case_sensitive;
 
 program Faust2;
 const
-    // DIV command helpers
+    // DIV command enums
     REGION_FULL_SCREEN = 0;
     SCROLL_FOREGROUND_HORIZONTAL = 1;
     SCROLL_FOREGROUND_VERTICAL   = 2;
@@ -23,7 +23,15 @@ const
     FONT_ANCHOR_BOTTOM_CENTER = 7;
     FONT_ANCHOR_BOTTOM_RIGHT  = 8;
 
+    // program enums
+    MENU_OPTION_NONE = 0;
+    MENU_OPTION_PLAY = 1;
+    GAME_STATE_NOT_STARTED = 0;
+    GAME_STATE_ACTIVE      = 1;
+    GAME_STATE_GAME_OVER   = 2;
+
     // settings
+    SCREEN_MODE = m640x400;
     SCREEN_WIDTH = 640;
     SCREEN_HEIGHT = 400;
     HALF_SCREEN_WIDTH = SCREEN_WIDTH / 2;
@@ -33,40 +41,31 @@ const
     GFX_MAIN_PATH = "main.fpg";
     FNT_MENU_PATH = "16x16-w-arcade.fnt";
     FNT_GAME_PATH = "game.fnt";
-
-    // enums
-    MENU_OPTION_NONE = 0;
-    MENU_OPTION_PLAY = 1;
-    GAME_STATE_NOT_STARTED = 0;
-    GAME_STATE_ACTIVE      = 1;
-    GAME_STATE_GAME_OVER   = 2;
-
 global
     // resources
-    gfxMain;
-    fntSystem;
-    fntMenu;
-    fntGame;
+    __gfxMain;
+    __fntSystem;
+    __fntMenu;
+    __fntGame;
 
     // game processes
-    playerController;
+    __playerController;
 
     // debug vars
     __logCount;
     __logsX = 100;
     __logsY = 10;
     __logsYOffset = 15;
-
 begin
     // initialization
-    set_mode(m640x400);
+    set_mode(SCREEN_MODE);
     set_fps(60, 4);
 
     // load resources
-    gfxMain = load_fpg(GFX_MAIN_PATH);
-    fntSystem = 0;
-    fntMenu = load_fnt(FNT_MENU_PATH);
-    //fntGame = load_fnt(FNT_GAME_PATH); // TODO: find font
+    __gfxMain = load_fpg(GFX_MAIN_PATH);
+    __fntSystem = 0;
+    __fntMenu = load_fnt(FNT_MENU_PATH);
+    //__fntGame = load_fnt(FNT_GAME_PATH); // TODO: find font
 
     // debugging
     ValueLogger("FPS", offset fps);
@@ -85,13 +84,12 @@ function TitleScreen()
 private
     selected = MENU_OPTION_NONE;
     txtTitle;
-
 begin
     // initialization
     clear_screen();
-    put_screen(gfxMain, gfxMain + 1);
+    put_screen(__gfxMain, __gfxMain + 1);
     txtTitle = write(
-        fntMenu, 
+        __fntMenu, 
         HALF_SCREEN_WIDTH, 
         HALF_SCREEN_HEIGHT, 
         FONT_ANCHOR_CENTERED, 
@@ -125,7 +123,6 @@ function GameManager()
 private
     state = GAME_STATE_NOT_STARTED;
     scrollBackground = 0;
-
 begin
     // initialization
     clear_screen();
@@ -133,13 +130,13 @@ begin
     // graphics
     start_scroll(
         scrollBackground, 
-        gfxMain, gfxMain + 200, 0, 
+        __gfxMain, __gfxMain + 200, 0, 
         REGION_FULL_SCREEN, 
         SCROLL_FOREGROUND_HORIZONTAL + SCROLL_FOREGROUND_VERTICAL);
 
     // gameplay
     state = GAME_STATE_ACTIVE;
-    playerController = PlayerController(40, 40);
+    __playerController = PlayerController(40, 40);
 
     // game loop
     repeat
@@ -168,7 +165,6 @@ private
 
     targetAngle;
     angleDifference;
-
 begin
     // initialization
     mouseCursor = MouseCursor();
@@ -178,7 +174,6 @@ begin
     ValueLogger("angle", offset angle);
     ValueLogger("targetAngle", offset targetAngle);
     ValueLogger("angleDifference", offset angleDifference);
-
     loop
         // movement input
         if (key(_a))
@@ -242,7 +237,6 @@ private
     arms;
     base;
     head;
-
 begin
     // initialization
     arms = CharacterArms();
@@ -260,7 +254,7 @@ end
 process CharacterArms()
 begin
     // initialization
-    graph = gfxMain + 902;
+    graph = __gfxMain + 902;
     z = -90;
     loop
         x = father.x;
@@ -273,7 +267,7 @@ end
 process CharacterBase()
 begin
     // initialization
-    graph = gfxMain + 900;
+    graph = __gfxMain + 900;
     z = -100;
     loop
         x = father.x;
@@ -286,7 +280,7 @@ end
 process CharacterHead()
 begin
     // initialization
-    graph = gfxMain + 901;
+    graph = __gfxMain + 901;
     z = -110;
     loop
         x = father.x;
@@ -305,7 +299,7 @@ end
 process MouseCursor()
 begin
     // initialization
-    graph = gfxMain + 300;
+    graph = __gfxMain + 300;
     z = -1000;
     loop
         x = mouse.x;
@@ -348,7 +342,6 @@ private
     txtLogLabel;
     txtLogValue;
     logIndex;
-
 begin
     logIndex = __logCount;
     __logCount++;
@@ -359,19 +352,18 @@ begin
     label = label + ": ";
 
     txtLogLabel = write(
-        fntSystem,
+        __fntSystem,
         x,
         y,
         FONT_ANCHOR_TOP_RIGHT,
         label);
 
     txtLogValue = write_int(
-        fntSystem,
+        __fntSystem,
         x,
         y,
         FONT_ANCHOR_TOP_LEFT,
         val);
-
     loop
         frame;
     end
