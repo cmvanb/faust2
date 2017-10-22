@@ -1,7 +1,7 @@
-/*
+/* =============================================================================
  * faust2.PRG by Casper
  * (c) 2017 altsrc
- */
+ * ========================================================================== */
 
 COMPILER_OPTIONS _case_sensitive;
 
@@ -76,9 +76,9 @@ end
 
 
 
-/*
+/* -----------------------------------------------------------------------------
  * Menu screens
- */
+ * ---------------------------------------------------------------------------*/
 
 function TitleScreen()
 private
@@ -115,9 +115,9 @@ end
 
 
 
-/*
+/* -----------------------------------------------------------------------------
  * Gameplay
- */
+ * ---------------------------------------------------------------------------*/
 
 function GameManager()
 private
@@ -148,9 +148,9 @@ end
 
 
 
-/*
+/* -----------------------------------------------------------------------------
  * Player
- */
+ * ---------------------------------------------------------------------------*/
 
 process PlayerController(x, y)
 private
@@ -204,33 +204,16 @@ begin
         y += velocityY;
 
         // look at the mouse cursor
-        targetAngle = get_angle(mouseCursor);
-        angleDifference = angle - targetAngle;
-
-        if (angleDifference < 0)
-            if (abs(angleDifference) > turnSpeed)
-                angle += turnSpeed;
-            else
-                angle = targetAngle;
-            end
-        end
-
-        if (angleDifference > 0)
-            if (angleDifference > turnSpeed)
-                angle -= turnSpeed;
-            else
-                angle = targetAngle;
-            end
-        end
+        TurnTowards(mouseCursor, turnSpeed);
         frame;
     end
 end
 
 
 
-/*
+/* -----------------------------------------------------------------------------
  * Character Animations
- */
+ * ---------------------------------------------------------------------------*/
 
 process CharacterAnimator()
 private
@@ -292,9 +275,9 @@ end
 
 
 
-/*
+/* -----------------------------------------------------------------------------
  * User interface
- */
+ * ---------------------------------------------------------------------------*/
 
 process MouseCursor()
 begin
@@ -310,9 +293,34 @@ end
 
 
 
-/*
- * Math
- */
+/* -----------------------------------------------------------------------------
+ * Utilities
+ * ---------------------------------------------------------------------------*/
+
+process TurnTowards(target, turnSpeed)
+private
+    targetAngle;
+    angleDifference;
+begin
+    targetAngle = get_angle(target);
+    angleDifference = father.angle - targetAngle;
+
+    if (angleDifference < 0)
+        if (abs(angleDifference) > turnSpeed)
+            father.angle += turnSpeed;
+        else
+            father.angle = targetAngle;
+        end
+    else
+
+    if (angleDifference > 0)
+        if (angleDifference > turnSpeed)
+            father.angle -= turnSpeed;
+        else
+            father.angle = targetAngle;
+        end
+    end
+end
 
 function Min(a, b)
 begin
@@ -333,9 +341,10 @@ begin
 end
 
 
-/*
+
+/* -----------------------------------------------------------------------------
  * Debugging
- */
+ * ---------------------------------------------------------------------------*/
 
 process ValueLogger(string label, val)
 private
