@@ -49,7 +49,13 @@ global
     fntGame;
 
     // game processes
-    playerCharacter;
+    playerController;
+
+    // debug vars
+    __logCount;
+    __logsX = 100;
+    __logsY = 10;
+    __logsYOffset = 15;
 
 begin
     // initialization
@@ -62,11 +68,18 @@ begin
     fntMenu = load_fnt(FNT_MENU_PATH);
     //fntGame = load_fnt(FNT_GAME_PATH); // TODO: find font
 
+    // debugging
+    ValueLogger("FPS", offset fps);
+
     // show title screen
     TitleScreen();
 end
 
 
+
+/*
+ * Menu screens
+ */
 
 function TitleScreen()
 private
@@ -104,6 +117,10 @@ end
 
 
 
+/*
+ * Gameplay
+ */
+
 function GameManager()
 private
     state = GAME_STATE_NOT_STARTED;
@@ -122,10 +139,7 @@ begin
 
     // gameplay
     state = GAME_STATE_ACTIVE;
-    playerCharacter = PlayerCharacter(40, 40);
-
-    // user interface
-    DrawFPSCounter();
+    playerController = PlayerController(40, 40);
 
     // game loop
     repeat
@@ -137,17 +151,33 @@ end
 
 
 
-process PlayerCharacter(x, y)
+/*
+ * Player
+ */
+
+process PlayerController(x, y)
 private
     walkSpeed = 4;
+    turnSpeed = 10000;
+
     velocityX;
     velocityY;
+
     mouseCursor;
+    animator;
+
+    targetAngle;
+    angleDifference;
 
 begin
     // initialization
-    graph = gfxMain + 900;
     mouseCursor = MouseCursor();
+    animator = CharacterAnimator();
+
+    // debugging
+    ValueLogger("angle", offset angle);
+    ValueLogger("targetAngle", offset targetAngle);
+    ValueLogger("angleDifference", offset angleDifference);
 
     loop
         // movement input
@@ -171,6 +201,7 @@ begin
             end
         end
 
+        // TODO: Refactor velocity out into separate process.
         // TODO: Normalize velocity vector.
 
         // apply velocity
@@ -178,17 +209,104 @@ begin
         y += velocityY;
 
         // look at the mouse cursor
-        angle = get_angle(mouseCursor);
+        targetAngle = get_angle(mouseCursor);
+        angleDifference = angle - targetAngle;
+
+        if (angleDifference < 0)
+            if (abs(angleDifference) > turnSpeed)
+                angle += turnSpeed;
+            else
+                angle = targetAngle;
+            end
+        end
+
+        if (angleDifference > 0)
+            if (angleDifference > turnSpeed)
+                angle -= turnSpeed;
+            else
+                angle = targetAngle;
+            end
+        end
         frame;
     end
 end
 
 
 
+/*
+ * Character Animations
+ */
+
+process CharacterAnimator()
+private
+    arms;
+    base;
+    head;
+
+begin
+    // initialization
+    arms = CharacterArms();
+    base = CharacterBase();
+    head = CharacterHead();
+
+    loop
+        x = father.x;
+        y = father.y;
+        angle = father.angle;
+        frame;
+    end
+end
+
+process CharacterArms()
+begin
+    // initialization
+    graph = gfxMain + 902;
+    z = -90;
+    loop
+        x = father.x;
+        y = father.y;
+        angle = father.angle;
+        frame;
+    end
+end
+
+process CharacterBase()
+begin
+    // initialization
+    graph = gfxMain + 900;
+    z = -100;
+    loop
+        x = father.x;
+        y = father.y;
+        angle = father.angle;
+        frame;
+    end
+end
+
+process CharacterHead()
+begin
+    // initialization
+    graph = gfxMain + 901;
+    z = -110;
+    loop
+        x = father.x;
+        y = father.y;
+        angle = father.angle;
+        frame;
+    end
+end
+
+
+
+/*
+ * User interface
+ */
+
 process MouseCursor()
 begin
     // initialization
     graph = gfxMain + 300;
+    z = -1000;
     loop
         x = mouse.x;
         y = mouse.y;
@@ -198,30 +316,66 @@ end
 
 
 
-process DrawFPSCounter()
+/*
+ * Math
+ */
+
+function Min(a, b)
+begin
+    if (a > b)
+        return (b);
+    end
+
+    return (a);
+end
+
+function Max(a, b)
+begin
+    if (a >= b)
+        return (a);
+    end
+
+    return (b);
+end
+
+
+/*
+ * Debugging
+ */
+
+process ValueLogger(string label, val)
 private
-    txtFPSCounterLabel;
-    txtFPSCounter;
+    txtLogLabel;
+    txtLogValue;
+    logIndex;
 
 begin
-    x = 40;
-    y = 10;
+    logIndex = __logCount;
+    __logCount++;
 
-    txtFPSCounterLabel = write(
-        fntSystem, 
-        x, 
-        y, 
+    x = __logsX;
+    y = __logsY + (logIndex * __logsYOffset);
+
+    label = label + ": ";
+
+    txtLogLabel = write(
+        fntSystem,
+        x,
+        y,
         FONT_ANCHOR_TOP_RIGHT,
-        "FPS: ");
+        label);
 
-    txtFPSCounter = write_int(
-        fntSystem, 
-        x, 
-        y, 
-        FONT_ANCHOR_TOP_LEFT, 
-        offset fps);
+    txtLogValue = write_int(
+        fntSystem,
+        x,
+        y,
+        FONT_ANCHOR_TOP_LEFT,
+        val);
 
     loop
         frame;
     end
 end
+
+
+
