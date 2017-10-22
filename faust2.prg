@@ -52,6 +52,7 @@ global
     __playerController;
 
     // debug vars
+    __logs[31];
     __logCount;
     __logsX = 100;
     __logsY = 10;
@@ -68,7 +69,7 @@ begin
     //__fntGame = load_fnt(FNT_GAME_PATH); // TODO: find font
 
     // debugging
-    ValueLogger("FPS", offset fps);
+    LogValue("FPS", offset fps);
 
     // show title screen
     TitleScreen();
@@ -162,18 +163,15 @@ private
 
     mouseCursor;
     animator;
-
-    targetAngle;
-    angleDifference;
 begin
     // initialization
     mouseCursor = MouseCursor();
     animator = CharacterAnimator();
 
     // debugging
-    ValueLogger("angle", offset angle);
-    ValueLogger("targetAngle", offset targetAngle);
-    ValueLogger("angleDifference", offset angleDifference);
+    LogValue("angle", offset angle);
+    //LogValue("targetAngle", offset targetAngle);
+    //LogValue("angleDifference", offset angleDifference);
     loop
         // movement input
         if (key(_a))
@@ -204,7 +202,7 @@ begin
         y += velocityY;
 
         // look at the mouse cursor
-        TurnTowards(mouseCursor, turnSpeed);
+        TurnTowards(angle, mouseCursor, turnSpeed);
         frame;
     end
 end
@@ -297,29 +295,76 @@ end
  * Utilities
  * ---------------------------------------------------------------------------*/
 
-process TurnTowards(target, turnSpeed)
+function TurnTowards(currentAngle, target, turnSpeed)
 private
+    currentAngleWrapped;
     targetAngle;
+    targetAngleWrapped;
+    greaterAngle;
+    lesserAngle;
+    counterClockwiseDifference;
+    clockwiseDifference;
     angleDifference;
 begin
-    targetAngle = get_angle(target);
-    angleDifference = father.angle - targetAngle;
+    currentAngleWrapped = WrapAngle360(currentAngle);
 
-    if (angleDifference < 0)
-        if (abs(angleDifference) > turnSpeed)
-            father.angle += turnSpeed;
+    targetAngle = fget_angle(father.x, father.y, target.x, target.y);
+    targetAngleWrapped = WrapAngle360(targetAngle);
+
+    greaterAngle = Max(currentAngleWrapped, targetAngleWrapped);
+    lesserAngle = Min(currentAngleWrapped, targetAngleWrapped);
+
+    counterClockwiseDifference = WrapAngle360(greaterAngle - lesserAngle);
+    clockwiseDifference = WrapAngle360(360000 - counterClockwiseDifference);
+
+/*
+    angleDifference = Min(counterClockwiseDifference, clockwiseDifference);
+
+    if (counterClockwiseDifference < clockwiseDifference)
+        if (angleDifference > turnSpeed)
+            currentAngle += turnSpeed;
         else
-            father.angle = targetAngle;
+            currentAngle = targetAngle;
         end
     else
-
-    if (angleDifference > 0)
-        if (angleDifference > turnSpeed)
-            father.angle -= turnSpeed;
-        else
-            father.angle = targetAngle;
+        if (clockwiseDifference < counterClockwiseDifference)
+            if (angleDifference > turnSpeed)
+                currentAngle -= turnSpeed;
+            else
+                currentAngle = targetAngle;
+            end
         end
     end
+    */
+
+    if (counterClockwiseDifference < clockwiseDifference)
+        currentAngle += turnSpeed;
+    else
+        currentAngle -= turnSpeed;
+    end
+
+    LogValue("currentAngleWrapped", offset currentAngleWrapped);
+    LogValue("targetAngle", offset targetAngle);
+    LogValue("targetAngleWrapped", offset targetAngleWrapped);
+    LogValue("greaterAngle", offset greaterAngle);
+    LogValue("lesserAngle", offset lesserAngle);
+    LogValue("counterClockwiseDifference", offset counterClockwiseDifference);
+    LogValue("clockwiseDifference", offset clockwiseDifference);
+    DeleteLastLog();
+    DeleteLastLog();
+    DeleteLastLog();
+    DeleteLastLog();
+    DeleteLastLog();
+    DeleteLastLog();
+    DeleteLastLog();
+
+    //father.angle = currentAngle;
+    father.angle = WrapAngle360(currentAngle);
+end
+
+function WrapAngle360(angle)
+begin
+    return ((angle + 360000) mod 360000);
 end
 
 function Min(a, b)
@@ -346,13 +391,14 @@ end
  * Debugging
  * ---------------------------------------------------------------------------*/
 
-process ValueLogger(string label, val)
+process LogValue(string label, val)
 private
     txtLogLabel;
     txtLogValue;
     logIndex;
 begin
     logIndex = __logCount;
+    __logs[__logCount] = id;
     __logCount++;
 
     x = __logsX;
@@ -376,6 +422,12 @@ begin
     loop
         frame;
     end
+end
+
+process DeleteLastLog()
+begin
+    signal(__logs[__logCount - 1], s_kill);
+    __logCount--;
 end
 
 
