@@ -23,12 +23,15 @@ const
     FONT_ANCHOR_BOTTOM_CENTER = 7;
     FONT_ANCHOR_BOTTOM_RIGHT  = 8;
 
-    // program enums
+    // enums
     MENU_OPTION_NONE = 0;
     MENU_OPTION_PLAY = 1;
     GAME_STATE_NOT_STARTED = 0;
     GAME_STATE_ACTIVE      = 1;
     GAME_STATE_GAME_OVER   = 2;
+
+    // resource enums
+    SOUND_MP40_SHOT = 0;
 
     // settings
     SCREEN_MODE = m640x400;
@@ -47,6 +50,10 @@ global
     __fntSystem;
     __fntMenu;
     __fntGame;
+    __sounds[31];
+
+    // timing
+    __deltaTime;
 
     // game processes
     __playerController;
@@ -60,16 +67,18 @@ global
 begin
     // initialization
     set_mode(SCREEN_MODE);
-    set_fps(60, 4);
+    set_fps(60, 1);
 
     // load resources
     __gfxMain = load_fpg(GFX_MAIN_PATH);
     __fntSystem = 0;
     __fntMenu = load_fnt(FNT_MENU_PATH);
     //__fntGame = load_fnt(FNT_GAME_PATH); // TODO: find font
+    __sounds[SOUND_MP40_SHOT] = load_sound("assets/audio/test-shot5.wav", 0);
 
-    // debugging
+    // timing
     LogValue("FPS", offset fps);
+    DeltaTimer();
 
     // show title screen
     TitleScreen();
@@ -155,7 +164,7 @@ end
 
 process PlayerController(x, y)
 private
-    walkSpeed = 4;
+    walkSpeed = 3;
     turnSpeed = 10000;
 
     velocityX;
@@ -194,6 +203,12 @@ begin
             end
         end
 
+        if (mouse.left && timer[0] > 10)
+            PlaySound(SOUND_MP40_SHOT, 128, 512);
+            MuzzleFlash();
+            timer[0] = 0;
+        end
+
         // TODO: Refactor velocity out into separate process.
         // TODO: Normalize velocity vector.
 
@@ -205,6 +220,26 @@ begin
         TurnTowards(mouseCursor, turnSpeed);
         frame;
     end
+end
+
+process MuzzleFlash()
+private
+    lifeDuration = 5;
+    lifeStartTime;
+    animationTime = 0;
+begin
+    graph = __gfxMain + 700;
+    x = father.x;
+    y = father.y;
+    z = -700;
+    angle = father.angle;
+    lifeStartTime = timer[9];
+    advance(44);
+    repeat
+        animationTime += 1000 / (lifeDuration / __deltaTime);
+        size = (sin(animationTime * 180) + 1000) / 20;
+        frame;
+    until (timer[9] > lifeStartTime + lifeDuration)
 end
 
 
@@ -419,3 +454,31 @@ end
 
 
 
+/* -----------------------------------------------------------------------------
+ * Timing
+ * ---------------------------------------------------------------------------*/
+
+process DeltaTimer()
+private
+    t0;
+    t1;
+begin
+    LogValue("__deltaTime", offset __deltaTime);
+    loop
+        t0 = timer[9];
+        frame;
+        t1 = timer[9];
+        __deltaTime = Max(t1 - t0, 1); // deltaTime can never be 0
+    end
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Audio
+ * ---------------------------------------------------------------------------*/
+
+function PlaySound(soundIndex, volume, frequency)
+begin
+    sound(__sounds[soundIndex], volume, frequency);
+end
