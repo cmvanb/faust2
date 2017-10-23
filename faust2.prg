@@ -54,7 +54,7 @@ global
     // debug vars
     __logs[31];
     __logCount;
-    __logsX = 100;
+    __logsX = 320;
     __logsY = 10;
     __logsYOffset = 15;
 begin
@@ -169,9 +169,9 @@ begin
     animator = CharacterAnimator();
 
     // debugging
-    LogValue("angle", offset angle);
-    //LogValue("targetAngle", offset targetAngle);
-    //LogValue("angleDifference", offset angleDifference);
+    LogValue("player x", offset x);
+    LogValue("player y", offset y);
+    LogValue("player angle", offset angle);
     loop
         // movement input
         if (key(_a))
@@ -202,7 +202,7 @@ begin
         y += velocityY;
 
         // look at the mouse cursor
-        TurnTowards(angle, mouseCursor, turnSpeed);
+        TurnTowards(mouseCursor, turnSpeed);
         frame;
     end
 end
@@ -295,76 +295,49 @@ end
  * Utilities
  * ---------------------------------------------------------------------------*/
 
-function TurnTowards(currentAngle, target, turnSpeed)
+function TurnTowards(target, turnSpeed)
 private
-    currentAngleWrapped;
+    currentAngle;
     targetAngle;
-    targetAngleWrapped;
-    greaterAngle;
-    lesserAngle;
-    counterClockwiseDifference;
-    clockwiseDifference;
     angleDifference;
+    angleChange;
 begin
-    currentAngleWrapped = WrapAngle360(currentAngle);
+    currentAngle = WrapAngle180(father.angle);
+    targetAngle = WrapAngle180(fget_angle(father.x, father.y, target.x, target.y));
+    angleDifference = WrapAngle180(targetAngle - currentAngle - 360000);
 
-    targetAngle = fget_angle(father.x, father.y, target.x, target.y);
-    targetAngleWrapped = WrapAngle360(targetAngle);
-
-    greaterAngle = Max(currentAngleWrapped, targetAngleWrapped);
-    lesserAngle = Min(currentAngleWrapped, targetAngleWrapped);
-
-    counterClockwiseDifference = WrapAngle360(greaterAngle - lesserAngle);
-    clockwiseDifference = WrapAngle360(360000 - counterClockwiseDifference);
-
-/*
-    angleDifference = Min(counterClockwiseDifference, clockwiseDifference);
-
-    if (counterClockwiseDifference < clockwiseDifference)
-        if (angleDifference > turnSpeed)
-            currentAngle += turnSpeed;
+    if (angleDifference >= 0)
+        if (abs(angleDifference) < turnSpeed)
+            angleChange += angleDifference;
         else
-            currentAngle = targetAngle;
+            angleChange += turnSpeed;
         end
     else
-        if (clockwiseDifference < counterClockwiseDifference)
-            if (angleDifference > turnSpeed)
-                currentAngle -= turnSpeed;
-            else
-                currentAngle = targetAngle;
-            end
+        if (abs(angleDifference) < turnSpeed)
+            angleChange += angleDifference;
+        else
+            angleChange -= turnSpeed;
         end
     end
-    */
-
-    if (counterClockwiseDifference < clockwiseDifference)
-        currentAngle += turnSpeed;
-    else
-        currentAngle -= turnSpeed;
-    end
-
-    LogValue("currentAngleWrapped", offset currentAngleWrapped);
-    LogValue("targetAngle", offset targetAngle);
-    LogValue("targetAngleWrapped", offset targetAngleWrapped);
-    LogValue("greaterAngle", offset greaterAngle);
-    LogValue("lesserAngle", offset lesserAngle);
-    LogValue("counterClockwiseDifference", offset counterClockwiseDifference);
-    LogValue("clockwiseDifference", offset clockwiseDifference);
-    DeleteLastLog();
-    DeleteLastLog();
-    DeleteLastLog();
-    DeleteLastLog();
-    DeleteLastLog();
-    DeleteLastLog();
-    DeleteLastLog();
-
-    //father.angle = currentAngle;
-    father.angle = WrapAngle360(currentAngle);
+    father.angle = WrapAngle360(father.angle + angleChange);
 end
 
-function WrapAngle360(angle)
+function WrapAngle360(val)
 begin
-    return ((angle + 360000) mod 360000);
+    return (((val % 360000) + 360000) % 360000);
+end
+
+function WrapAngle180(val)
+begin
+    val = val % 360000;
+    if (val < -180000)
+        val += 360000;
+    else
+        if (val > 180000)
+            val -= 360000;
+        end
+    end
+    return (val);
 end
 
 function Min(a, b)
