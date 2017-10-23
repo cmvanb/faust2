@@ -218,12 +218,13 @@ private
     arms;
     base;
     head;
+    weapon;
 begin
     // initialization
     arms = CharacterArms();
     base = CharacterBase();
     head = CharacterHead();
-
+    weapon = CharacterWeapon();
     loop
         x = father.x;
         y = father.y;
@@ -263,6 +264,19 @@ begin
     // initialization
     graph = __gfxMain + 901;
     z = -110;
+    loop
+        x = father.x;
+        y = father.y;
+        angle = father.angle;
+        frame;
+    end
+end
+
+process CharacterWeapon()
+begin
+    // initialization
+    graph = __gfxMain + 800;
+    z = -95;
     loop
         x = father.x;
         y = father.y;
