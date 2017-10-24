@@ -32,6 +32,9 @@ const
 
     // resource enums
     SOUND_MP40_SHOT = 0;
+    SOUND_SHELL_DROPPED_1 = 1;
+    SOUND_SHELL_DROPPED_2 = 2;
+    SOUND_SHELL_DROPPED_3 = 3;
 
     // settings
     SCREEN_MODE = m640x400;
@@ -69,12 +72,19 @@ begin
     set_mode(SCREEN_MODE);
     set_fps(60, 1);
 
-    // load resources
+    // load graphics
     __gfxMain = load_fpg(GFX_MAIN_PATH);
+
+    // load fonts
     __fntSystem = 0;
     __fntMenu = load_fnt(FNT_MENU_PATH);
     //__fntGame = load_fnt(FNT_GAME_PATH); // TODO: find font
+
+    // load sounds
     __sounds[SOUND_MP40_SHOT] = load_sound("assets/audio/test-shot5.wav", 0);
+    __sounds[SOUND_SHELL_DROPPED_1] = load_sound("assets/audio/shell-dropped1.wav", 0);
+    __sounds[SOUND_SHELL_DROPPED_2] = load_sound("assets/audio/shell-dropped2.wav", 0);
+    __sounds[SOUND_SHELL_DROPPED_3] = load_sound("assets/audio/shell-dropped3.wav", 0);
 
     // timing
     LogValue("FPS", offset fps);
@@ -203,8 +213,11 @@ begin
             end
         end
 
-        if (mouse.left && timer[0] > 10)
+        if (mouse.left && timer[0] > 12)
             PlaySound(SOUND_MP40_SHOT, 128, 512);
+
+            // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
+            //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 25);
             MuzzleFlash();
             timer[0] = 0;
         end
@@ -220,26 +233,6 @@ begin
         TurnTowards(mouseCursor, turnSpeed);
         frame;
     end
-end
-
-process MuzzleFlash()
-private
-    lifeDuration = 5;
-    lifeStartTime;
-    animationTime = 0;
-begin
-    graph = __gfxMain + 700;
-    z = -700;
-    angle = father.angle;
-    lifeStartTime = timer[9];
-    repeat
-        animationTime += 1000 / (lifeDuration / __deltaTime);
-        size = (sin(animationTime * 180) + 1000) / 40;
-        x = father.x;
-        y = father.y;
-        advance(44);
-        frame;
-    until (timer[9] > lifeStartTime + lifeDuration)
 end
 
 
@@ -341,7 +334,7 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Utilities
+ * Utility functions
  * ---------------------------------------------------------------------------*/
 
 function TurnTowards(target, turnSpeed)
@@ -353,22 +346,7 @@ private
 begin
     currentAngle = WrapAngle180(father.angle);
     targetAngle = WrapAngle180(fget_angle(father.x, father.y, target.x, target.y));
-    angleDifference = WrapAngle180(targetAngle - currentAngle - 360000);
-
-    if (angleDifference >= 0)
-        if (abs(angleDifference) < turnSpeed)
-            angleChange += angleDifference;
-        else
-            angleChange += turnSpeed;
-        end
-    else
-        if (abs(angleDifference) < turnSpeed)
-            angleChange += angleDifference;
-        else
-            angleChange -= turnSpeed;
-        end
-    end
-    father.angle = WrapAngle360(father.angle + angleChange);
+    father.angle = near_angle(currentAngle, targetAngle, turnSpeed);
 end
 
 function WrapAngle360(val)
@@ -472,13 +450,127 @@ begin
     end
 end
 
+process LifeTimer(lifeDuration)
+private
+    lifeStartTime;
+begin
+    lifeStartTime = timer[9];
+    repeat
+        frame;
+    until (timer[9] > lifeStartTime + lifeDuration)
+    signal(father, s_kill);
+end
+
 
 
 /* -----------------------------------------------------------------------------
  * Audio
  * ---------------------------------------------------------------------------*/
 
-function PlaySound(soundIndex, volume, frequency)
+process PlaySound(soundIndex, volume, frequency)
 begin
     sound(__sounds[soundIndex], volume, frequency);
 end
+
+process PlaySoundWithDelay(soundIndex, volume, frequency, delay)
+private
+    lifeStartTime;
+begin
+    lifeStartTime = timer[9];
+    repeat
+        frame;
+    until (timer[9] > lifeStartTime + delay)
+
+    /*
+    Delay(id, delay);
+    while (IsDelayed(id))
+        frame
+    end
+    */
+
+    PlaySound(soundIndex, volume, frequency);
+end
+
+
+/*
+__delayCount = 0;
+struct __delays[31]
+    processId;
+end
+
+process Delay(id, delay)
+private
+    lifeStartTime;
+begin
+    lifeStartTime = timer[9];
+    __delays[__delayCount].processId = id;
+    __delayCount++;
+    repeat
+        frame;
+    until (timer[9] > lifeStartTime + delay)
+    __delayCount--;
+end
+
+function IsDelayed(id)
+begin
+    for (x = 0; x < __delayCount; x++)
+        if (__delays[x].processId == id)
+            return (true);
+        end
+    end
+    return (false);
+end
+*/
+
+
+
+/* -----------------------------------------------------------------------------
+ * Special FX
+ * ---------------------------------------------------------------------------*/
+
+process MuzzleFlash()
+private
+    lifeDuration = 5;
+    animationTime = 0;
+begin
+    // initialization
+    graph = __gfxMain + 700;
+    z = -700;
+    angle = father.angle;
+
+    // behaviors
+    LifeTimer(lifeDuration);
+    loop
+        // animation
+        animationTime += 1000 / (lifeDuration / __deltaTime);
+        size = (sin(animationTime * 180) + 1000) / 40;
+
+        // positioning
+        x = father.x;
+        y = father.y;
+        advance(44);
+        frame;
+    end
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
