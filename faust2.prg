@@ -229,15 +229,15 @@ private
     animationTime = 0;
 begin
     graph = __gfxMain + 700;
-    x = father.x;
-    y = father.y;
     z = -700;
     angle = father.angle;
     lifeStartTime = timer[9];
-    advance(44);
     repeat
         animationTime += 1000 / (lifeDuration / __deltaTime);
-        size = (sin(animationTime * 180) + 1000) / 20;
+        size = (sin(animationTime * 180) + 1000) / 40;
+        x = father.x;
+        y = father.y;
+        advance(44);
         frame;
     until (timer[9] > lifeStartTime + lifeDuration)
 end
