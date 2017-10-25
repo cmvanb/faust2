@@ -36,21 +36,24 @@ const
     SOUND_SHELL_DROPPED_2 = 2;
     SOUND_SHELL_DROPPED_3 = 3;
 
+    // file paths
+    GFX_MAIN_PATH = "main.fpg";
+    FNT_MENU_PATH = "16x16-w-arcade.fnt";
+    FNT_GAME_PATH = "game.fnt";
+
     // gameplay
     BULLET_PISTOL = 0;
     BULLET_RIFLE = 1;
 
-    // settings
+    // graphics
     SCREEN_MODE = m640x400;
     SCREEN_WIDTH = 640;
     SCREEN_HEIGHT = 400;
     HALF_SCREEN_WIDTH = SCREEN_WIDTH / 2;
     HALF_SCREEN_HEIGHT = SCREEN_HEIGHT / 2;
 
-    // file paths
-    GFX_MAIN_PATH = "main.fpg";
-    FNT_MENU_PATH = "16x16-w-arcade.fnt";
-    FNT_GAME_PATH = "game.fnt";
+    // timing
+    MAX_DELAYS = 32;
 global
     // resources
     __gfxMain;
@@ -72,11 +75,17 @@ global
         // rifle
         65, 30, 50, 50, 0;
 
-    // timing
-    __deltaTime;
-
     // game processes
     __playerController;
+
+    // timing
+    __deltaTime;
+    __delayCount = 0;
+    struct __delays[MAX_DELAYS - 1]
+        processId;
+        startTime;
+        delayLength;
+    end
 
     // debug vars
     __logs[31];
@@ -84,6 +93,11 @@ global
     __logsX = 320;
     __logsY = 10;
     __logsYOffset = 15;
+local
+    struct animation
+        time; // 0-100
+        string current;
+    end
 begin
     // initialization
     set_mode(SCREEN_MODE);
@@ -105,6 +119,7 @@ begin
 
     // timing
     LogValue("FPS", offset fps);
+    LogValue("__delayCount", offset __delayCount);
     DeltaTimer();
 
     // show title screen
@@ -137,7 +152,6 @@ begin
         if (scan_code != 0)
             selected = MENU_OPTION_PLAY;
         end
-
         frame;
     until (selected != MENU_OPTION_NONE)
 
@@ -178,7 +192,6 @@ begin
     // game loop
     repeat
         // TODO: gameplay goes here
-
         frame;
     until (state == GAME_STATE_GAME_OVER)
 end
@@ -233,8 +246,7 @@ begin
         if (mouse.left && timer[0] > 12)
             PlaySound(SOUND_MP40_SHOT, 128, 512);
             // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
-            //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 25);
-
+            PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 200);
             MuzzleFlash();
             Bullet(BULLET_PISTOL);
             timer[0] = 0;
@@ -256,7 +268,16 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Character Animations
+ * AI
+ * ---------------------------------------------------------------------------*/
+
+process AIController()
+private
+begin
+end
+
+/* -----------------------------------------------------------------------------
+ * Character animations
  * ---------------------------------------------------------------------------*/
 
 process CharacterAnimator()
@@ -377,15 +398,8 @@ end
  * ---------------------------------------------------------------------------*/
 
 function TurnTowards(target, turnSpeed)
-private
-    currentAngle;
-    targetAngle;
-    angleDifference;
-    angleChange;
 begin
-    currentAngle = WrapAngle180(father.angle);
-    targetAngle = WrapAngle180(fget_angle(father.x, father.y, target.x, target.y));
-    father.angle = near_angle(currentAngle, targetAngle, turnSpeed);
+    father.angle = near_angle(father.angle, fget_angle(father.x, father.y, target.x, target.y), turnSpeed);
 end
 
 function WrapAngle360(val)
@@ -498,6 +512,49 @@ begin
     signal(father, s_kill);
 end
 
+function Delay(processId, delayLength)
+private
+    index;
+begin
+    index = GetDelayIndex(processId);
+    if (index == -1)
+        index = GetNextFreeDelayIndex();
+        __delays[index].processId = processId;
+        __delays[index].startTime = timer[9];
+        __delays[index].delayLength = delayLength;
+        __delayCount++;
+    end
+    if (timer[9] > __delays[index].startTime + __delays[index].delayLength)
+        __delayCount--;
+        __delays[index].processId = -1;
+        __delays[index].startTime = -1;
+        __delays[index].delayLength = -1;
+        return (false);
+    end
+    return (true);
+end
+
+function GetDelayIndex(processId)
+begin
+    // TODO: This might be a performance problem... need a hash map.
+    for (x = 0; x < MAX_DELAYS; x++)
+        if (__delays[x].processId == processId)
+            return (x);
+        end
+    end
+    return (-1);
+end
+
+function GetNextFreeDelayIndex()
+begin
+    for (x = 0; x < MAX_DELAYS; x++)
+        if (__delays[x].processId <= 0)
+            return (x);
+        end
+    end
+    return (-1);
+end
+
 
 
 /* -----------------------------------------------------------------------------
@@ -510,54 +567,13 @@ begin
 end
 
 process PlaySoundWithDelay(soundIndex, volume, frequency, delay)
-private
-    lifeStartTime;
 begin
-    lifeStartTime = timer[9];
-    repeat
+    while (Delay(id, delay))
         frame;
-    until (timer[9] > lifeStartTime + delay)
-
-    /*
-    Delay(id, delay);
-    while (IsDelayed(id))
-        frame
     end
-    */
 
     PlaySound(soundIndex, volume, frequency);
 end
-
-
-/*
-__delayCount = 0;
-struct __delays[31]
-    processId;
-end
-
-process Delay(id, delay)
-private
-    lifeStartTime;
-begin
-    lifeStartTime = timer[9];
-    __delays[__delayCount].processId = id;
-    __delayCount++;
-    repeat
-        frame;
-    until (timer[9] > lifeStartTime + delay)
-    __delayCount--;
-end
-
-function IsDelayed(id)
-begin
-    for (x = 0; x < __delayCount; x++)
-        if (__delays[x].processId == id)
-            return (true);
-        end
-    end
-    return (false);
-end
-*/
 
 
 
