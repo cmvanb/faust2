@@ -30,11 +30,15 @@ const
     GAME_STATE_ACTIVE      = 1;
     GAME_STATE_GAME_OVER   = 2;
 
-    // resource enums
+    // resources
     SOUND_MP40_SHOT = 0;
     SOUND_SHELL_DROPPED_1 = 1;
     SOUND_SHELL_DROPPED_2 = 2;
     SOUND_SHELL_DROPPED_3 = 3;
+
+    // gameplay
+    BULLET_PISTOL = 0;
+    BULLET_RIFLE = 1;
 
     // settings
     SCREEN_MODE = m640x400;
@@ -54,6 +58,19 @@ global
     __fntMenu;
     __fntGame;
     __sounds[31];
+
+    // gameplay
+    struct bulletData[1]
+        damage;
+        speed;
+        lifeDuration;
+        offsetForward;
+        offsetLeft;
+    end = 
+        // pistol
+        25, 20, 40, 45, 0,
+        // rifle
+        65, 30, 50, 50, 0;
 
     // timing
     __deltaTime;
@@ -215,10 +232,11 @@ begin
 
         if (mouse.left && timer[0] > 12)
             PlaySound(SOUND_MP40_SHOT, 128, 512);
-
             // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
             //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 25);
+
             MuzzleFlash();
+            Bullet(BULLET_PISTOL);
             timer[0] = 0;
         end
 
@@ -316,6 +334,27 @@ end
 
 
 /* -----------------------------------------------------------------------------
+ * Entities
+ * ---------------------------------------------------------------------------*/
+
+process Bullet(bulletType)
+begin
+    x = father.x;
+    y = father.y;
+    angle = father.angle;
+    graph = __gfxMain + 600;
+    advance(bulletData[bulletType].offsetForward);
+    // TODO: implement offsetLeft
+    LifeTimer(bulletData[bulletType].lifeDuration);
+    loop
+        advance(bulletData[bulletType].speed);
+        frame;
+    end
+end
+
+
+
+/* -----------------------------------------------------------------------------
  * User interface
  * ---------------------------------------------------------------------------*/
 
@@ -372,7 +411,6 @@ begin
     if (a > b)
         return (b);
     end
-
     return (a);
 end
 
@@ -381,7 +419,6 @@ begin
     if (a >= b)
         return (a);
     end
-
     return (b);
 end
 
