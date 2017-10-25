@@ -243,10 +243,12 @@ begin
             end
         end
 
+        // TODO: Implement detection of mouse button release, so you can play a single 'shell drop' 
+        // sound when stopped firing.
         if (mouse.left && timer[0] > 12)
             PlaySound(SOUND_MP40_SHOT, 128, 512);
             // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
-            PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 200);
+            //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 50);
             MuzzleFlash();
             Bullet(BULLET_PISTOL);
             timer[0] = 0;
