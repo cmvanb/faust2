@@ -98,6 +98,10 @@ local
         time; // 0-100
         string current;
     end
+    struct physics
+        velocityX;
+        velocityY;
+    end
 begin
     // initialization
     set_mode(SCREEN_MODE);
@@ -221,25 +225,27 @@ begin
     LogValue("player x", offset x);
     LogValue("player y", offset y);
     LogValue("player angle", offset angle);
+    LogValue("player vX", offset physics.velocityX);
+    LogValue("player vY", offset physics.velocityY);
     loop
         // movement input
         if (key(_a))
-            velocityX = -walkSpeed;
+            physics.velocityX = -walkSpeed;
         else
             if (key(_d))
-                velocityX = +walkSpeed;
+                physics.velocityX = +walkSpeed;
             else
-                velocityX = 0;
+                physics.velocityX = 0;
             end
         end
 
         if (key(_w))
-            velocityY = -walkSpeed;
+            physics.velocityY = -walkSpeed;
         else
             if (key(_s))
-                velocityY = +walkSpeed;
+                physics.velocityY = +walkSpeed;
             else
-                velocityY = 0;
+                physics.velocityY = 0;
             end
         end
 
@@ -257,15 +263,54 @@ begin
         // TODO: Refactor velocity out into separate process.
         // TODO: Normalize velocity vector.
 
+        //UpdateVelocity(&physics.velocityX, &physics.velocityY, walkSpeed);
+
         // apply velocity
-        x += velocityX;
-        y += velocityY;
+        x += physics.velocityX;
+        y += physics.velocityY;
 
         // look at the mouse cursor
         TurnTowards(mouseCursor, turnSpeed);
         frame;
     end
 end
+
+/*
+function UpdateVelocity(pointer vX, pointer vY, maxSpeed)
+begin
+    x = *vX;
+    y = *vY;
+
+    VectorNormalize(vX, vY);
+    *vX = *vX * maxSpeed;
+    *vY = *vY * maxSpeed;
+
+    father.x += *vX;
+    father.y += *vY;
+end
+
+function VectorNormalize(pointer vX, pointer vY)
+private
+    magnitude1000;
+begin
+    x = *vX;
+    y = *vY;
+
+    magnitude1000 = VectorMagnitude(*vX * 1000, *vY * 1000);
+
+    if (magnitude1000 == 0)
+        return;
+    end
+
+    *vX = ((*vX * 1000000) / magnitude1000) / 1000;
+    *vY = ((*vY * 1000000) / magnitude1000) / 1000;
+end
+
+function VectorMagnitude(vX, vY)
+begin
+    return (sqrt((vX * vX) + (vY * vY)));
+end
+*/
 
 
 
@@ -275,7 +320,13 @@ end
 
 process AIController()
 private
+    animator;
 begin
+    // initialization
+    animator = CharacterAnimator();
+    loop
+        frame;
+    end
 end
 
 /* -----------------------------------------------------------------------------
