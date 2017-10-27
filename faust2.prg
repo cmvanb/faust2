@@ -152,6 +152,8 @@ local
     end
 
     struct input
+        attackingPreviousFrame;
+        attacking;
         struct move
             x;
             y;
@@ -311,7 +313,7 @@ begin
     //LogValueFollow("angle", &angle);
     LogValueFollow("health.value", &components.health.value);
     loop
-        // movement input
+        // capture input
         if (key(_a))
             input.move.x = -1;
         else
@@ -321,7 +323,6 @@ begin
                 input.move.x = 0;
             end
         end
-
         if (key(_w))
             input.move.y = -1;
         else
@@ -331,29 +332,17 @@ begin
                 input.move.y = 0;
             end
         end
+        input.lookAt.x = mouseCursor.x;
+        input.lookAt.y = mouseCursor.y;
+        input.attackingPreviousFrame = input.attacking;
+        input.attacking = mouse.left;
 
-        // TODO: Implement detection of mouse button release, so you can play a single 'shell drop' 
-        // sound when stopped firing.
-        if (mouse.left && timer[0] > 12)
-            PlaySound(SOUND_MP40_SHOT, 128, 512);
-            // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
-            //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 50);
-            MuzzleFlash();
-            Bullet(BULLET_PISTOL);
-            timer[0] = 0;
-        end
-
-        // TODO: Refactor velocity out into separate process.
-        // TODO: Normalize velocity vector.
-
+        // physics
         ApplyInputToVelocity(GAME_PROCESS_RESOLUTION);
-
-        // apply velocity
-        x += physics.velocity.x;
-        y += physics.velocity.y;
+        ApplyVelocity(id);
 
         // look at the mouse cursor
-        TurnTowards(mouseCursor, __characterData[CHAR_PLAYER].maxTurnSpeed);
+        TurnTowardsPosition(input.lookAt.x, input.lookAt.y, __characterData[CHAR_PLAYER].maxTurnSpeed);
         frame;
     end
 end
@@ -382,14 +371,126 @@ begin
 
     AIChangeState(id, AI_STATE_IDLE);
     loop
+        AIHandleState(id);
+        if (key(_y))
+            AIChangeState(id, AI_STATE_SHOOT);
+        end
+        if (key(_u))
+            AIChangeState(id, AI_STATE_IDLE);
+        end
         frame;
     end
 end
 
-function AIChangeState(controller, nextState)
+function AIChangeState(controllerId, nextState)
 begin
-    controller.ai.previousState = controller.ai.currentState;
-    controller.ai.currentState = nextState;
+    controllerId.ai.previousState = controllerId.ai.currentState;
+    switch (controllerId.ai.previousState)
+        case AI_STATE_NULL:
+        end
+        case AI_STATE_IDLE:
+        end
+        case AI_STATE_RESET:
+        end
+        case AI_STATE_PATROL:
+        end
+        case AI_STATE_GUARD:
+        end
+        case AI_STATE_INVESTIGATE:
+        end
+        case AI_STATE_SHOOT:
+            controllerId.input.attacking = false;
+        end
+        case AI_STATE_CHASE:
+        end
+        case AI_STATE_HUNT:
+        end
+        case AI_STATE_RAISE_ALARM:
+        end
+        case AI_STATE_FIND_COVER:
+        end
+        case AI_STATE_FLANK:
+        end
+        case AI_STATE_FLEE:
+        end
+        case AI_STATE_HIDE:
+        end
+        case AI_STATE_PEEK:
+        end
+    end
+    controllerId.ai.currentState = nextState;
+    switch (controllerId.ai.currentState)
+        case AI_STATE_NULL:
+        end
+        case AI_STATE_IDLE:
+        end
+        case AI_STATE_RESET:
+        end
+        case AI_STATE_PATROL:
+        end
+        case AI_STATE_GUARD:
+        end
+        case AI_STATE_INVESTIGATE:
+        end
+        case AI_STATE_SHOOT:
+            controllerId.input.attacking = true;
+        end
+        case AI_STATE_CHASE:
+        end
+        case AI_STATE_HUNT:
+        end
+        case AI_STATE_RAISE_ALARM:
+        end
+        case AI_STATE_FIND_COVER:
+        end
+        case AI_STATE_FLANK:
+        end
+        case AI_STATE_FLEE:
+        end
+        case AI_STATE_HIDE:
+        end
+        case AI_STATE_PEEK:
+        end
+    end
+end
+
+function AIHandleState(controllerId)
+begin
+    switch (controllerId.ai.currentState)
+        case AI_STATE_NULL:
+        end
+        case AI_STATE_IDLE:
+        end
+        case AI_STATE_RESET:
+        end
+        case AI_STATE_PATROL:
+        end
+        case AI_STATE_GUARD:
+        end
+        case AI_STATE_INVESTIGATE:
+        end
+        case AI_STATE_SHOOT:
+            //controllerId.input.attacking = true;
+        end
+        case AI_STATE_CHASE:
+        end
+        case AI_STATE_HUNT:
+        end
+        case AI_STATE_RAISE_ALARM:
+        end
+        case AI_STATE_FIND_COVER:
+        end
+        case AI_STATE_FLANK:
+        end
+        case AI_STATE_FLEE:
+        end
+        case AI_STATE_HIDE:
+        end
+        case AI_STATE_PEEK:
+        end
+    end
+
+    controllerId.input.attackingPreviousFrame = controllerId.input.attacking;
 end
 
 
@@ -411,7 +512,7 @@ begin
     arms = CharacterArms(charType);
     base = CharacterBase(charType);
     head = CharacterHead(charType);
-    weapon = CharacterWeapon();
+    weapon = CharacterWeapon(father);
     loop
         x = father.x;
         y = father.y;
@@ -466,7 +567,9 @@ begin
     end
 end
 
-process CharacterWeapon()
+process CharacterWeapon(controllerId)
+private
+    lastShotTime = 0;
 begin
     // initialization
     resolution = GAME_PROCESS_RESOLUTION;
@@ -477,6 +580,19 @@ begin
         x = father.x;
         y = father.y;
         angle = father.angle;
+
+        if (controllerId.input.attacking && timer[0] > lastShotTime + 12)
+            PlaySound(SOUND_MP40_SHOT, 128, 512);
+            // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
+            //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 50);
+            MuzzleFlash();
+            Bullet(BULLET_PISTOL);
+            lastShotTime = timer[0];
+        end
+        // Play a single 'shell drop' sound when stopped firing.
+        if (controllerId.input.attacking == false && controllerId.input.attackingPreviousFrame == true)
+            PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 15);
+        end
         frame;
     end
 end
@@ -611,6 +727,12 @@ begin
     father.physics.velocity.y = y * father.physics.maxMoveSpeed / multiplier;
 end
 
+function ApplyVelocity(processId)
+begin
+    processId.x += processId.physics.velocity.x;
+    processId.y += processId.physics.velocity.y;
+end
+
 function VectorNormalize(pointer vX, pointer vY, multiplier)
 private
     magnitude;
@@ -636,6 +758,11 @@ end
 function TurnTowards(target, turnSpeed)
 begin
     father.angle = near_angle(father.angle, fget_angle(father.x, father.y, target.x, target.y), turnSpeed);
+end
+
+function TurnTowardsPosition(tX, tY, turnSpeed)
+begin
+    father.angle = near_angle(father.angle, fget_angle(father.x, father.y, tX, tY), turnSpeed);
 end
 
 function WrapAngle360(val)
@@ -791,9 +918,9 @@ private
 begin
     LogValue("__deltaTime", &__deltaTime);
     loop
-        t0 = timer[9];
+        t0 = timer[0];
         frame;
-        t1 = timer[9];
+        t1 = timer[0];
         __deltaTime = Max(t1 - t0, 1); // deltaTime can never be 0
     end
 end
@@ -802,10 +929,10 @@ process LifeTimer(lifeDuration)
 private
     lifeStartTime;
 begin
-    lifeStartTime = timer[9];
+    lifeStartTime = timer[0];
     repeat
         frame;
-    until (timer[9] > lifeStartTime + lifeDuration)
+    until (timer[0] > lifeStartTime + lifeDuration)
     signal(father, s_kill);
 end
 
@@ -817,11 +944,11 @@ begin
     if (index == -1)
         index = GetNextFreeDelayIndex();
         __delays[index].processId = processId;
-        __delays[index].startTime = timer[9];
+        __delays[index].startTime = timer[0];
         __delays[index].delayLength = delayLength;
         __delayCount++;
     end
-    if (timer[9] > __delays[index].startTime + __delays[index].delayLength)
+    if (timer[0] > __delays[index].startTime + __delays[index].delayLength)
         __delayCount--;
         __delays[index].processId = -1;
         __delays[index].startTime = -1;
