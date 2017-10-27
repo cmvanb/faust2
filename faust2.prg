@@ -6,6 +6,10 @@
 COMPILER_OPTIONS _case_sensitive;
 
 program Faust2;
+
+/* -----------------------------------------------------------------------------
+ * Constants
+ * ---------------------------------------------------------------------------*/
 const
     // DIV command enums
     REGION_FULL_SCREEN = 0;
@@ -84,6 +88,10 @@ const
 
     // debugging
     MAX_LOGS = 32;
+
+/* -----------------------------------------------------------------------------
+ * Global variables
+ * ---------------------------------------------------------------------------*/
 global
     // resources
     __gfxMain;
@@ -141,6 +149,10 @@ global
         txtLabel;
         txtVal;
     end
+
+/* -----------------------------------------------------------------------------
+ * Local variables (every process gets these)
+ * ---------------------------------------------------------------------------*/
 local
     struct components
         health;
@@ -180,6 +192,7 @@ local
                 x;
                 y;
             end
+            targetOpponentIndex;
         end
     end
 
@@ -191,6 +204,10 @@ local
         txtLabel;
         txtVal;
     end
+
+/* -----------------------------------------------------------------------------
+ * Main program
+ * ---------------------------------------------------------------------------*/
 begin
     // initialization
     set_mode(SCREEN_MODE);
@@ -223,7 +240,6 @@ end
 /* -----------------------------------------------------------------------------
  * Menu screens
  * ---------------------------------------------------------------------------*/
-
 function TitleScreen()
 private
     selected = MENU_OPTION_NONE;
@@ -261,7 +277,6 @@ end
 /* -----------------------------------------------------------------------------
  * Gameplay
  * ---------------------------------------------------------------------------*/
-
 function GameManager()
 private
     state = GAME_STATE_NOT_STARTED;
@@ -294,7 +309,6 @@ end
 /* -----------------------------------------------------------------------------
  * Player
  * ---------------------------------------------------------------------------*/
-
 process PlayerController(x, y)
 private
     mouseCursor;
@@ -337,22 +351,25 @@ begin
         input.attackingPreviousFrame = input.attacking;
         input.attacking = mouse.left;
 
-        // physics
+        // movement physics
         ApplyInputToVelocity(GAME_PROCESS_RESOLUTION);
         ApplyVelocity(id);
 
         // look at the mouse cursor
-        TurnTowardsPosition(input.lookAt.x, input.lookAt.y, __characterData[CHAR_PLAYER].maxTurnSpeed);
+        TurnTowardsPosition(
+            input.lookAt.x, 
+            input.lookAt.y, 
+            __characterData[CHAR_PLAYER].maxTurnSpeed);
         frame;
     end
 end
 
 
 
-/* -----------------------------------------------------------------------------
- * AI
- * ---------------------------------------------------------------------------*/
 
+/* -----------------------------------------------------------------------------
+ * AI -> 360
+ * ---------------------------------------------------------------------------*/
 process AIController(charType, x, y)
 private
     animator;
@@ -382,6 +399,11 @@ begin
     end
 end
 
+process AIEyes(charType)
+private
+begin
+end
+
 function AIChangeState(controllerId, nextState)
 begin
     controllerId.ai.previousState = controllerId.ai.currentState;
@@ -399,6 +421,7 @@ begin
         case AI_STATE_INVESTIGATE:
         end
         case AI_STATE_SHOOT:
+            // TODO: Look at target.
             controllerId.input.attacking = false;
         end
         case AI_STATE_CHASE:
@@ -498,7 +521,6 @@ end
 /* -----------------------------------------------------------------------------
  * Character animations
  * ---------------------------------------------------------------------------*/
-
 process CharacterAnimator(charType)
 private
     arms;
@@ -602,7 +624,6 @@ end
 /* -----------------------------------------------------------------------------
  * Entities
  * ---------------------------------------------------------------------------*/
-
 process Bullet(bulletType)
 private
     collisionId;
@@ -634,7 +655,6 @@ end
 /* -----------------------------------------------------------------------------
  * User interface
  * ---------------------------------------------------------------------------*/
-
 process MouseCursor()
 begin
     // initialization
@@ -654,7 +674,6 @@ end
 /* -----------------------------------------------------------------------------
  * Special FX
  * ---------------------------------------------------------------------------*/
-
 process MuzzleFlash()
 private
     lifeDuration = 5;
@@ -688,7 +707,6 @@ end
 /* -----------------------------------------------------------------------------
  * Components
  * ---------------------------------------------------------------------------*/
-
  process HealthComponent(charType)
  begin
     value = __characterData[charType].startingHealth;
@@ -716,7 +734,6 @@ end
 /* -----------------------------------------------------------------------------
  * Utility functions
  * ---------------------------------------------------------------------------*/
-
 function ApplyInputToVelocity(multiplier)
 begin
     x = father.input.move.x * multiplier;
@@ -804,7 +821,6 @@ end
 /* -----------------------------------------------------------------------------
  * Debugging
  * ---------------------------------------------------------------------------*/
-
 function LogValue(string label, val)
 begin
     LogValueBase(father, label, val, false);
@@ -910,7 +926,6 @@ end
 /* -----------------------------------------------------------------------------
  * Timing
  * ---------------------------------------------------------------------------*/
-
 process DeltaTimer()
 private
     t0;
@@ -984,7 +999,6 @@ end
 /* -----------------------------------------------------------------------------
  * Audio
  * ---------------------------------------------------------------------------*/
-
 process PlaySound(soundIndex, volume, frequency)
 begin
     sound(__sounds[soundIndex], volume, frequency);
