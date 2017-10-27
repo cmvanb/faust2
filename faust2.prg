@@ -39,7 +39,7 @@ const
     SOUND_SHELL_DROPPED_1 = 1;
     SOUND_SHELL_DROPPED_2 = 2;
     SOUND_SHELL_DROPPED_3 = 3;
-    MAX_SOUNDS            = 4;
+    MAX_SOUNDS = 4;
 
     // file paths
     GFX_MAIN_PATH       = "assets/graphics/main.fpg";
@@ -55,8 +55,8 @@ const
     GAME_PROCESS_RESOLUTION = 10;
 
     // gameplay
-    BULLET_PISTOL  = 0;
-    BULLET_RIFLE   = 1;
+    BULLET_PISTOL = 0;
+    BULLET_RIFLE  = 1;
     CHAR_PLAYER    = 0;
     CHAR_GUARD_1   = 1;
     CHAR_GUARD_2   = 2;
@@ -64,6 +64,9 @@ const
     CHAR_OFFICER_1 = 4;
     CHAR_OFFICER_2 = 5;
     CHAR_OFFICER_3 = 6;
+    FACTION_NEUTRAL = 0;
+    FACTION_GOOD    = 1;
+    FACTION_EVIL    = 2;
 
     // AI
     AI_STATE_NULL        = 0;
@@ -81,7 +84,7 @@ const
     AI_STATE_FLEE        = 12;
     AI_STATE_HIDE        = 13;
     AI_STATE_PEEK        = 14;
-    MAX_OPPONENTS        = 32;
+    MAX_OPPONENTS = 32;
 
     // timing
     MAX_DELAYS = 32;
@@ -118,17 +121,21 @@ global
         maxTurnSpeed;
         gfxOffset;
         startingHealth;
+        faction;
     end = 
-        4 * GAME_PROCESS_RESOLUTION, 10000, 2, 200, // player
-        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 100, // guard level 1
-        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 150, // guard level 2
-        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 200, // guard level 3
-        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 100, // officer level 1
-        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 150, // officer level 2
-        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 200; // officer level 3
+        4 * GAME_PROCESS_RESOLUTION, 10000, 2, 200, FACTION_GOOD, // player
+        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 100, FACTION_EVIL, // guard level 1
+        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 150, FACTION_EVIL, // guard level 2
+        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 200, FACTION_EVIL, // guard level 3
+        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 100, FACTION_EVIL, // officer level 1
+        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 150, FACTION_EVIL, // officer level 2
+        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 200, FACTION_EVIL; // officer level 3
 
     // game processes
     __playerController;
+    __neutralCharacters[];
+    __goodCharacters[];
+    __evilCharacters[];
 
     // timing
     __deltaTime;
@@ -322,9 +329,6 @@ begin
     animator = CharacterAnimator(CHAR_PLAYER);
 
     // debugging
-    //LogValueFollow("x", &x);
-    //LogValueFollow("y", &y);
-    //LogValueFollow("angle", &angle);
     LogValueFollow("health.value", &components.health.value);
     loop
         // capture input
@@ -366,9 +370,8 @@ end
 
 
 
-
 /* -----------------------------------------------------------------------------
- * AI -> 360
+ * AI -> 380
  * ---------------------------------------------------------------------------*/
 process AIController(charType, x, y)
 private
@@ -401,6 +404,7 @@ end
 
 process AIEyes(charType)
 private
+    visibleOpponents[MAX_OPPONENTS - 1];
 begin
 end
 
@@ -519,8 +523,22 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Character animations
+ * Character controllers & animations
  * ---------------------------------------------------------------------------*/
+process CharacterController(charType)
+private
+begin
+    // initialization
+    resolution = GAME_PROCESS_RESOLUTION;
+    components.health = father.components.health;
+    loop
+        x = father.x;
+        y = father.y;
+        angle = father.angle;
+        frame;
+    end
+end
+
 process CharacterAnimator(charType)
 private
     arms;
@@ -531,6 +549,7 @@ begin
     // initialization
     resolution = GAME_PROCESS_RESOLUTION;
     components.health = father.components.health;
+    // sub-processes
     arms = CharacterArms(charType);
     base = CharacterBase(charType);
     head = CharacterHead(charType);
@@ -622,89 +641,6 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Entities
- * ---------------------------------------------------------------------------*/
-process Bullet(bulletType)
-private
-    collisionId;
-begin
-    // initialization
-    resolution = GAME_PROCESS_RESOLUTION;
-    x = father.x;
-    y = father.y;
-    angle = father.angle;
-    file = __gfxMain;
-    graph = 600;
-    z = -700;
-    advance(__bulletData[bulletType].offsetForward);
-    // TODO: implement offsetLeft
-    LifeTimer(__bulletData[bulletType].lifeDuration);
-    loop
-        advance(__bulletData[bulletType].speed);
-        collisionId = collision(type CharacterBase);
-        if (collisionId != 0)
-            collisionId.components.health.value -= __bulletData[bulletType].damage;
-            break;
-        end
-        frame;
-    end
-end
-
-
-
-/* -----------------------------------------------------------------------------
- * User interface
- * ---------------------------------------------------------------------------*/
-process MouseCursor()
-begin
-    // initialization
-    resolution = GAME_PROCESS_RESOLUTION;
-    file = __gfxMain;
-    graph = 300;
-    z = -1000;
-    loop
-        x = mouse.x * GAME_PROCESS_RESOLUTION;
-        y = mouse.y * GAME_PROCESS_RESOLUTION;
-        frame;
-    end
-end
-
-
-
-/* -----------------------------------------------------------------------------
- * Special FX
- * ---------------------------------------------------------------------------*/
-process MuzzleFlash()
-private
-    lifeDuration = 5;
-    animationTime = 0;
-    forwardOffset = 44;
-begin
-    // initialization
-    resolution = GAME_PROCESS_RESOLUTION;
-    file = __gfxMain;
-    graph = 700;
-    z = -710;
-    angle = father.angle;
-
-    // behaviors
-    LifeTimer(lifeDuration);
-    loop
-        // animation
-        animationTime += 1000 / (lifeDuration / __deltaTime);
-        size = (sin(animationTime * 180) + 1000) / 40;
-
-        // positioning
-        x = father.x;
-        y = father.y;
-        advance(forwardOffset * GAME_PROCESS_RESOLUTION);
-        frame;
-    end
-end
-
-
-
-/* -----------------------------------------------------------------------------
  * Components
  * ---------------------------------------------------------------------------*/
  process HealthComponent(charType)
@@ -728,6 +664,90 @@ end
     end
     signal(processId, s_kill_tree);
  end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Projectiles
+ * ---------------------------------------------------------------------------*/
+process Bullet(bulletType)
+private
+    collisionId;
+begin
+    // initialization
+    resolution = GAME_PROCESS_RESOLUTION;
+    // graphics
+    file = __gfxMain;
+    graph = 600;
+    z = -700;
+    // positioning
+    x = father.x;
+    y = father.y;
+    angle = father.angle;
+    advance(__bulletData[bulletType].offsetForward); // TODO: implement offsetLeft
+    // children
+    LifeTimer(__bulletData[bulletType].lifeDuration);
+    loop
+        advance(__bulletData[bulletType].speed);
+        collisionId = collision(type CharacterBase);
+        if (collisionId != 0)
+            collisionId.components.health.value -= __bulletData[bulletType].damage;
+            break;
+        end
+        frame;
+    end
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Special FX
+ * ---------------------------------------------------------------------------*/
+process MuzzleFlash()
+private
+    lifeDuration = 5;
+    animationTime = 0;
+    forwardOffset = 44;
+begin
+    // initialization
+    resolution = GAME_PROCESS_RESOLUTION;
+    file = __gfxMain;
+    graph = 700;
+    z = -710;
+    angle = father.angle;
+    // children
+    LifeTimer(lifeDuration);
+    loop
+        // animation
+        animationTime += 1000 / (lifeDuration / __deltaTime);
+        size = (sin(animationTime * 180) + 1000) / 40;
+
+        // positioning
+        x = father.x;
+        y = father.y;
+        advance(forwardOffset * GAME_PROCESS_RESOLUTION);
+        frame;
+    end
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * User interface
+ * ---------------------------------------------------------------------------*/
+process MouseCursor()
+begin
+    // initialization
+    resolution = GAME_PROCESS_RESOLUTION;
+    file = __gfxMain;
+    graph = 300;
+    z = -1000;
+    loop
+        x = mouse.x * GAME_PROCESS_RESOLUTION;
+        y = mouse.y * GAME_PROCESS_RESOLUTION;
+        frame;
+    end
+end
 
 
 
