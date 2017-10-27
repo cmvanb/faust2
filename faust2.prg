@@ -31,10 +31,11 @@ const
     GAME_STATE_GAME_OVER   = 2;
 
     // resources
-    SOUND_MP40_SHOT = 0;
+    SOUND_MP40_SHOT       = 0;
     SOUND_SHELL_DROPPED_1 = 1;
     SOUND_SHELL_DROPPED_2 = 2;
     SOUND_SHELL_DROPPED_3 = 3;
+    MAX_SOUNDS            = 4;
 
     // file paths
     GFX_MAIN_PATH       = "assets/graphics/main.fpg";
@@ -42,8 +43,8 @@ const
     FNT_MENU_PATH       = "assets/fonts/16x16-w-arcade.fnt";
 
     // gameplay
-    BULLET_PISTOL = 0;
-    BULLET_RIFLE  = 1;
+    BULLET_PISTOL  = 0;
+    BULLET_RIFLE   = 1;
     CHAR_PLAYER    = 0;
     CHAR_GUARD_1   = 1;
     CHAR_GUARD_2   = 2;
@@ -71,7 +72,7 @@ global
     __gfxCharacters;
     __fntSystem;
     __fntMenu;
-    __sounds[31];
+    __sounds[MAX_SOUNDS - 1];
 
     // gameplay
     struct __bulletData[1]
@@ -82,17 +83,9 @@ global
         offsetLeft;
     end = 
         // pistol
-        25, 
-        40, 
-        20 * GAME_PROCESS_RESOLUTION, 
-        45 * GAME_PROCESS_RESOLUTION, 
-        0 * GAME_PROCESS_RESOLUTION,
+        25, 40, 20 * GAME_PROCESS_RESOLUTION, 45 * GAME_PROCESS_RESOLUTION, 0 * GAME_PROCESS_RESOLUTION,
         // rifle
-        65, 
-        50, 
-        30 * GAME_PROCESS_RESOLUTION, 
-        50 * GAME_PROCESS_RESOLUTION, 
-        0 * GAME_PROCESS_RESOLUTION;
+        65, 50, 30 * GAME_PROCESS_RESOLUTION, 45 * GAME_PROCESS_RESOLUTION, 0 * GAME_PROCESS_RESOLUTION;
 
     struct __characterData[6]
         maxMoveSpeed;
@@ -100,41 +93,13 @@ global
         gfxOffset;
         startingHealth;
     end = 
-        // player
-        4 * GAME_PROCESS_RESOLUTION,
-        10000, 
-        2,
-        100,
-        // guard level 1
-        3 * GAME_PROCESS_RESOLUTION,
-        10000, 
-        1,
-        20,
-        // guard level 2
-        3 * GAME_PROCESS_RESOLUTION,
-        10000, 
-        1,
-        30,
-        // guard level 3
-        3 * GAME_PROCESS_RESOLUTION,
-        10000, 
-        1,
-        40,
-        // officer level 1
-        3 * GAME_PROCESS_RESOLUTION,
-        10000, 
-        1,
-        20,
-        // officer level 2
-        3 * GAME_PROCESS_RESOLUTION,
-        10000, 
-        1,
-        30,
-        // officer level 3
-        3 * GAME_PROCESS_RESOLUTION,
-        10000, 
-        1,
-        40;
+        4 * GAME_PROCESS_RESOLUTION, 10000, 2, 200, // player
+        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 100, // guard level 1
+        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 150, // guard level 2
+        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 200, // guard level 3
+        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 100, // officer level 1
+        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 150, // officer level 2
+        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 200; // officer level 3
 
     // game processes
     __playerController;
@@ -153,9 +118,20 @@ global
     __logsY = 10;
     __logsYOffset = 15;
     __logCount;
-    __logs[MAX_LOGS - 1];
+    struct __logs[MAX_LOGS - 1]
+        logId;
+        txtLabel;
+        txtVal;
+    end
 local
     value;
+    logCount;
+    //logs[MAX_LOGS - 1];
+    struct logs[MAX_LOGS - 1]
+        logId;
+        txtLabel;
+        txtVal;
+    end
     struct components
         health;
     end
@@ -180,10 +156,6 @@ local
         end
         maxMoveSpeed;
     end
-    struct debugging
-        logCount;
-        logs[31];
-    end
 begin
     // initialization
     set_mode(SCREEN_MODE);
@@ -205,7 +177,6 @@ begin
 
     // timing
     LogValue("FPS", offset fps);
-    LogValue("__delayCount", offset __delayCount);
     DeltaTimer();
 
     // show title screen
@@ -302,10 +273,10 @@ begin
     animator = CharacterAnimator(CHAR_PLAYER);
 
     // debugging
-    LogValueFollow("player x", offset x);
-    LogValueFollow("player y", offset y);
-    LogValue("player angle", offset angle);
-    LogValue("player components.health.value", offset components.health.value);
+    //LogValueFollow("x", offset x);
+    //LogValueFollow("y", offset y);
+    //LogValueFollow("angle", offset angle);
+    LogValueFollow("health.value", offset components.health.value);
     loop
         // movement input
         if (key(_a))
@@ -369,6 +340,9 @@ begin
     components.health = HealthComponent(charType);
     physics.maxMoveSpeed = __characterData[charType].maxMoveSpeed;
     animator = CharacterAnimator(charType);
+
+    // debugging
+    LogValueFollow("health.value", offset components.health.value);
     loop
         frame;
     end
@@ -559,9 +533,24 @@ end
  begin
     value = __characterData[charType].startingHealth;
     loop
+        if (value <= 0)
+            frame;
+            break;
+        end
         frame;
     end
+    KillProcess(father);
  end
+
+ function KillProcess(processId)
+ begin
+    for (x = 0; x < processId.logCount; ++x)
+        DeleteLocalLog(processId);
+    end
+    signal(processId, s_kill_tree);
+ end
+
+
 
 /* -----------------------------------------------------------------------------
  * Utility functions
@@ -646,84 +635,102 @@ end
 
 function LogValue(string label, val)
 begin
-    LogValueBase(father, label, val, 0, 0, false);
+    LogValueBase(father, label, val, false);
 end
 
 process LogValueFollow(string label, val)
 private
-    txtLabel;
-    txtVal;
-    localLogCount;
+    index;
 begin
-    LogValueBase(father, label, val, &txtLabel, &txtVal, true);
+    index = GetNextLocalLogIndex(father);
+    LogValueBase(father, label, val, true);
     loop
-        localLogCount = CountProcessLogs(father);
         x = father.x / GAME_PROCESS_RESOLUTION;
-        y = (father.y / GAME_PROCESS_RESOLUTION) + (localLogCount * __logsYOffset);
-        move_text(txtLabel, x, y);
-        move_text(txtVal, x, y);
+        y = (father.y / GAME_PROCESS_RESOLUTION) + (index * __logsYOffset);
+        move_text(father.logs[index].txtLabel, x, y);
+        move_text(father.logs[index].txtVal, x, y);
         frame;
     end
 end
 
-process LogValueBase(processId, string label, val, txtLabel, txtVal, follow)
+process LogValueBase(processId, string label, val, follow)
 private
-    logIndex;
+    index;
+    txtLabel;
+    txtVal;
 begin
-    logIndex = GetNextFreeLogIndex();
-    __logs[logIndex].processId = processId;
-    __logs[logIndex].follow    = follow;
-    __logCount++;
-    
-    x = __logsX;
-    y = __logsY + (CountNonFollowingLogs() * __logsYOffset);
+    if (follow)
+        index = GetNextLocalLogIndex(processId);
+        processId.logs[index].logId = father;
+        processId.logCount++;
+    else
+        x = __logsX;
+        y = __logsY + (__logCount * __logsYOffset);
+        index = GetNextGlobalLogIndex();
+        __logs[index].logId = id;
+        __logCount++;
+    end
+
     label = label + ": ";
-    *txtLabel = write(
+    txtLabel = write(
         __fntSystem,
         x,
         y,
         FONT_ANCHOR_TOP_RIGHT,
         label);
-    *txtVal = write_int(
+    txtVal = write_int(
         __fntSystem,
         x,
         y,
         FONT_ANCHOR_TOP_LEFT,
         val);
+
+    if (follow)
+        processId.logs[index].txtLabel = txtLabel;
+        processId.logs[index].txtVal = txtVal;
+    else
+        __logs[index].txtLabel = txtLabel;
+        __logs[index].txtVal = txtVal;
+    end
     loop
         frame;
     end
 end
 
-process DeleteLastLog()
-private
-    index;
+function DeleteGlobalLog()
 begin
     __logCount--;
-    index = __logCount;
-    signal(__logs[index], s_kill);
-    __logs[index].processId = -1;
+    delete_text(__logs[__logCount].txtLabel);
+    delete_text(__logs[__logCount].txtVal);
+    signal(__logs[__logCount].logId, s_kill_tree);
 end
 
-function GetNextFreeLogIndex()
+function DeleteLocalLog(processId)
+begin
+    processId.logCount--;
+    delete_text(processId.logs[processId.logCount].txtLabel);
+    delete_text(processId.logs[processId.logCount].txtVal);
+    signal(processId.logs[processId.logCount].logId, s_kill_tree);
+end
+
+function GetNextGlobalLogIndex()
 begin
     for (x = 0; x < MAX_LOGS; x++)
-        if (__logs[x].processId <= 0)
+        if (__logs[x].logId <= 0)
             return (x);
         end
     end
     return (-1);
 end
 
-function CountProcessLogs(processId)
+function GetNextLocalLogIndex(processId)
 begin
-    // TODO: This might be a performance problem... need a hash map.
     for (x = 0; x < MAX_LOGS; x++)
-        if (processId.logs[x] > 0)
-            y++;
+        if (processId.logs[x].logId <= 0)
+            return (x);
         end
     end
-    return (y);
+    return (-1);
 end
 
 
