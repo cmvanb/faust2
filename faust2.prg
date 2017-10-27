@@ -84,7 +84,7 @@ const
     AI_STATE_FLEE        = 12;
     AI_STATE_HIDE        = 13;
     AI_STATE_PEEK        = 14;
-    MAX_OPPONENTS = 32;
+    MAX_CHARACTERS = 32;
 
     // timing
     MAX_DELAYS = 32;
@@ -133,9 +133,10 @@ global
 
     // game processes
     __playerController;
-    __neutralCharacters[];
-    __goodCharacters[];
-    __evilCharacters[];
+    // TODO: Check if 2D arrays work in DIV, if yes turn this into one characters array by faction.
+    __neutralCharacters[MAX_CHARACTERS - 1];
+    __goodCharacters[MAX_CHARACTERS - 1];
+    __evilCharacters[MAX_CHARACTERS - 1];
 
     // timing
     __deltaTime;
@@ -162,6 +163,8 @@ global
  * ---------------------------------------------------------------------------*/
 local
     struct components
+        animator;
+        faction;
         health;
     end
 
@@ -184,18 +187,18 @@ local
     end
 
     struct physics
+        maxMoveSpeed;
         struct velocity
             x;
             y;
         end
-        maxMoveSpeed;
     end
 
     struct ai
         previousState;
         currentState;
         struct model
-            struct opponents[MAX_OPPONENTS - 1]
+            struct opponents[MAX_CHARACTERS - 1]
                 x;
                 y;
             end
@@ -314,19 +317,19 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Player
+ * Player -> 320
  * ---------------------------------------------------------------------------*/
 process PlayerController(x, y)
 private
     mouseCursor;
-    animator;
 begin
     // initialization
     resolution = GAME_PROCESS_RESOLUTION;
     components.health = HealthComponent(CHAR_PLAYER);
+    components.animator = CharacterAnimator(CHAR_PLAYER);
+    components.faction = CharacterFaction(CHAR_PLAYER);
     physics.maxMoveSpeed = __characterData[CHAR_PLAYER].maxMoveSpeed;
     mouseCursor = MouseCursor();
-    animator = CharacterAnimator(CHAR_PLAYER);
 
     // debugging
     LogValueFollow("health.value", &components.health.value);
@@ -380,9 +383,10 @@ begin
     // initialization
     resolution = GAME_PROCESS_RESOLUTION;
     components.health = HealthComponent(charType);
+    components.animator = CharacterAnimator(charType);
+    components.faction = CharacterFaction(charType);
     ai.currentState = AI_STATE_NULL;
     physics.maxMoveSpeed = __characterData[charType].maxMoveSpeed;
-    animator = CharacterAnimator(charType);
 
     // debugging
     LogValueFollow("health.value", &components.health.value);
@@ -404,7 +408,7 @@ end
 
 process AIEyes(charType)
 private
-    visibleOpponents[MAX_OPPONENTS - 1];
+    visibleOpponents[MAX_CHARACTERS - 1];
 begin
 end
 
@@ -523,19 +527,33 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Character controllers & animations
+ * Character components -> 530
  * ---------------------------------------------------------------------------*/
-process CharacterController(charType)
+process CharacterFaction(charType)
 private
+    faction;
+    factionList[MAX_CHARACTERS - 1];
 begin
     // initialization
-    resolution = GAME_PROCESS_RESOLUTION;
-    components.health = father.components.health;
+    faction = __characterData[charType].faction;
+    factionList = GetFactionList(faction);
     loop
-        x = father.x;
-        y = father.y;
-        angle = father.angle;
         frame;
+    end
+end
+
+function GetFactionList(faction)
+begin
+    switch (faction)
+        case FACTION_NEUTRAL:
+            return (__neutralCharacters);
+        end
+        case FACTION_GOOD:
+            return (__goodCharacters);
+        end
+        case FACTION_EVIL:
+            return (__evilCharacters);
+        end
     end
 end
 
