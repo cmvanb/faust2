@@ -42,6 +42,14 @@ const
     GFX_CHARACTERS_PATH = "assets/graphics/characters.fpg";
     FNT_MENU_PATH       = "assets/fonts/16x16-w-arcade.fnt";
 
+    // graphics
+    SCREEN_MODE        = m640x400;
+    SCREEN_WIDTH       = 640;
+    SCREEN_HEIGHT      = 400;
+    HALF_SCREEN_WIDTH  = SCREEN_WIDTH / 2;
+    HALF_SCREEN_HEIGHT = SCREEN_HEIGHT / 2;
+    GAME_PROCESS_RESOLUTION = 10;
+
     // gameplay
     BULLET_PISTOL  = 0;
     BULLET_RIFLE   = 1;
@@ -53,13 +61,23 @@ const
     CHAR_OFFICER_2 = 5;
     CHAR_OFFICER_3 = 6;
 
-    // graphics
-    SCREEN_MODE        = m640x400;
-    SCREEN_WIDTH       = 640;
-    SCREEN_HEIGHT      = 400;
-    HALF_SCREEN_WIDTH  = SCREEN_WIDTH / 2;
-    HALF_SCREEN_HEIGHT = SCREEN_HEIGHT / 2;
-    GAME_PROCESS_RESOLUTION = 10;
+    // AI
+    AI_STATE_NULL        = 0;
+    AI_STATE_IDLE        = 1;
+    AI_STATE_RESET       = 2;
+    AI_STATE_PATROL      = 3;
+    AI_STATE_GUARD       = 4;
+    AI_STATE_INVESTIGATE = 5;
+    AI_STATE_SHOOT       = 6;
+    AI_STATE_CHASE       = 7;
+    AI_STATE_HUNT        = 8;
+    AI_STATE_RAISE_ALARM = 9;
+    AI_STATE_FIND_COVER  = 10;
+    AI_STATE_FLANK       = 11;
+    AI_STATE_FLEE        = 12;
+    AI_STATE_HIDE        = 13;
+    AI_STATE_PEEK        = 14;
+    MAX_OPPONENTS        = 32;
 
     // timing
     MAX_DELAYS = 32;
@@ -124,21 +142,15 @@ global
         txtVal;
     end
 local
-    value;
-    logCount;
-    //logs[MAX_LOGS - 1];
-    struct logs[MAX_LOGS - 1]
-        logId;
-        txtLabel;
-        txtVal;
-    end
     struct components
         health;
     end
+
     struct animation
         time; // 0-100
         string current;
     end
+
     struct input
         struct move
             x;
@@ -149,12 +161,33 @@ local
             y;
         end
     end
+
     struct physics
         struct velocity
             x;
             y;
         end
         maxMoveSpeed;
+    end
+
+    struct ai
+        previousState;
+        currentState;
+        struct model
+            struct opponents[MAX_OPPONENTS - 1]
+                x;
+                y;
+            end
+        end
+    end
+
+    // debugging
+    value;
+    logCount;
+    struct logs[MAX_LOGS - 1]
+        logId;
+        txtLabel;
+        txtVal;
     end
 begin
     // initialization
@@ -176,7 +209,7 @@ begin
     __sounds[SOUND_SHELL_DROPPED_3] = load_sound("assets/audio/shell-dropped3.wav", 0);
 
     // timing
-    LogValue("FPS", offset fps);
+    LogValue("FPS", &fps);
     DeltaTimer();
 
     // show title screen
@@ -273,10 +306,10 @@ begin
     animator = CharacterAnimator(CHAR_PLAYER);
 
     // debugging
-    //LogValueFollow("x", offset x);
-    //LogValueFollow("y", offset y);
-    //LogValueFollow("angle", offset angle);
-    LogValueFollow("health.value", offset components.health.value);
+    //LogValueFollow("x", &x);
+    //LogValueFollow("y", &y);
+    //LogValueFollow("angle", &angle);
+    LogValueFollow("health.value", &components.health.value);
     loop
         // movement input
         if (key(_a))
@@ -338,14 +371,25 @@ begin
     // initialization
     resolution = GAME_PROCESS_RESOLUTION;
     components.health = HealthComponent(charType);
+    ai.currentState = AI_STATE_NULL;
     physics.maxMoveSpeed = __characterData[charType].maxMoveSpeed;
     animator = CharacterAnimator(charType);
 
     // debugging
-    LogValueFollow("health.value", offset components.health.value);
+    LogValueFollow("health.value", &components.health.value);
+    LogValueFollow("ai.previousState", &ai.previousState);
+    LogValueFollow("ai.currentState", &ai.currentState);
+
+    AIChangeState(id, AI_STATE_IDLE);
     loop
         frame;
     end
+end
+
+function AIChangeState(controller, nextState)
+begin
+    controller.ai.previousState = controller.ai.currentState;
+    controller.ai.currentState = nextState;
 end
 
 
@@ -544,7 +588,8 @@ end
 
  function KillProcess(processId)
  begin
-    for (x = 0; x < processId.logCount; ++x)
+    y = processId.logCount;
+    for (x = 0; x < y; ++x)
         DeleteLocalLog(processId);
     end
     signal(processId, s_kill_tree);
@@ -744,7 +789,7 @@ private
     t0;
     t1;
 begin
-    LogValue("__deltaTime", offset __deltaTime);
+    LogValue("__deltaTime", &__deltaTime);
     loop
         t0 = timer[9];
         frame;
