@@ -23,7 +23,7 @@ const
     FONT_ANCHOR_BOTTOM_CENTER = 7;
     FONT_ANCHOR_BOTTOM_RIGHT  = 8;
 
-    // enums
+    // application
     MENU_OPTION_NONE = 0;
     MENU_OPTION_PLAY = 1;
     GAME_STATE_NOT_STARTED = 0;
@@ -37,43 +37,104 @@ const
     SOUND_SHELL_DROPPED_3 = 3;
 
     // file paths
-    GFX_MAIN_PATH = "main.fpg";
-    FNT_MENU_PATH = "16x16-w-arcade.fnt";
-    FNT_GAME_PATH = "game.fnt";
+    GFX_MAIN_PATH       = "assets/graphics/main.fpg";
+    GFX_CHARACTERS_PATH = "assets/graphics/characters.fpg";
+    FNT_MENU_PATH       = "assets/fonts/16x16-w-arcade.fnt";
 
     // gameplay
     BULLET_PISTOL = 0;
-    BULLET_RIFLE = 1;
+    BULLET_RIFLE  = 1;
+    CHAR_PLAYER    = 0;
+    CHAR_GUARD_1   = 1;
+    CHAR_GUARD_2   = 2;
+    CHAR_GUARD_3   = 3;
+    CHAR_OFFICER_1 = 4;
+    CHAR_OFFICER_2 = 5;
+    CHAR_OFFICER_3 = 6;
 
     // graphics
-    SCREEN_MODE = m640x400;
-    SCREEN_WIDTH = 640;
-    SCREEN_HEIGHT = 400;
-    HALF_SCREEN_WIDTH = SCREEN_WIDTH / 2;
+    SCREEN_MODE        = m640x400;
+    SCREEN_WIDTH       = 640;
+    SCREEN_HEIGHT      = 400;
+    HALF_SCREEN_WIDTH  = SCREEN_WIDTH / 2;
     HALF_SCREEN_HEIGHT = SCREEN_HEIGHT / 2;
+    GAME_PROCESS_RESOLUTION = 10;
 
     // timing
     MAX_DELAYS = 32;
+
+    // debugging
+    MAX_LOGS = 32;
 global
     // resources
     __gfxMain;
+    __gfxCharacters;
     __fntSystem;
     __fntMenu;
-    __fntGame;
     __sounds[31];
 
     // gameplay
-    struct bulletData[1]
+    struct __bulletData[1]
         damage;
-        speed;
         lifeDuration;
+        speed;
         offsetForward;
         offsetLeft;
     end = 
         // pistol
-        25, 20, 40, 45, 0,
+        25, 
+        40, 
+        20 * GAME_PROCESS_RESOLUTION, 
+        45 * GAME_PROCESS_RESOLUTION, 
+        0 * GAME_PROCESS_RESOLUTION,
         // rifle
-        65, 30, 50, 50, 0;
+        65, 
+        50, 
+        30 * GAME_PROCESS_RESOLUTION, 
+        50 * GAME_PROCESS_RESOLUTION, 
+        0 * GAME_PROCESS_RESOLUTION;
+
+    struct __characterData[6]
+        maxMoveSpeed;
+        maxTurnSpeed;
+        gfxOffset;
+        startingHealth;
+    end = 
+        // player
+        4 * GAME_PROCESS_RESOLUTION,
+        10000, 
+        2,
+        100,
+        // guard level 1
+        3 * GAME_PROCESS_RESOLUTION,
+        10000, 
+        1,
+        20,
+        // guard level 2
+        3 * GAME_PROCESS_RESOLUTION,
+        10000, 
+        1,
+        30,
+        // guard level 3
+        3 * GAME_PROCESS_RESOLUTION,
+        10000, 
+        1,
+        40,
+        // officer level 1
+        3 * GAME_PROCESS_RESOLUTION,
+        10000, 
+        1,
+        20,
+        // officer level 2
+        3 * GAME_PROCESS_RESOLUTION,
+        10000, 
+        1,
+        30,
+        // officer level 3
+        3 * GAME_PROCESS_RESOLUTION,
+        10000, 
+        1,
+        40;
 
     // game processes
     __playerController;
@@ -87,20 +148,41 @@ global
         delayLength;
     end
 
-    // debug vars
-    __logs[31];
-    __logCount;
+    // debugging
     __logsX = 320;
     __logsY = 10;
     __logsYOffset = 15;
+    __logCount;
+    __logs[MAX_LOGS - 1];
 local
+    value;
+    struct components
+        health;
+    end
     struct animation
         time; // 0-100
         string current;
     end
+    struct input
+        struct move
+            x;
+            y;
+        end
+        struct lookAt
+            x;
+            y;
+        end
+    end
     struct physics
-        velocityX;
-        velocityY;
+        struct velocity
+            x;
+            y;
+        end
+        maxMoveSpeed;
+    end
+    struct debugging
+        logCount;
+        logs[31];
     end
 begin
     // initialization
@@ -108,15 +190,15 @@ begin
     set_fps(60, 1);
 
     // load graphics
-    __gfxMain = load_fpg(GFX_MAIN_PATH);
+    __gfxMain       = load_fpg(GFX_MAIN_PATH);
+    __gfxCharacters = load_fpg(GFX_CHARACTERS_PATH);
 
     // load fonts
     __fntSystem = 0;
-    __fntMenu = load_fnt(FNT_MENU_PATH);
-    //__fntGame = load_fnt(FNT_GAME_PATH); // TODO: find font
+    __fntMenu   = load_fnt(FNT_MENU_PATH);
 
     // load sounds
-    __sounds[SOUND_MP40_SHOT] = load_sound("assets/audio/test-shot5.wav", 0);
+    __sounds[SOUND_MP40_SHOT]       = load_sound("assets/audio/test-shot5.wav", 0);
     __sounds[SOUND_SHELL_DROPPED_1] = load_sound("assets/audio/shell-dropped1.wav", 0);
     __sounds[SOUND_SHELL_DROPPED_2] = load_sound("assets/audio/shell-dropped2.wav", 0);
     __sounds[SOUND_SHELL_DROPPED_3] = load_sound("assets/audio/shell-dropped3.wav", 0);
@@ -143,7 +225,7 @@ private
 begin
     // initialization
     clear_screen();
-    put_screen(__gfxMain, __gfxMain + 1);
+    put_screen(__gfxMain, 1);
     txtTitle = write(
         __fntMenu, 
         HALF_SCREEN_WIDTH, 
@@ -185,13 +267,14 @@ begin
     // graphics
     start_scroll(
         scrollBackground, 
-        __gfxMain, __gfxMain + 200, 0, 
+        __gfxMain, 200, 0, 
         REGION_FULL_SCREEN, 
         SCROLL_FOREGROUND_HORIZONTAL + SCROLL_FOREGROUND_VERTICAL);
 
     // gameplay
     state = GAME_STATE_ACTIVE;
-    __playerController = PlayerController(40, 40);
+    __playerController = PlayerController(40 * GAME_PROCESS_RESOLUTION, 40 * GAME_PROCESS_RESOLUTION);
+    AIController(CHAR_GUARD_1, 320 * GAME_PROCESS_RESOLUTION, 200 * GAME_PROCESS_RESOLUTION);
 
     // game loop
     repeat
@@ -208,44 +291,40 @@ end
 
 process PlayerController(x, y)
 private
-    walkSpeed = 3;
-    turnSpeed = 10000;
-
-    velocityX;
-    velocityY;
-
     mouseCursor;
     animator;
 begin
     // initialization
+    resolution = GAME_PROCESS_RESOLUTION;
+    components.health = HealthComponent(CHAR_PLAYER);
+    physics.maxMoveSpeed = __characterData[CHAR_PLAYER].maxMoveSpeed;
     mouseCursor = MouseCursor();
-    animator = CharacterAnimator();
+    animator = CharacterAnimator(CHAR_PLAYER);
 
     // debugging
-    LogValue("player x", offset x);
-    LogValue("player y", offset y);
+    LogValueFollow("player x", offset x);
+    LogValueFollow("player y", offset y);
     LogValue("player angle", offset angle);
-    LogValue("player vX", offset physics.velocityX);
-    LogValue("player vY", offset physics.velocityY);
+    LogValue("player components.health.value", offset components.health.value);
     loop
         // movement input
         if (key(_a))
-            physics.velocityX = -walkSpeed;
+            input.move.x = -1;
         else
             if (key(_d))
-                physics.velocityX = +walkSpeed;
+                input.move.x = +1;
             else
-                physics.velocityX = 0;
+                input.move.x = 0;
             end
         end
 
         if (key(_w))
-            physics.velocityY = -walkSpeed;
+            input.move.y = -1;
         else
             if (key(_s))
-                physics.velocityY = +walkSpeed;
+                input.move.y = +1;
             else
-                physics.velocityY = 0;
+                input.move.y = 0;
             end
         end
 
@@ -263,54 +342,17 @@ begin
         // TODO: Refactor velocity out into separate process.
         // TODO: Normalize velocity vector.
 
-        //UpdateVelocity(&physics.velocityX, &physics.velocityY, walkSpeed);
+        ApplyInputToVelocity(GAME_PROCESS_RESOLUTION);
 
         // apply velocity
-        x += physics.velocityX;
-        y += physics.velocityY;
+        x += physics.velocity.x;
+        y += physics.velocity.y;
 
         // look at the mouse cursor
-        TurnTowards(mouseCursor, turnSpeed);
+        TurnTowards(mouseCursor, __characterData[CHAR_PLAYER].maxTurnSpeed);
         frame;
     end
 end
-
-/*
-function UpdateVelocity(pointer vX, pointer vY, maxSpeed)
-begin
-    x = *vX;
-    y = *vY;
-
-    VectorNormalize(vX, vY);
-    *vX = *vX * maxSpeed;
-    *vY = *vY * maxSpeed;
-
-    father.x += *vX;
-    father.y += *vY;
-end
-
-function VectorNormalize(pointer vX, pointer vY)
-private
-    magnitude1000;
-begin
-    x = *vX;
-    y = *vY;
-
-    magnitude1000 = VectorMagnitude(*vX * 1000, *vY * 1000);
-
-    if (magnitude1000 == 0)
-        return;
-    end
-
-    *vX = ((*vX * 1000000) / magnitude1000) / 1000;
-    *vY = ((*vY * 1000000) / magnitude1000) / 1000;
-end
-
-function VectorMagnitude(vX, vY)
-begin
-    return (sqrt((vX * vX) + (vY * vY)));
-end
-*/
 
 
 
@@ -318,22 +360,27 @@ end
  * AI
  * ---------------------------------------------------------------------------*/
 
-process AIController()
+process AIController(charType, x, y)
 private
     animator;
 begin
     // initialization
-    animator = CharacterAnimator();
+    resolution = GAME_PROCESS_RESOLUTION;
+    components.health = HealthComponent(charType);
+    physics.maxMoveSpeed = __characterData[charType].maxMoveSpeed;
+    animator = CharacterAnimator(charType);
     loop
         frame;
     end
 end
 
+
+
 /* -----------------------------------------------------------------------------
  * Character animations
  * ---------------------------------------------------------------------------*/
 
-process CharacterAnimator()
+process CharacterAnimator(charType)
 private
     arms;
     base;
@@ -341,9 +388,11 @@ private
     weapon;
 begin
     // initialization
-    arms = CharacterArms();
-    base = CharacterBase();
-    head = CharacterHead();
+    resolution = GAME_PROCESS_RESOLUTION;
+    components.health = father.components.health;
+    arms = CharacterArms(charType);
+    base = CharacterBase(charType);
+    head = CharacterHead(charType);
     weapon = CharacterWeapon();
     loop
         x = father.x;
@@ -353,10 +402,12 @@ begin
     end
 end
 
-process CharacterArms()
+process CharacterArms(charType)
 begin
     // initialization
-    graph = __gfxMain + 902;
+    resolution = GAME_PROCESS_RESOLUTION;
+    file = __gfxCharacters;
+    graph = 200 + __characterData[charType].gfxOffset;
     z = -90;
     loop
         x = father.x;
@@ -366,10 +417,13 @@ begin
     end
 end
 
-process CharacterBase()
+process CharacterBase(charType)
 begin
     // initialization
-    graph = __gfxMain + 900;
+    resolution = GAME_PROCESS_RESOLUTION;
+    components.health = father.components.health;
+    file = __gfxCharacters;
+    graph = 100 + __characterData[charType].gfxOffset;
     z = -100;
     loop
         x = father.x;
@@ -379,10 +433,12 @@ begin
     end
 end
 
-process CharacterHead()
+process CharacterHead(charType)
 begin
     // initialization
-    graph = __gfxMain + 901;
+    resolution = GAME_PROCESS_RESOLUTION;
+    file = __gfxCharacters;
+    graph = 401;
     z = -110;
     loop
         x = father.x;
@@ -395,7 +451,9 @@ end
 process CharacterWeapon()
 begin
     // initialization
-    graph = __gfxMain + 800;
+    resolution = GAME_PROCESS_RESOLUTION;
+    file = __gfxMain;
+    graph = 800;
     z = -95;
     loop
         x = father.x;
@@ -412,16 +470,27 @@ end
  * ---------------------------------------------------------------------------*/
 
 process Bullet(bulletType)
+private
+    collisionId;
 begin
+    // initialization
+    resolution = GAME_PROCESS_RESOLUTION;
     x = father.x;
     y = father.y;
     angle = father.angle;
-    graph = __gfxMain + 600;
-    advance(bulletData[bulletType].offsetForward);
+    file = __gfxMain;
+    graph = 600;
+    z = -700;
+    advance(__bulletData[bulletType].offsetForward);
     // TODO: implement offsetLeft
-    LifeTimer(bulletData[bulletType].lifeDuration);
+    LifeTimer(__bulletData[bulletType].lifeDuration);
     loop
-        advance(bulletData[bulletType].speed);
+        advance(__bulletData[bulletType].speed);
+        collisionId = collision(type CharacterBase);
+        if (collisionId != 0)
+            collisionId.components.health.value -= __bulletData[bulletType].damage;
+            break;
+        end
         frame;
     end
 end
@@ -435,11 +504,13 @@ end
 process MouseCursor()
 begin
     // initialization
-    graph = __gfxMain + 300;
+    resolution = GAME_PROCESS_RESOLUTION;
+    file = __gfxMain;
+    graph = 300;
     z = -1000;
     loop
-        x = mouse.x;
-        y = mouse.y;
+        x = mouse.x * GAME_PROCESS_RESOLUTION;
+        y = mouse.y * GAME_PROCESS_RESOLUTION;
         frame;
     end
 end
@@ -447,8 +518,86 @@ end
 
 
 /* -----------------------------------------------------------------------------
+ * Special FX
+ * ---------------------------------------------------------------------------*/
+
+process MuzzleFlash()
+private
+    lifeDuration = 5;
+    animationTime = 0;
+    forwardOffset = 44;
+begin
+    // initialization
+    resolution = GAME_PROCESS_RESOLUTION;
+    file = __gfxMain;
+    graph = 700;
+    z = -710;
+    angle = father.angle;
+
+    // behaviors
+    LifeTimer(lifeDuration);
+    loop
+        // animation
+        animationTime += 1000 / (lifeDuration / __deltaTime);
+        size = (sin(animationTime * 180) + 1000) / 40;
+
+        // positioning
+        x = father.x;
+        y = father.y;
+        advance(forwardOffset * GAME_PROCESS_RESOLUTION);
+        frame;
+    end
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Components
+ * ---------------------------------------------------------------------------*/
+
+ process HealthComponent(charType)
+ begin
+    value = __characterData[charType].startingHealth;
+    loop
+        frame;
+    end
+ end
+
+/* -----------------------------------------------------------------------------
  * Utility functions
  * ---------------------------------------------------------------------------*/
+
+function ApplyInputToVelocity(multiplier)
+begin
+    x = father.input.move.x * multiplier;
+    y = father.input.move.y * multiplier;
+    VectorNormalize(&x, &y, multiplier);
+    // TODO: Don't hard set the velocity, instead add to it. Implement acceleration.
+    father.physics.velocity.x = x * father.physics.maxMoveSpeed / multiplier;
+    father.physics.velocity.y = y * father.physics.maxMoveSpeed / multiplier;
+end
+
+function VectorNormalize(pointer vX, pointer vY, multiplier)
+private
+    magnitude;
+begin
+    x = *vX;
+    y = *vY;
+
+    magnitude = VectorMagnitude(*vX, *vY);
+
+    if (magnitude == 0)
+        return;
+    end
+
+    *vX = (*vX * multiplier) / magnitude;
+    *vY = (*vY * multiplier) / magnitude;
+end
+
+function VectorMagnitude(vX, vY)
+begin
+    return (sqrt((vX * vX) + (vY * vY)));
+end
 
 function TurnTowards(target, turnSpeed)
 begin
@@ -495,29 +644,47 @@ end
  * Debugging
  * ---------------------------------------------------------------------------*/
 
-process LogValue(string label, val)
+function LogValue(string label, val)
+begin
+    LogValueBase(father, label, val, 0, 0, false);
+end
+
+process LogValueFollow(string label, val)
 private
-    txtLogLabel;
-    txtLogValue;
+    txtLabel;
+    txtVal;
+    localLogCount;
+begin
+    LogValueBase(father, label, val, &txtLabel, &txtVal, true);
+    loop
+        localLogCount = CountProcessLogs(father);
+        x = father.x / GAME_PROCESS_RESOLUTION;
+        y = (father.y / GAME_PROCESS_RESOLUTION) + (localLogCount * __logsYOffset);
+        move_text(txtLabel, x, y);
+        move_text(txtVal, x, y);
+        frame;
+    end
+end
+
+process LogValueBase(processId, string label, val, txtLabel, txtVal, follow)
+private
     logIndex;
 begin
-    logIndex = __logCount;
-    __logs[__logCount] = id;
+    logIndex = GetNextFreeLogIndex();
+    __logs[logIndex].processId = processId;
+    __logs[logIndex].follow    = follow;
     __logCount++;
-
+    
     x = __logsX;
-    y = __logsY + (logIndex * __logsYOffset);
-
+    y = __logsY + (CountNonFollowingLogs() * __logsYOffset);
     label = label + ": ";
-
-    txtLogLabel = write(
+    *txtLabel = write(
         __fntSystem,
         x,
         y,
         FONT_ANCHOR_TOP_RIGHT,
         label);
-
-    txtLogValue = write_int(
+    *txtVal = write_int(
         __fntSystem,
         x,
         y,
@@ -529,9 +696,34 @@ begin
 end
 
 process DeleteLastLog()
+private
+    index;
 begin
-    signal(__logs[__logCount - 1], s_kill);
     __logCount--;
+    index = __logCount;
+    signal(__logs[index], s_kill);
+    __logs[index].processId = -1;
+end
+
+function GetNextFreeLogIndex()
+begin
+    for (x = 0; x < MAX_LOGS; x++)
+        if (__logs[x].processId <= 0)
+            return (x);
+        end
+    end
+    return (-1);
+end
+
+function CountProcessLogs(processId)
+begin
+    // TODO: This might be a performance problem... need a hash map.
+    for (x = 0; x < MAX_LOGS; x++)
+        if (processId.logs[x] > 0)
+            y++;
+        end
+    end
+    return (y);
 end
 
 
@@ -626,37 +818,6 @@ begin
     end
 
     PlaySound(soundIndex, volume, frequency);
-end
-
-
-
-/* -----------------------------------------------------------------------------
- * Special FX
- * ---------------------------------------------------------------------------*/
-
-process MuzzleFlash()
-private
-    lifeDuration = 5;
-    animationTime = 0;
-begin
-    // initialization
-    graph = __gfxMain + 700;
-    z = -700;
-    angle = father.angle;
-
-    // behaviors
-    LifeTimer(lifeDuration);
-    loop
-        // animation
-        animationTime += 1000 / (lifeDuration / __deltaTime);
-        size = (sin(animationTime * 180) + 1000) / 40;
-
-        // positioning
-        x = father.x;
-        y = father.y;
-        advance(44);
-        frame;
-    end
 end
 
 
