@@ -396,6 +396,7 @@ begin
     AIChangeState(id, AI_STATE_IDLE);
     loop
         AIHandleState(id);
+        controllerId.input.attackingPreviousFrame = controllerId.input.attacking;
         if (key(_y))
             AIChangeState(id, AI_STATE_SHOOT);
         end
@@ -429,7 +430,6 @@ begin
         case AI_STATE_INVESTIGATE:
         end
         case AI_STATE_SHOOT:
-            // TODO: Look at target.
             controllerId.input.attacking = false;
         end
         case AI_STATE_CHASE:
@@ -501,7 +501,7 @@ begin
         case AI_STATE_INVESTIGATE:
         end
         case AI_STATE_SHOOT:
-            //controllerId.input.attacking = true;
+            // TODO: Look at target.
         end
         case AI_STATE_CHASE:
         end
@@ -520,8 +520,6 @@ begin
         case AI_STATE_PEEK:
         end
     end
-
-    controllerId.input.attackingPreviousFrame = controllerId.input.attacking;
 end
 
 
