@@ -396,7 +396,7 @@ begin
     AIChangeState(id, AI_STATE_IDLE);
     loop
         AIHandleState(id);
-        controllerId.input.attackingPreviousFrame = controllerId.input.attacking;
+        input.attackingPreviousFrame = input.attacking;
         if (key(_y))
             AIChangeState(id, AI_STATE_SHOOT);
         end
