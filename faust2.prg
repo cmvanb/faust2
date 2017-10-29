@@ -538,7 +538,6 @@ private
     knownOpponent;
     opponent;
     aiCharacter;
-    aiModel;
 begin
     allOpponents = GetAllOpponents(faction);
     aiCharacters = GetFactionList(faction);
@@ -549,7 +548,6 @@ begin
                 continue;
             end
             aiCharacter = aiCharacters[x];
-            aiModel = aiCharacter.ai.model;
             // foreach opponent
             for (y = 0; y < MAX_CHARACTERS; ++y)
                 if (allOpponents[y] <= 0)
@@ -557,20 +555,27 @@ begin
                 end
                 opponent = allOpponents[y];
                 knownOpponentIndex = GetIndexOfValueInTable(
-                    aiModel.knownOpponents,
+                    &aiCharacter.ai.model.knownOpponents,
                     MAX_CHARACTERS - 1,
                     opponent);
                 // this AI character already knows this opponent, only update position
                 if (knownOpponentIndex > -1)
-                    knownOpponent = aiModel.knownOpponents[knownOpponentIndex];
+                    //knownOpponent = aiCharacter.ai.model.knownOpponents[knownOpponentIndex];
+                    knownOpponent = TableGetElement(
+                        &aiCharacter.ai.model.knownOpponents,
+                        knownOpponentIndex);
                 else
                     // if AI can see opponent, update the AIs model
                     if (AILineOfSight(aiCharacter.x, aiCharacter.y, opponent.x, opponent.y))
                         knownOpponentIndex = FindFreeIndexInTable(
-                            aiModel.knownOpponents,
+                            &aiCharacter.ai.model.knownOpponents,
                             MAX_CHARACTERS - 1);
-                        aiModel.knownOpponents[knownOpponentIndex] = opponent;
-                        aiModel.knownOpponentCount++;
+                        //aiCharacter.ai.model.knownOpponents[knownOpponentIndex] = opponent;
+                        TableSetElement(
+                            &aiCharacter.ai.model.knownOpponents,
+                            knownOpponentIndex,
+                            opponent);
+                        aiCharacter.ai.model.knownOpponentCount++;
                     end
                 end
             end
@@ -586,20 +591,30 @@ begin
 end
 
 // TODO: move code to appropriate place
-function FindFreeIndexInTable(table, tableSize)
+function TableGetElement(pointer table, index)
+begin
+    return (*table[index]);
+end
+
+function TableSetElement(pointer table, index, val)
+begin
+    *table[index] = val;
+end
+
+function FindFreeIndexInTable(pointer table, tableSize)
 begin
     for (x = 0; x < tableSize; x++)
-        if (table[x] <= 0)
+        if (*table[x] <= 0)
             return (x);
         end
     end
     return (-1);
 end
 
-function GetIndexOfValueInTable(table, tableSize, val)
+function GetIndexOfValueInTable(pointer table, tableSize, val)
 begin
     for (x = 0; x < tableSize; ++x)
-        if (table[x] == val)
+        if (*table[x] == val)
             return (x);
         end
     end
@@ -838,7 +853,7 @@ end
 /* -----------------------------------------------------------------------------
  * Factions
  * ---------------------------------------------------------------------------*/
-function GetAllOpponents(myFaction)
+function GetAllOpponents(faction)
 begin
     // TODO: This code is fragile, improve it.
     switch (faction)
