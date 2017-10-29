@@ -247,6 +247,8 @@ begin
 
     // timing
     LogValue("FPS", &fps);
+    LogValue("__goodCharacters[0]", &__goodCharacters[0]);
+    LogValue("__evilCharacters[0]", &__evilCharacters[0]);
     DeltaTimer();
 
     // show title screen
@@ -312,8 +314,13 @@ begin
 
     // gameplay
     state = GAME_STATE_ACTIVE;
+
+    // characters
     __playerController = PlayerController(40 * GAME_PROCESS_RESOLUTION, 40 * GAME_PROCESS_RESOLUTION);
     AIController(CHAR_GUARD_1, 320 * GAME_PROCESS_RESOLUTION, 200 * GAME_PROCESS_RESOLUTION);
+
+    // managers
+    AIVisionManager(FACTION_EVIL);
 
     // game loop
     repeat
@@ -541,36 +548,35 @@ private
 begin
     allOpponents = GetAllOpponents(faction);
     aiCharacters = GetFactionList(faction);
+    LogValue("AVM:knownOpponentIndex", &knownOpponentIndex);
     loop
         // foreach AI
         for (x = 0; x < MAX_CHARACTERS; ++x)
             if (aiCharacters[x] <= 0)
                 continue;
             end
-            aiCharacter = aiCharacters[x];
+            aiCharacter = *aiCharacters[x];
             // foreach opponent
             for (y = 0; y < MAX_CHARACTERS; ++y)
                 if (allOpponents[y] <= 0)
                     continue;
                 end
-                opponent = allOpponents[y];
-                knownOpponentIndex = GetIndexOfValueInTable(
+                opponent = *allOpponents[y];
+                knownOpponentIndex = TableGetIndexOfValue(
                     &aiCharacter.ai.model.knownOpponents,
                     MAX_CHARACTERS - 1,
                     opponent);
                 // this AI character already knows this opponent, only update position
                 if (knownOpponentIndex > -1)
-                    //knownOpponent = aiCharacter.ai.model.knownOpponents[knownOpponentIndex];
                     knownOpponent = TableGetElement(
                         &aiCharacter.ai.model.knownOpponents,
                         knownOpponentIndex);
                 else
                     // if AI can see opponent, update the AIs model
                     if (AILineOfSight(aiCharacter.x, aiCharacter.y, opponent.x, opponent.y))
-                        knownOpponentIndex = FindFreeIndexInTable(
+                        knownOpponentIndex = TableFindFreeIndex(
                             &aiCharacter.ai.model.knownOpponents,
                             MAX_CHARACTERS - 1);
-                        //aiCharacter.ai.model.knownOpponents[knownOpponentIndex] = opponent;
                         TableSetElement(
                             &aiCharacter.ai.model.knownOpponents,
                             knownOpponentIndex,
@@ -601,7 +607,7 @@ begin
     *table[index] = val;
 end
 
-function FindFreeIndexInTable(pointer table, tableSize)
+function TableFindFreeIndex(pointer table, tableSize)
 begin
     for (x = 0; x < tableSize; x++)
         if (*table[x] <= 0)
@@ -611,7 +617,7 @@ begin
     return (-1);
 end
 
-function GetIndexOfValueInTable(pointer table, tableSize, val)
+function TableGetIndexOfValue(pointer table, tableSize, val)
 begin
     for (x = 0; x < tableSize; ++x)
         if (*table[x] == val)
@@ -628,11 +634,15 @@ end
  * ---------------------------------------------------------------------------*/
 process CharacterFaction(charType)
 private
-    factionList[MAX_CHARACTERS - 1];
+    factionList;
 begin
     // initialization
     value = __characterData[charType].faction;
     factionList = GetFactionList(value);
+    x = TableFindFreeIndex(&factionList, MAX_CHARACTERS - 1);
+    TableSetElement(&factionList, x, father);
+    LogValue("components.faction.value", &value);
+    LogValue("freeIndex", &x);
     loop
         frame;
     end
@@ -858,10 +868,10 @@ begin
     // TODO: This code is fragile, improve it.
     switch (faction)
         case FACTION_GOOD:
-            return (__evilCharacters);
+            return (&__evilCharacters);
         end
         case FACTION_EVIL:
-            return (__goodCharacters);
+            return (&__goodCharacters);
         end
     end
 end
@@ -881,13 +891,13 @@ function GetFactionList(faction)
 begin
     switch (faction)
         case FACTION_NEUTRAL:
-            return (__neutralCharacters);
+            return (&__neutralCharacters);
         end
         case FACTION_GOOD:
-            return (__goodCharacters);
+            return (&__goodCharacters);
         end
         case FACTION_EVIL:
-            return (__evilCharacters);
+            return (&__evilCharacters);
         end
     end
 end
