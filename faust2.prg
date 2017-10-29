@@ -202,11 +202,7 @@ local
             knownAllyCount;
             targetOpponentIndex;
             struct knownOpponents[MAX_CHARACTERS - 1]
-                x;
-                y;
-                visible;
-            end
-            struct knownAllies[MAX_CHARACTERS - 1]
+                processId;
                 x;
                 y;
                 visible;
@@ -332,7 +328,7 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Player -> 320
+ * Player 
  * ---------------------------------------------------------------------------*/
 process PlayerController(x, y)
 private
@@ -541,10 +537,16 @@ process AIVisionManager(faction)
 private
     allOpponents[MAX_CHARACTERS - 1];
     aiCharacters[MAX_CHARACTERS - 1];
-    knownOpponentIndex;
-    knownOpponent;
+    knownOpponentIndex = -1;
+    struct knownOpponent;
+        processId;
+        x;
+        y;
+        visible;
+    end
     opponent;
     aiCharacter;
+    isVisible = false;
 begin
     allOpponents = GetAllOpponents(faction);
     aiCharacters = GetFactionList(faction);
@@ -562,27 +564,47 @@ begin
                     continue;
                 end
                 opponent = *allOpponents[y];
-                knownOpponentIndex = TableGetIndexOfValue(
-                    &aiCharacter.ai.model.knownOpponents,
-                    MAX_CHARACTERS - 1,
-                    opponent);
-                // this AI character already knows this opponent, only update position
-                if (knownOpponentIndex > -1)
+                // can AI see opponent?
+                isVisible = AILineOfSight(aiCharacter.x, aiCharacter.y, opponent.x, opponent.y);
+                // is AI aware of opponent already?
+                knownOpponentIndex = -1;
+                for (z = 0; z < MAX_CHARACTERS - 1; ++z)
+                    if (aiCharacter.ai.model.knownOpponents[z].processId == opponent)
+                        knownOpponentIndex = z;
+                        break;
+                    end
+                end
+                if (knownOpponentIndex < 0 && isVisible)
+                    for (z = 0; z < MAX_CHARACTERS - 1; ++z)
+                        if (aiCharacter.ai.model.knownOpponents[z].processId <= 0)
+                            knownOpponentIndex = z;
+                            break;
+                        end
+                    end
+                    // visible but previously unknown opponents are added to AI's model
                     knownOpponent = TableGetElement(
                         &aiCharacter.ai.model.knownOpponents,
                         knownOpponentIndex);
-                else
-                    // if AI can see opponent, update the AIs model
-                    if (AILineOfSight(aiCharacter.x, aiCharacter.y, opponent.x, opponent.y))
-                        knownOpponentIndex = TableFindFreeIndex(
-                            &aiCharacter.ai.model.knownOpponents,
-                            MAX_CHARACTERS - 1);
-                        TableSetElement(
-                            &aiCharacter.ai.model.knownOpponents,
-                            knownOpponentIndex,
-                            opponent);
-                        aiCharacter.ai.model.knownOpponentCount++;
+                    *knownOpponent.processId = opponent;
+                    TableSetElement(
+                        &aiCharacter.ai.model.knownOpponents,
+                        knownOpponentIndex,
+                        *knownOpponent);
+                    aiCharacter.ai.model.knownOpponentCount++;
+                end
+                if (knownOpponentIndex >= 0)
+                    knownOpponent = TableGetElement(
+                        &aiCharacter.ai.model.knownOpponents,
+                        knownOpponentIndex);
+                    *knownOpponent.visible = isVisible;
+                    if (isVisible)
+                        *knownOpponent.x = x;
+                        *knownOpponent.y = y;
                     end
+                    TableSetElement(
+                        &aiCharacter.ai.model.knownOpponents,
+                        knownOpponentIndex,
+                        *knownOpponent);
                 end
             end
         end
@@ -599,7 +621,7 @@ end
 // TODO: move code to appropriate place
 function TableGetElement(pointer table, index)
 begin
-    return (*table[index]);
+    return (&table[index]);
 end
 
 function TableSetElement(pointer table, index, val)
