@@ -404,6 +404,8 @@ begin
     LogValueFollow("ai.previousState", &ai.previousState);
     LogValueFollow("ai.currentState", &ai.currentState);
     LogValueFollow("ai.model.knownOpponentCount", &ai.model.knownOpponentCount);
+    LogValueFollow("ai.model.knownOpponents[0].processId", &ai.model.knownOpponents[0].processId);
+    LogValueFollow("ai.model.knownOpponents[0].x", &ai.model.knownOpponents[0].x);
 
     AIChangeState(id, AI_STATE_IDLE);
     loop
@@ -492,7 +494,22 @@ begin
 end
 
 function AIHandleState(controllerId)
+private
+    targetOpponentIndex = -1;
+    struct knownOpponent;
+        processId;
+        x;
+        y;
+        visible;
+    end
 begin
+    // TODO: Use a more reliable method of selecting an opponent to target.
+    targetOpponentIndex = 0;// controllerId.ai.model.targetOpponentIndex;
+    if (targetOpponentIndex > -1)
+        knownOpponent = TableGetElement(
+            &controllerId.ai.model.knownOpponents,
+            targetOpponentIndex);
+    end
     switch (controllerId.ai.currentState)
         case AI_STATE_NULL:
         end
@@ -508,6 +525,10 @@ begin
         end
         case AI_STATE_SHOOT:
             // TODO: Look at target.
+            if (targetOpponentIndex > -1)
+                input.lookAt.x = knownOpponent.x;
+                input.lookAt.y = knownOpponent.y;
+            end
         end
         case AI_STATE_CHASE:
         end
@@ -568,6 +589,7 @@ begin
                 isVisible = AILineOfSight(aiCharacter.x, aiCharacter.y, opponent.x, opponent.y);
                 // is AI aware of opponent already?
                 knownOpponentIndex = -1;
+                // TODO: Clean this up into a function.
                 for (z = 0; z < MAX_CHARACTERS - 1; ++z)
                     if (aiCharacter.ai.model.knownOpponents[z].processId == opponent)
                         knownOpponentIndex = z;
@@ -575,6 +597,7 @@ begin
                     end
                 end
                 if (knownOpponentIndex < 0 && isVisible)
+                    // TODO: Clean this up into a function.
                     for (z = 0; z < MAX_CHARACTERS - 1; ++z)
                         if (aiCharacter.ai.model.knownOpponents[z].processId <= 0)
                             knownOpponentIndex = z;
@@ -663,8 +686,6 @@ begin
     factionList = GetFactionList(value);
     x = TableFindFreeIndex(&factionList, MAX_CHARACTERS - 1);
     TableSetElement(&factionList, x, father);
-    LogValue("components.faction.value", &value);
-    LogValue("freeIndex", &x);
     loop
         frame;
     end
