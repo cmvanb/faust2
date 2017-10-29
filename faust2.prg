@@ -133,7 +133,7 @@ global
 
     // game processes
     __playerController;
-    // TODO: Check if 2D arrays work in DIV, if yes turn this into one characters array by faction.
+    // TODO: Check if 2D arrays work in DIV, if yes turn this into one array of characters by faction.
     __neutralCharacters[MAX_CHARACTERS - 1];
     __goodCharacters[MAX_CHARACTERS - 1];
     __evilCharacters[MAX_CHARACTERS - 1];
@@ -198,11 +198,19 @@ local
         previousState;
         currentState;
         struct model
-            struct opponents[MAX_CHARACTERS - 1]
+            knownOpponentCount;
+            knownAllyCount;
+            targetOpponentIndex;
+            struct knownOpponents[MAX_CHARACTERS - 1]
                 x;
                 y;
+                visible;
             end
-            targetOpponentIndex;
+            struct knownAllies[MAX_CHARACTERS - 1]
+                x;
+                y;
+                visible;
+            end
         end
     end
 
@@ -374,7 +382,7 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * AI -> 380
+ * AI Characters -> 380
  * ---------------------------------------------------------------------------*/
 process AIController(charType, x, y)
 private
@@ -392,6 +400,7 @@ begin
     LogValueFollow("health.value", &components.health.value);
     LogValueFollow("ai.previousState", &ai.previousState);
     LogValueFollow("ai.currentState", &ai.currentState);
+    LogValueFollow("ai.model.knownOpponentCount", &ai.model.knownOpponentCount);
 
     AIChangeState(id, AI_STATE_IDLE);
     loop
@@ -405,12 +414,6 @@ begin
         end
         frame;
     end
-end
-
-process AIEyes(charType)
-private
-    visibleOpponents[MAX_CHARACTERS - 1];
-begin
 end
 
 function AIChangeState(controllerId, nextState)
@@ -525,33 +528,98 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Character components -> 530
+ * AI management -> 530
  * ---------------------------------------------------------------------------*/
-process CharacterFaction(charType)
+process AIVisionManager(faction)
 private
-    faction;
-    factionList[MAX_CHARACTERS - 1];
+    allOpponents[MAX_CHARACTERS - 1];
+    aiCharacters[MAX_CHARACTERS - 1];
+    knownOpponentIndex;
+    knownOpponent;
+    opponent;
+    aiCharacter;
+    aiModel;
 begin
-    // initialization
-    faction = __characterData[charType].faction;
-    factionList = GetFactionList(faction);
+    allOpponents = GetAllOpponents(faction);
+    aiCharacters = GetFactionList(faction);
     loop
+        // foreach AI
+        for (x = 0; x < MAX_CHARACTERS; ++x)
+            if (aiCharacters[x] <= 0)
+                continue;
+            end
+            aiCharacter = aiCharacters[x];
+            aiModel = aiCharacter.ai.model;
+            // foreach opponent
+            for (y = 0; y < MAX_CHARACTERS; ++y)
+                if (allOpponents[y] <= 0)
+                    continue;
+                end
+                opponent = allOpponents[y];
+                knownOpponentIndex = GetIndexOfValueInTable(
+                    aiModel.knownOpponents,
+                    MAX_CHARACTERS - 1,
+                    opponent);
+                // this AI character already knows this opponent, only update position
+                if (knownOpponentIndex > -1)
+                    knownOpponent = aiModel.knownOpponents[knownOpponentIndex];
+                else
+                    // if AI can see opponent, update the AIs model
+                    if (AILineOfSight(aiCharacter.x, aiCharacter.y, opponent.x, opponent.y))
+                        knownOpponentIndex = FindFreeIndexInTable(
+                            aiModel.knownOpponents,
+                            MAX_CHARACTERS - 1);
+                        aiModel.knownOpponents[knownOpponentIndex] = opponent;
+                        aiModel.knownOpponentCount++;
+                    end
+                end
+            end
+        end
         frame;
     end
 end
 
-function GetFactionList(faction)
+function AILineOfSight(x0, y0, x1, y2)
 begin
-    switch (faction)
-        case FACTION_NEUTRAL:
-            return (__neutralCharacters);
+    // TODO: Implement raycast. Consider using collision (hardness) map?
+    return (true);
+end
+
+// TODO: move code to appropriate place
+function FindFreeIndexInTable(table, tableSize)
+begin
+    for (x = 0; x < tableSize; x++)
+        if (table[x] <= 0)
+            return (x);
         end
-        case FACTION_GOOD:
-            return (__goodCharacters);
+    end
+    return (-1);
+end
+
+function GetIndexOfValueInTable(table, tableSize, val)
+begin
+    for (x = 0; x < tableSize; ++x)
+        if (table[x] == val)
+            return (x);
         end
-        case FACTION_EVIL:
-            return (__evilCharacters);
-        end
+    end
+    return (-1);
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Character components -> 560
+ * ---------------------------------------------------------------------------*/
+process CharacterFaction(charType)
+private
+    factionList[MAX_CHARACTERS - 1];
+begin
+    // initialization
+    value = __characterData[charType].faction;
+    factionList = GetFactionList(value);
+    loop
+        frame;
     end
 end
 
@@ -762,6 +830,50 @@ begin
         x = mouse.x * GAME_PROCESS_RESOLUTION;
         y = mouse.y * GAME_PROCESS_RESOLUTION;
         frame;
+    end
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Factions
+ * ---------------------------------------------------------------------------*/
+function GetAllOpponents(myFaction)
+begin
+    // TODO: This code is fragile, improve it.
+    switch (faction)
+        case FACTION_GOOD:
+            return (__evilCharacters);
+        end
+        case FACTION_EVIL:
+            return (__goodCharacters);
+        end
+    end
+end
+
+function IsOpposingFaction(myFaction, otherFaction)
+begin
+    if (myFaction == FACTION_NEUTRAL || otherFaction == FACTION_NEUTRAL)
+        return (false);
+    end
+    if (myFaction == otherFaction)
+        return (false);
+    end
+    return (true);
+end
+
+function GetFactionList(faction)
+begin
+    switch (faction)
+        case FACTION_NEUTRAL:
+            return (__neutralCharacters);
+        end
+        case FACTION_GOOD:
+            return (__goodCharacters);
+        end
+        case FACTION_EVIL:
+            return (__evilCharacters);
+        end
     end
 end
 
