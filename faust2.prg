@@ -406,6 +406,10 @@ begin
     LogValueFollow("ai.model.knownOpponentCount", &ai.model.knownOpponentCount);
     LogValueFollow("ai.model.knownOpponents[0].processId", &ai.model.knownOpponents[0].processId);
     LogValueFollow("ai.model.knownOpponents[0].x", &ai.model.knownOpponents[0].x);
+    LogValueFollow("ai.model.knownOpponents[0].y", &ai.model.knownOpponents[0].y);
+    LogValueFollow("ai.model.knownOpponents[0].visible", &ai.model.knownOpponents[0].visible);
+    LogValueFollow("input.lookAt.x", &input.lookAt.x);
+    LogValueFollow("input.lookAt.y", &input.lookAt.y);
 
     AIChangeState(id, AI_STATE_IDLE);
     loop
@@ -417,6 +421,11 @@ begin
         if (key(_u))
             AIChangeState(id, AI_STATE_IDLE);
         end
+        // look at the mouse cursor
+        TurnTowardsPosition(
+            input.lookAt.x, 
+            input.lookAt.y, 
+            __characterData[charType].maxTurnSpeed);
         frame;
     end
 end
@@ -496,20 +505,9 @@ end
 function AIHandleState(controllerId)
 private
     targetOpponentIndex = -1;
-    struct knownOpponent;
-        processId;
-        x;
-        y;
-        visible;
-    end
 begin
     // TODO: Use a more reliable method of selecting an opponent to target.
     targetOpponentIndex = 0;// controllerId.ai.model.targetOpponentIndex;
-    if (targetOpponentIndex > -1)
-        knownOpponent = TableGetElement(
-            &controllerId.ai.model.knownOpponents,
-            targetOpponentIndex);
-    end
     switch (controllerId.ai.currentState)
         case AI_STATE_NULL:
         end
@@ -521,13 +519,12 @@ begin
         end
         case AI_STATE_GUARD:
         end
-        case AI_STATE_INVESTIGATE:
-        end
-        case AI_STATE_SHOOT:
+        case AI_STATE_INVESTIGATE, AI_STATE_SHOOT:
             // TODO: Look at target.
             if (targetOpponentIndex > -1)
-                input.lookAt.x = knownOpponent.x;
-                input.lookAt.y = knownOpponent.y;
+                z = targetOpponentIndex;
+                controllerId.input.lookAt.x = controllerId.ai.model.knownOpponents[z].x;
+                controllerId.input.lookAt.y = controllerId.ai.model.knownOpponents[z].y;
             end
         end
         case AI_STATE_CHASE:
@@ -556,8 +553,8 @@ end
  * ---------------------------------------------------------------------------*/
 process AIVisionManager(faction)
 private
-    allOpponents[MAX_CHARACTERS - 1];
-    aiCharacters[MAX_CHARACTERS - 1];
+    pointer allOpponents[MAX_CHARACTERS - 1];
+    pointer aiCharacters[MAX_CHARACTERS - 1];
     knownOpponentIndex = -1;
     struct knownOpponent;
         processId;
@@ -565,69 +562,57 @@ private
         y;
         visible;
     end
-    opponent;
-    aiCharacter;
+    pointer opponent;
+    pointer aiCharacter;
     isVisible = false;
 begin
     allOpponents = GetAllOpponents(faction);
     aiCharacters = GetFactionList(faction);
-    LogValue("AVM:knownOpponentIndex", &knownOpponentIndex);
     loop
         // foreach AI
         for (x = 0; x < MAX_CHARACTERS; ++x)
-            if (aiCharacters[x] <= 0)
+            if (*aiCharacters[x] <= 0)
                 continue;
             end
             aiCharacter = *aiCharacters[x];
             // foreach opponent
             for (y = 0; y < MAX_CHARACTERS; ++y)
-                if (allOpponents[y] <= 0)
+                if (*allOpponents[y] <= 0)
                     continue;
                 end
                 opponent = *allOpponents[y];
                 // can AI see opponent?
-                isVisible = AILineOfSight(aiCharacter.x, aiCharacter.y, opponent.x, opponent.y);
-                // is AI aware of opponent already?
+                isVisible = AILineOfSight((*aiCharacter).x, (*aiCharacter).y, (*opponent).x, (*opponent).y);
                 knownOpponentIndex = -1;
                 // TODO: Clean this up into a function.
+                // find index of element where processId == opponent
                 for (z = 0; z < MAX_CHARACTERS - 1; ++z)
-                    if (aiCharacter.ai.model.knownOpponents[z].processId == opponent)
+                    if ((*aiCharacter).ai.model.knownOpponents[z].processId == opponent)
                         knownOpponentIndex = z;
                         break;
                     end
                 end
                 if (knownOpponentIndex < 0 && isVisible)
                     // TODO: Clean this up into a function.
+                    // find next free index
                     for (z = 0; z < MAX_CHARACTERS - 1; ++z)
-                        if (aiCharacter.ai.model.knownOpponents[z].processId <= 0)
+                        if ((*aiCharacter).ai.model.knownOpponents[z].processId <= 0)
                             knownOpponentIndex = z;
                             break;
                         end
                     end
                     // visible but previously unknown opponents are added to AI's model
-                    knownOpponent = TableGetElement(
-                        &aiCharacter.ai.model.knownOpponents,
-                        knownOpponentIndex);
-                    *knownOpponent.processId = opponent;
-                    TableSetElement(
-                        &aiCharacter.ai.model.knownOpponents,
-                        knownOpponentIndex,
-                        *knownOpponent);
-                    aiCharacter.ai.model.knownOpponentCount++;
+                    (*aiCharacter).ai.model.knownOpponents[z].processId = opponent;
+                    (*aiCharacter).ai.model.knownOpponentCount++;
                 end
+                // if knownOpponentIndex is valid (>= 0), then update x, y and visible properties of AI's model
                 if (knownOpponentIndex >= 0)
-                    knownOpponent = TableGetElement(
-                        &aiCharacter.ai.model.knownOpponents,
-                        knownOpponentIndex);
-                    *knownOpponent.visible = isVisible;
+                    z = knownOpponentIndex;
+                    (*aiCharacter).ai.model.knownOpponents[z].visible = isVisible;
                     if (isVisible)
-                        *knownOpponent.x = x;
-                        *knownOpponent.y = y;
+                        (*aiCharacter).ai.model.knownOpponents[z].x = opponent.x;
+                        (*aiCharacter).ai.model.knownOpponents[z].y = opponent.y;
                     end
-                    TableSetElement(
-                        &aiCharacter.ai.model.knownOpponents,
-                        knownOpponentIndex,
-                        *knownOpponent);
                 end
             end
         end
@@ -830,7 +815,7 @@ begin
     resolution = GAME_PROCESS_RESOLUTION;
     // graphics
     file = __gfxMain;
-    graph = 600;
+    graph = 601;
     z = -700;
     // positioning
     x = father.x;
