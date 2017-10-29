@@ -556,12 +556,6 @@ private
     pointer allOpponents[MAX_CHARACTERS - 1];
     pointer aiCharacters[MAX_CHARACTERS - 1];
     knownOpponentIndex = -1;
-    struct knownOpponent;
-        processId;
-        x;
-        y;
-        visible;
-    end
     pointer opponent;
     pointer aiCharacter;
     isVisible = false;
