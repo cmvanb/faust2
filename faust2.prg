@@ -57,13 +57,14 @@ const
     // gameplay
     BULLET_PISTOL = 0;
     BULLET_RIFLE  = 1;
-    CHAR_PLAYER    = 0;
-    CHAR_GUARD_1   = 1;
-    CHAR_GUARD_2   = 2;
-    CHAR_GUARD_3   = 3;
-    CHAR_OFFICER_1 = 4;
-    CHAR_OFFICER_2 = 5;
-    CHAR_OFFICER_3 = 6;
+    CHAR_PLAYER          = 0;
+    CHAR_GUARD_1         = 1;
+    CHAR_GUARD_2         = 2;
+    CHAR_GUARD_3         = 3;
+    CHAR_OFFICER_1       = 4;
+    CHAR_OFFICER_2       = 5;
+    CHAR_OFFICER_3       = 6;
+    CHAR_ALLIED_COMMANDO = 7;
     FACTION_NEUTRAL = 0;
     FACTION_GOOD    = 1;
     FACTION_EVIL    = 2;
@@ -84,6 +85,7 @@ const
     AI_STATE_FLEE        = 12;
     AI_STATE_HIDE        = 13;
     AI_STATE_PEEK        = 14;
+    AI_ENGAGE_DISTANCE = 200 * GAME_PROCESS_RESOLUTION;
     MAX_CHARACTERS = 32;
 
     // timing
@@ -116,7 +118,7 @@ global
         // rifle
         65, 50, 30 * GAME_PROCESS_RESOLUTION, 45 * GAME_PROCESS_RESOLUTION, 0 * GAME_PROCESS_RESOLUTION;
 
-    struct __characterData[6]
+    struct __characterData[7]
         maxMoveSpeed;
         maxTurnSpeed;
         gfxOffset;
@@ -129,7 +131,8 @@ global
         3 * GAME_PROCESS_RESOLUTION, 10000, 1, 200, FACTION_EVIL, // guard level 3
         3 * GAME_PROCESS_RESOLUTION, 10000, 1, 100, FACTION_EVIL, // officer level 1
         3 * GAME_PROCESS_RESOLUTION, 10000, 1, 150, FACTION_EVIL, // officer level 2
-        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 200, FACTION_EVIL; // officer level 3
+        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 200, FACTION_EVIL, // officer level 3
+        3 * GAME_PROCESS_RESOLUTION, 10000, 2, 200, FACTION_GOOD; // allied commando
 
     // game processes
     __playerController;
@@ -162,23 +165,30 @@ global
  * Local variables (every process gets these)
  * ---------------------------------------------------------------------------*/
 local
+    // Component references.
     struct components
         animator;
         faction;
         health;
+        physics;
+    end
+    value; // A value held by a component. What this holds is determined by the individual component.
+
+    // actor data
+    alive;
+    struct spawnPosition
+        x;
+        y;
     end
 
-    struct animation
-        time; // 0-100
-        string current;
-    end
-
+    // actor input data
     struct input
         attackingPreviousFrame;
         attacking;
         struct move
             x;
             y;
+            granularity;
         end
         struct lookAt
             x;
@@ -186,6 +196,7 @@ local
         end
     end
 
+    // actor physics
     struct physics
         maxMoveSpeed;
         struct velocity
@@ -194,9 +205,12 @@ local
         end
     end
 
+    // ai data
     struct ai
+        // the state determines what the NPC is currently doing
         previousState;
         currentState;
+        // the model determines what an NPC knows about it's environment
         struct model
             knownOpponentCount;
             knownAllyCount;
@@ -211,7 +225,6 @@ local
     end
 
     // debugging
-    value;
     logCount;
     struct logs[MAX_LOGS - 1]
         logId;
@@ -314,9 +327,11 @@ begin
     // characters
     __playerController = PlayerController(40 * GAME_PROCESS_RESOLUTION, 40 * GAME_PROCESS_RESOLUTION);
     AIController(CHAR_GUARD_1, 320 * GAME_PROCESS_RESOLUTION, 200 * GAME_PROCESS_RESOLUTION);
+    AIController(CHAR_ALLIED_COMMANDO, 560 * GAME_PROCESS_RESOLUTION, 100 * GAME_PROCESS_RESOLUTION);
 
     // managers
-    AIVisionManager(FACTION_EVIL);
+    AIModelManager(FACTION_EVIL);
+    AIModelManager(FACTION_GOOD);
 
     // game loop
     repeat
@@ -328,91 +343,93 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Player 
+ * Actor Controllers
  * ---------------------------------------------------------------------------*/
 process PlayerController(x, y)
 private
     mouseCursor;
 begin
-    // initialization
+    // configuration
+    input.move.granularity = 1;
     resolution = GAME_PROCESS_RESOLUTION;
-    components.health = HealthComponent(CHAR_PLAYER);
-    components.animator = CharacterAnimator(CHAR_PLAYER);
-    components.faction = CharacterFaction(CHAR_PLAYER);
-    physics.maxMoveSpeed = __characterData[CHAR_PLAYER].maxMoveSpeed;
+
+    // initialization
+    alive = true;
+    components.health = HealthComponent(id, __characterData[CHAR_PLAYER].startingHealth);
+    components.animator = CharacterAnimator(id, CHAR_PLAYER);
+    components.faction = CharacterFaction(id, CHAR_PLAYER);
+    components.physics = PhysicsComponent(id, __characterData[CHAR_PLAYER].maxMoveSpeed);
     mouseCursor = MouseCursor();
+    RecordSpawnPosition(id);
 
     // debugging
     LogValueFollow("health.value", &components.health.value);
-    loop
+    LogValueFollow("input.lookAt.x", &input.lookAt.x);
+    LogValueFollow("input.lookAt.y", &input.lookAt.y);
+    repeat
         // capture input
         if (key(_a))
-            input.move.x = -1;
+            input.move.x = -input.move.granularity;
         else
             if (key(_d))
-                input.move.x = +1;
+                input.move.x = +input.move.granularity;
             else
                 input.move.x = 0;
             end
         end
         if (key(_w))
-            input.move.y = -1;
+            input.move.y = -input.move.granularity;
         else
             if (key(_s))
-                input.move.y = +1;
+                input.move.y = +input.move.granularity;
             else
                 input.move.y = 0;
             end
         end
-        input.lookAt.x = mouseCursor.x;
-        input.lookAt.y = mouseCursor.y;
+        InputLookAt(id, mouseCursor.x, mouseCursor.y);
         input.attackingPreviousFrame = input.attacking;
         input.attacking = mouse.left;
-
-        // movement physics
-        ApplyInputToVelocity(GAME_PROCESS_RESOLUTION);
-        ApplyVelocity(id);
-
-        // look at the mouse cursor
+        // turn towards the look input
         TurnTowardsPosition(
+            id,
             input.lookAt.x, 
             input.lookAt.y, 
             __characterData[CHAR_PLAYER].maxTurnSpeed);
         frame;
-    end
+    until (alive == false)
 end
 
-
-
-/* -----------------------------------------------------------------------------
- * AI Characters -> 380
- * ---------------------------------------------------------------------------*/
 process AIController(charType, x, y)
 private
     animator;
 begin
-    // initialization
+    // configuration
+    input.move.granularity = 10;
     resolution = GAME_PROCESS_RESOLUTION;
-    components.health = HealthComponent(charType);
-    components.animator = CharacterAnimator(charType);
-    components.faction = CharacterFaction(charType);
+
+    // initialization
+    alive = true;
+    components.health = HealthComponent(id, __characterData[charType].startingHealth);
+    components.animator = CharacterAnimator(id, charType);
+    components.faction = CharacterFaction(id, charType);
+    components.physics = PhysicsComponent(id, __characterData[charType].maxMoveSpeed);
+    ai.previousState = AI_STATE_NULL;
     ai.currentState = AI_STATE_NULL;
-    physics.maxMoveSpeed = __characterData[charType].maxMoveSpeed;
+    ai.model.targetOpponentIndex = -1;
+    RecordSpawnPosition(id);
 
     // debugging
     LogValueFollow("health.value", &components.health.value);
+    LogValueFollow("input.lookAt.x", &input.lookAt.x);
+    LogValueFollow("input.lookAt.y", &input.lookAt.y);
     LogValueFollow("ai.previousState", &ai.previousState);
     LogValueFollow("ai.currentState", &ai.currentState);
     LogValueFollow("ai.model.knownOpponentCount", &ai.model.knownOpponentCount);
-    LogValueFollow("ai.model.knownOpponents[0].processId", &ai.model.knownOpponents[0].processId);
-    LogValueFollow("ai.model.knownOpponents[0].x", &ai.model.knownOpponents[0].x);
-    LogValueFollow("ai.model.knownOpponents[0].y", &ai.model.knownOpponents[0].y);
-    LogValueFollow("ai.model.knownOpponents[0].visible", &ai.model.knownOpponents[0].visible);
-    LogValueFollow("input.lookAt.x", &input.lookAt.x);
-    LogValueFollow("input.lookAt.y", &input.lookAt.y);
+    LogValueFollow("ai.model.targetOpponentIndex", &ai.model.targetOpponentIndex);
 
     AIChangeState(id, AI_STATE_IDLE);
-    loop
+    repeat
+        InputMoveNone(id);
         AIHandleState(id);
         input.attackingPreviousFrame = input.attacking;
         if (key(_y))
@@ -421,15 +438,21 @@ begin
         if (key(_u))
             AIChangeState(id, AI_STATE_IDLE);
         end
-        // look at the mouse cursor
+        // turn towards the look input
         TurnTowardsPosition(
+            id,
             input.lookAt.x, 
             input.lookAt.y, 
             __characterData[charType].maxTurnSpeed);
         frame;
-    end
+    until (alive == false)
 end
 
+
+
+/* -----------------------------------------------------------------------------
+ * AI state management
+ * ---------------------------------------------------------------------------*/
 function AIChangeState(controllerId, nextState)
 begin
     controllerId.ai.previousState = controllerId.ai.currentState;
@@ -504,27 +527,56 @@ end
 
 function AIHandleState(controllerId)
 private
-    targetOpponentIndex = -1;
+    nextState = -1;
+    targetOpponentIndex;
+    targetOpponentX;
+    targetOpponentY;
+    targetOpponentDistance = max_int;
 begin
-    // TODO: Use a more reliable method of selecting an opponent to target.
-    targetOpponentIndex = 0;// controllerId.ai.model.targetOpponentIndex;
+    // select target opponent
+    targetOpponentIndex = controllerId.ai.model.targetOpponentIndex;
+    if (targetOpponentIndex == -1)
+        targetOpponentIndex = AIGetNearestVisibleKnownOpponentIndex(controllerId);
+    end
+    if (targetOpponentIndex > -1)
+        z = targetOpponentIndex;
+        targetOpponentX = controllerId.ai.model.knownOpponents[z].x;
+        targetOpponentY = controllerId.ai.model.knownOpponents[z].y;
+        targetOpponentDistance = fget_dist(
+            controllerId.x, 
+            controllerId.y, 
+            targetOpponentX, 
+            targetOpponentY);
+    end
+
     switch (controllerId.ai.currentState)
         case AI_STATE_NULL:
         end
         case AI_STATE_IDLE:
+            if (targetOpponentIndex > -1)
+                nextState = AI_STATE_INVESTIGATE; // TODO: SHOOT
+            end
         end
         case AI_STATE_RESET:
+            // TODO: return to spawn position OR last position ordered by higher ranking AI
         end
         case AI_STATE_PATROL:
         end
         case AI_STATE_GUARD:
         end
-        case AI_STATE_INVESTIGATE, AI_STATE_SHOOT:
-            // TODO: Look at target.
+        case AI_STATE_INVESTIGATE:
             if (targetOpponentIndex > -1)
-                z = targetOpponentIndex;
-                controllerId.input.lookAt.x = controllerId.ai.model.knownOpponents[z].x;
-                controllerId.input.lookAt.y = controllerId.ai.model.knownOpponents[z].y;
+                if (targetOpponentDistance > AI_ENGAGE_DISTANCE)
+                    InputMoveTowards(controllerId, targetOpponentX, targetOpponentY);
+                    InputLookAt(controllerId, targetOpponentX, targetOpponentY);
+                end
+            end
+        end
+        case AI_STATE_SHOOT:
+            if (targetOpponentIndex > -1)
+                InputLookAt(controllerId, targetOpponentX, targetOpponentY);
+            else
+                nextState = AI_STATE_RESET;
             end
         end
         case AI_STATE_CHASE:
@@ -544,44 +596,67 @@ begin
         case AI_STATE_PEEK:
         end
     end
+
+    controllerId.ai.model.targetOpponentIndex = targetOpponentIndex;
+
+    if (nextState > -1)
+        AIChangeState(controllerId, nextState);
+    end
 end
 
 
 
 /* -----------------------------------------------------------------------------
- * AI management -> 530
+ * AI model management
  * ---------------------------------------------------------------------------*/
-process AIVisionManager(faction)
+process AIModelManager(faction)
 private
-    pointer allOpponents[MAX_CHARACTERS - 1];
-    pointer aiCharacters[MAX_CHARACTERS - 1];
+    pointer opponents;
+    pointer actors;
     knownOpponentIndex = -1;
     pointer opponent;
-    pointer aiCharacter;
+    pointer actor;
     isVisible = false;
 begin
-    allOpponents = GetAllOpponents(faction);
-    aiCharacters = GetFactionList(faction);
+    opponents = GetFactionOpponents(faction);
+    actors = GetFactionActors(faction);
     loop
         // foreach AI
         for (x = 0; x < MAX_CHARACTERS; ++x)
-            if (*aiCharacters[x] <= 0)
+            if (actors[x] <= 0)
                 continue;
             end
-            aiCharacter = *aiCharacters[x];
-            // foreach opponent
-            for (y = 0; y < MAX_CHARACTERS; ++y)
-                if (*allOpponents[y] <= 0)
+            actor = actors[x];
+            // prune dead opponents
+            for (y = 0; y < MAX_CHARACTERS - 1; ++y)
+                if ((*actor).ai.model.knownOpponents[y].processId <= 0)
                     continue;
                 end
-                opponent = *allOpponents[y];
+                if ((*actor).ai.model.knownOpponents[y].processId.alive == false)
+                    (*actor).ai.model.knownOpponents[y].processId = -1;
+                    (*actor).ai.model.knownOpponentCount--;
+                    if ((*actor).ai.model.targetOpponentIndex == y)
+                        (*actor).ai.model.targetOpponentIndex = -1;
+                    end
+                end
+            end
+            // find new opponents and update known ones
+            for (y = 0; y < MAX_CHARACTERS; ++y)
+                if (opponents[y] <= 0)
+                    continue;
+                end
+                opponent = opponents[y];
+                if (opponent.alive == false)
+                    continue;
+                end
                 // can AI see opponent?
-                isVisible = AILineOfSight((*aiCharacter).x, (*aiCharacter).y, (*opponent).x, (*opponent).y);
+                // TODO: Test cleaning up * syntax, might be unnecessary.
+                isVisible = AILineOfSight((*actor).x, (*actor).y, (*opponent).x, (*opponent).y);
                 knownOpponentIndex = -1;
                 // TODO: Clean this up into a function.
                 // find index of element where processId == opponent
                 for (z = 0; z < MAX_CHARACTERS - 1; ++z)
-                    if ((*aiCharacter).ai.model.knownOpponents[z].processId == opponent)
+                    if ((*actor).ai.model.knownOpponents[z].processId == opponent)
                         knownOpponentIndex = z;
                         break;
                     end
@@ -590,22 +665,22 @@ begin
                     // TODO: Clean this up into a function.
                     // find next free index
                     for (z = 0; z < MAX_CHARACTERS - 1; ++z)
-                        if ((*aiCharacter).ai.model.knownOpponents[z].processId <= 0)
+                        if ((*actor).ai.model.knownOpponents[z].processId <= 0)
                             knownOpponentIndex = z;
                             break;
                         end
                     end
                     // visible but previously unknown opponents are added to AI's model
-                    (*aiCharacter).ai.model.knownOpponents[z].processId = opponent;
-                    (*aiCharacter).ai.model.knownOpponentCount++;
+                    (*actor).ai.model.knownOpponents[z].processId = opponent;
+                    (*actor).ai.model.knownOpponentCount++;
                 end
                 // if knownOpponentIndex is valid (>= 0), then update x, y and visible properties of AI's model
                 if (knownOpponentIndex >= 0)
                     z = knownOpponentIndex;
-                    (*aiCharacter).ai.model.knownOpponents[z].visible = isVisible;
+                    (*actor).ai.model.knownOpponents[z].visible = isVisible;
                     if (isVisible)
-                        (*aiCharacter).ai.model.knownOpponents[z].x = opponent.x;
-                        (*aiCharacter).ai.model.knownOpponents[z].y = opponent.y;
+                        (*actor).ai.model.knownOpponents[z].x = opponent.x;
+                        (*actor).ai.model.knownOpponents[z].y = opponent.y;
                     end
                 end
             end
@@ -614,41 +689,40 @@ begin
     end
 end
 
+
+
+/* -----------------------------------------------------------------------------
+ * AI utilities
+ * ---------------------------------------------------------------------------*/
 function AILineOfSight(x0, y0, x1, y2)
 begin
     // TODO: Implement raycast. Consider using collision (hardness) map?
     return (true);
 end
 
-// TODO: move code to appropriate place
-function TableGetElement(pointer table, index)
+function AIGetNearestVisibleKnownOpponentIndex(controllerId)
+private
+    closestOpponentIndex = -1;
+    shortestDistance = max_int;
+    distance;
+    pointer opponent;
 begin
-    return (&table[index]);
-end
-
-function TableSetElement(pointer table, index, val)
-begin
-    *table[index] = val;
-end
-
-function TableFindFreeIndex(pointer table, tableSize)
-begin
-    for (x = 0; x < tableSize; x++)
-        if (*table[x] <= 0)
-            return (x);
+    if (controllerId.ai.model.knownOpponentCount > 0)
+        for (z = 0; z < MAX_CHARACTERS - 1; ++z)
+            if (controllerId.ai.model.knownOpponents[z].visible)
+                distance = fget_dist(
+                    controllerId.x, 
+                    controllerId.y, 
+                    controllerId.ai.model.knownOpponents[z].x, 
+                    controllerId.ai.model.knownOpponents[z].y);
+                if (distance < shortestDistance)
+                    shortestDistance = distance;
+                    closestOpponentIndex = z;
+                end
+            end
         end
     end
-    return (-1);
-end
-
-function TableGetIndexOfValue(pointer table, tableSize, val)
-begin
-    for (x = 0; x < tableSize; ++x)
-        if (*table[x] == val)
-            return (x);
-        end
-    end
-    return (-1);
+    return (closestOpponentIndex);
 end
 
 
@@ -656,21 +730,28 @@ end
 /* -----------------------------------------------------------------------------
  * Character components -> 560
  * ---------------------------------------------------------------------------*/
-process CharacterFaction(charType)
+process CharacterFaction(controllerId, charType)
 private
-    factionList;
+    pointer factionActors;
 begin
     // initialization
     value = __characterData[charType].faction;
-    factionList = GetFactionList(value);
-    x = TableFindFreeIndex(&factionList, MAX_CHARACTERS - 1);
-    TableSetElement(&factionList, x, father);
-    loop
-        frame;
+    factionActors = GetFactionActors(value);
+    // find next free index
+    for (x = 0; x < MAX_CHARACTERS - 1; ++x)
+        if (factionActors[x] <= 0)
+            factionActors[x] = father;
+            break;
+        end
     end
+    repeat
+        frame;
+    until (controllerId.alive == false)
+    // clear table entry
+    factionActors[x] = -1;
 end
 
-process CharacterAnimator(charType)
+process CharacterAnimator(controllerId, charType)
 private
     arms;
     base;
@@ -679,64 +760,55 @@ private
 begin
     // initialization
     resolution = GAME_PROCESS_RESOLUTION;
-    components.health = father.components.health;
     // sub-processes
-    arms = CharacterArms(charType);
-    base = CharacterBase(charType);
-    head = CharacterHead(charType);
-    weapon = CharacterWeapon(father);
-    loop
-        x = father.x;
-        y = father.y;
-        angle = father.angle;
+    arms = CharacterArms(controllerId, charType);
+    base = CharacterBase(controllerId, charType);
+    head = CharacterHead(controllerId, charType);
+    weapon = CharacterWeapon(controllerId);
+    repeat
+        CopyXYAngle(controllerId);
         frame;
-    end
+    until (controllerId.alive == false)
 end
 
-process CharacterArms(charType)
+process CharacterArms(controllerId, charType)
 begin
     // initialization
     resolution = GAME_PROCESS_RESOLUTION;
     file = __gfxCharacters;
     graph = 200 + __characterData[charType].gfxOffset;
     z = -90;
-    loop
-        x = father.x;
-        y = father.y;
-        angle = father.angle;
+    repeat
+        CopyXYAngle(controllerId);
         frame;
-    end
+    until (controllerId.alive == false)
 end
 
-process CharacterBase(charType)
+process CharacterBase(controllerId, charType)
 begin
     // initialization
     resolution = GAME_PROCESS_RESOLUTION;
-    components.health = father.components.health;
+    components.health = controllerId.components.health;
     file = __gfxCharacters;
     graph = 100 + __characterData[charType].gfxOffset;
     z = -100;
-    loop
-        x = father.x;
-        y = father.y;
-        angle = father.angle;
+    repeat
+        CopyXYAngle(controllerId);
         frame;
-    end
+    until (controllerId.alive == false)
 end
 
-process CharacterHead(charType)
+process CharacterHead(controllerId, charType)
 begin
     // initialization
     resolution = GAME_PROCESS_RESOLUTION;
     file = __gfxCharacters;
     graph = 401;
     z = -110;
-    loop
-        x = father.x;
-        y = father.y;
-        angle = father.angle;
+    repeat
+        CopyXYAngle(controllerId);
         frame;
-    end
+    until (controllerId.alive == false)
 end
 
 process CharacterWeapon(controllerId)
@@ -748,15 +820,12 @@ begin
     file = __gfxMain;
     graph = 800;
     z = -95;
-    loop
-        x = father.x;
-        y = father.y;
-        angle = father.angle;
-
+    repeat
+        CopyXYAngle(controllerId);
         if (controllerId.input.attacking && timer[0] > lastShotTime + 12)
-            PlaySound(SOUND_MP40_SHOT, 128, 512);
             // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
             //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 50);
+            PlaySound(SOUND_MP40_SHOT, 128, 512);
             MuzzleFlash();
             Bullet(BULLET_PISTOL);
             lastShotTime = timer[0];
@@ -766,7 +835,7 @@ begin
             PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 15);
         end
         frame;
-    end
+    until (controllerId.alive == false)
 end
 
 
@@ -774,33 +843,32 @@ end
 /* -----------------------------------------------------------------------------
  * Components
  * ---------------------------------------------------------------------------*/
- process HealthComponent(charType)
- begin
-    value = __characterData[charType].startingHealth;
-    loop
-        if (value <= 0)
-            frame;
-            break;
-        end
+process HealthComponent(controllerId, startingHealth)
+begin
+    value = startingHealth;
+    repeat
         frame;
-    end
-    KillProcess(father);
- end
+    until (value <= 0)
+    CleanUpLocalLogs(controllerId);
+    controllerId.alive = false;
+end
 
- function KillProcess(processId)
- begin
-    y = processId.logCount;
-    for (x = 0; x < y; ++x)
-        DeleteLocalLog(processId);
-    end
-    signal(processId, s_kill_tree);
- end
+process PhysicsComponent(controllerId, maxMoveSpeed)
+begin
+    controllerId.physics.maxMoveSpeed = maxMoveSpeed;
+    repeat
+        ApplyInputToVelocity(controllerId);
+        ApplyVelocity(controllerId);
+        frame;
+    until (controllerId.alive == false)
+end
 
 
 
 /* -----------------------------------------------------------------------------
  * Projectiles
  * ---------------------------------------------------------------------------*/
+// TODO: Refactor to generic projectile.
 process Bullet(bulletType)
 private
     collisionId;
@@ -812,9 +880,7 @@ begin
     graph = 601;
     z = -700;
     // positioning
-    x = father.x;
-    y = father.y;
-    angle = father.angle;
+    CopyXYAngle(father);
     advance(__bulletData[bulletType].offsetForward); // TODO: implement offsetLeft
     // children
     LifeTimer(__bulletData[bulletType].lifeDuration);
@@ -854,8 +920,7 @@ begin
         size = (sin(animationTime * 180) + 1000) / 40;
 
         // positioning
-        x = father.x;
-        y = father.y;
+        CopyXY(father);
         advance(forwardOffset * GAME_PROCESS_RESOLUTION);
         frame;
     end
@@ -883,9 +948,9 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Factions
+ * Faction utilities
  * ---------------------------------------------------------------------------*/
-function GetAllOpponents(faction)
+function GetFactionOpponents(faction)
 begin
     // TODO: This code is fragile, improve it.
     switch (faction)
@@ -898,19 +963,9 @@ begin
     end
 end
 
-function IsOpposingFaction(myFaction, otherFaction)
+function GetFactionActors(faction)
 begin
-    if (myFaction == FACTION_NEUTRAL || otherFaction == FACTION_NEUTRAL)
-        return (false);
-    end
-    if (myFaction == otherFaction)
-        return (false);
-    end
-    return (true);
-end
-
-function GetFactionList(faction)
-begin
+    // TODO: This code is fragile, improve it.
     switch (faction)
         case FACTION_NEUTRAL:
             return (&__neutralCharacters);
@@ -924,19 +979,31 @@ begin
     end
 end
 
+function IsOpposingFaction(myFaction, otherFaction)
+begin
+    // TODO: This code is fragile, improve it.
+    if (myFaction == FACTION_NEUTRAL || otherFaction == FACTION_NEUTRAL)
+        return (false);
+    end
+    if (myFaction == otherFaction)
+        return (false);
+    end
+    return (true);
+end
+
 
 
 /* -----------------------------------------------------------------------------
- * Utility functions
+ * Physics & Input functions
  * ---------------------------------------------------------------------------*/
-function ApplyInputToVelocity(multiplier)
+function ApplyInputToVelocity(processId)
 begin
-    x = father.input.move.x * multiplier;
-    y = father.input.move.y * multiplier;
-    VectorNormalize(&x, &y, multiplier);
-    // TODO: Don't hard set the velocity, instead add to it. Implement acceleration.
-    father.physics.velocity.x = x * father.physics.maxMoveSpeed / multiplier;
-    father.physics.velocity.y = y * father.physics.maxMoveSpeed / multiplier;
+    x = processId.input.move.x * processId.input.move.granularity;
+    y = processId.input.move.y * processId.input.move.granularity;
+    VectorNormalize(&x, &y, GAME_PROCESS_RESOLUTION);
+    // TODO: Don't hard set the velocity, instead implement acceleration.
+    processId.physics.velocity.x = x * processId.physics.maxMoveSpeed / GAME_PROCESS_RESOLUTION;
+    processId.physics.velocity.y = y * processId.physics.maxMoveSpeed / GAME_PROCESS_RESOLUTION;
 end
 
 function ApplyVelocity(processId)
@@ -945,6 +1012,75 @@ begin
     processId.y += processId.physics.velocity.y;
 end
 
+function InputMoveTowards(processId, x, y)
+begin
+    x = x - processId.x;
+    y = y - processId.y;
+    VectorNormalize(&x, &y, 10);
+    processId.input.move.x = x;
+    processId.input.move.y = y;
+end
+
+function InputMoveNone(processId)
+begin
+    processId.input.move.x = 0;
+    processId.input.move.y = 0;
+end
+
+function InputLookAt(processId, x, y)
+begin
+    processId.input.lookAt.x = x;
+    processId.input.lookAt.y = y;
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Process utilities
+ * ---------------------------------------------------------------------------*/
+function KillProcess(processId)
+begin
+    CleanUpLocalLogs(processId);
+    signal(processId, s_kill_tree);
+end
+
+function RecordSpawnPosition(processId)
+begin
+    processId.spawnPosition.x = processId.x;
+    processId.spawnPosition.y = processId.y;
+end
+
+function CopyXY(processId)
+begin
+    father.x = processId.x;
+    father.y = processId.y;
+end
+
+function CopyXYAngle(processId)
+begin
+    father.x = processId.x;
+    father.y = processId.y;
+    father.angle = processId.angle;
+end
+
+function TurnTowards(processId, targetProcessId, turnSpeed)
+begin
+    TurnTowardsPosition(processId, targetProcessId.x, targetProcessId.y, turnSpeed);
+end
+
+function TurnTowardsPosition(processId, tX, tY, turnSpeed)
+begin
+    processId.angle = near_angle(
+        processId.angle, 
+        fget_angle(processId.x, processId.y, tX, tY), 
+        turnSpeed);
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Math functions
+ * ---------------------------------------------------------------------------*/
 function VectorNormalize(pointer vX, pointer vY, multiplier)
 private
     magnitude;
@@ -965,16 +1101,6 @@ end
 function VectorMagnitude(vX, vY)
 begin
     return (sqrt((vX * vX) + (vY * vY)));
-end
-
-function TurnTowards(target, turnSpeed)
-begin
-    father.angle = near_angle(father.angle, fget_angle(father.x, father.y, target.x, target.y), turnSpeed);
-end
-
-function TurnTowardsPosition(tX, tY, turnSpeed)
-begin
-    father.angle = near_angle(father.angle, fget_angle(father.x, father.y, tX, tY), turnSpeed);
 end
 
 function WrapAngle360(val)
@@ -1114,6 +1240,14 @@ begin
         end
     end
     return (-1);
+end
+
+function CleanUpLocalLogs(processId)
+begin
+    y = processId.logCount;
+    for (x = 0; x < y; ++x)
+        DeleteLocalLog(processId);
+    end
 end
 
 
