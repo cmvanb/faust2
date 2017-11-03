@@ -52,7 +52,7 @@ const
     SCREEN_HEIGHT      = 400;
     HALF_SCREEN_WIDTH  = SCREEN_WIDTH / 2;
     HALF_SCREEN_HEIGHT = SCREEN_HEIGHT / 2;
-    GAME_PROCESS_RESOLUTION = 10;
+    GPR = 10;
 
     // gameplay
     BULLET_PISTOL = 0;
@@ -68,6 +68,10 @@ const
     FACTION_NEUTRAL = 0;
     FACTION_GOOD    = 1;
     FACTION_EVIL    = 2;
+
+    // input
+    INPUT_RUN  = 0;
+    INPUT_WALK = 1;
 
     // AI
     AI_STATE_NULL        = 0;
@@ -85,8 +89,8 @@ const
     AI_STATE_FLEE        = 12;
     AI_STATE_HIDE        = 13;
     AI_STATE_PEEK        = 14;
-    AI_RESET_DISTANCE  = 30 * GAME_PROCESS_RESOLUTION;
-    AI_ENGAGE_DISTANCE = 200 * GAME_PROCESS_RESOLUTION;
+    AI_RESET_DISTANCE  = 30 * GPR;
+    AI_ENGAGE_DISTANCE = 200 * GPR;
     MAX_CHARACTERS = 32;
 
     // timing
@@ -115,25 +119,26 @@ global
         offsetLeft;
     end = 
         // pistol
-        25, 40, 20 * GAME_PROCESS_RESOLUTION, 45 * GAME_PROCESS_RESOLUTION, 0 * GAME_PROCESS_RESOLUTION,
+        25, 40, 20 * GPR, 45 * GPR, 0 * GPR,
         // rifle
-        65, 50, 30 * GAME_PROCESS_RESOLUTION, 45 * GAME_PROCESS_RESOLUTION, 0 * GAME_PROCESS_RESOLUTION;
+        65, 50, 30 * GPR, 45 * GPR, 0 * GPR;
 
     struct __characterData[7]
-        maxMoveSpeed;
+        walkSpeed;
+        runSpeed;
         maxTurnSpeed;
         gfxOffset;
         startingHealth;
         faction;
     end = 
-        4 * GAME_PROCESS_RESOLUTION, 10000, 2, 200, FACTION_GOOD, // player
-        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 100, FACTION_EVIL, // guard level 1
-        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 150, FACTION_EVIL, // guard level 2
-        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 200, FACTION_EVIL, // guard level 3
-        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 100, FACTION_EVIL, // officer level 1
-        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 150, FACTION_EVIL, // officer level 2
-        3 * GAME_PROCESS_RESOLUTION, 10000, 1, 200, FACTION_EVIL, // officer level 3
-        3 * GAME_PROCESS_RESOLUTION, 10000, 2, 200, FACTION_GOOD; // allied commando
+        2 * GPR, 4 * GPR, 10000, 2, 200, FACTION_GOOD, // player
+        2 * GPR, 3 * GPR, 10000, 1, 100, FACTION_EVIL, // guard level 1
+        2 * GPR, 3 * GPR, 10000, 1, 150, FACTION_EVIL, // guard level 2
+        2 * GPR, 3 * GPR, 10000, 1, 200, FACTION_EVIL, // guard level 3
+        2 * GPR, 3 * GPR, 10000, 1, 100, FACTION_EVIL, // officer level 1
+        2 * GPR, 3 * GPR, 10000, 1, 150, FACTION_EVIL, // officer level 2
+        2 * GPR, 3 * GPR, 10000, 1, 200, FACTION_EVIL, // officer level 3
+        2 * GPR, 3 * GPR, 10000, 2, 200, FACTION_GOOD; // allied commando
 
     // game processes
     __playerController;
@@ -190,6 +195,7 @@ local
             x;
             y;
             granularity;
+            walk;
         end
         struct lookAt
             x;
@@ -199,7 +205,9 @@ local
 
     // actor physics
     struct physics
-        maxMoveSpeed;
+        walkSpeed;
+        runSpeed;
+        targetMoveSpeed;
         struct velocity
             x;
             y;
@@ -326,10 +334,10 @@ begin
     state = GAME_STATE_ACTIVE;
 
     // characters
-    __playerController = PlayerController(40 * GAME_PROCESS_RESOLUTION, 40 * GAME_PROCESS_RESOLUTION);
-    AIController(CHAR_GUARD_1, 320 * GAME_PROCESS_RESOLUTION, 200 * GAME_PROCESS_RESOLUTION);
-    AIController(CHAR_GUARD_1, 350 * GAME_PROCESS_RESOLUTION, 240 * GAME_PROCESS_RESOLUTION);
-    AIController(CHAR_ALLIED_COMMANDO, 560 * GAME_PROCESS_RESOLUTION, 100 * GAME_PROCESS_RESOLUTION);
+    __playerController = PlayerController(40 * GPR, 40 * GPR);
+    AIController(CHAR_GUARD_1, 320 * GPR, 200 * GPR);
+    //AIController(CHAR_GUARD_1, 350 * GPR, 240 * GPR);
+    //AIController(CHAR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR);
 
     // managers
     AIModelManager(FACTION_EVIL);
@@ -353,7 +361,7 @@ private
 begin
     // configuration
     input.move.granularity = 1;
-    resolution = GAME_PROCESS_RESOLUTION;
+    resolution = GPR;
 
     // initialization
     alive = true;
@@ -363,7 +371,7 @@ begin
     components.health = HealthComponent(id, __characterData[CHAR_PLAYER].startingHealth);
     components.animator = CharacterAnimator(id, CHAR_PLAYER);
     components.faction = CharacterFaction(id, CHAR_PLAYER);
-    components.physics = PhysicsComponent(id, __characterData[CHAR_PLAYER].maxMoveSpeed);
+    components.physics = PhysicsComponent(id, __characterData[CHAR_PLAYER].walkSpeed, __characterData[CHAR_PLAYER].runSpeed);
     mouseCursor = MouseCursor();
 
     // debugging
@@ -391,6 +399,8 @@ begin
         InputLookAt(id, mouseCursor.x, mouseCursor.y);
         input.attackingPreviousFrame = input.attacking;
         input.attacking = mouse.left;
+        // TODO: implement player walk controls
+        input.move.walk = false;
 
         // turn towards the look input
         TurnTowardsPosition(
@@ -408,7 +418,7 @@ private
 begin
     // configuration
     input.move.granularity = 10;
-    resolution = GAME_PROCESS_RESOLUTION;
+    resolution = GPR;
 
     // initialization
     alive = true;
@@ -421,12 +431,11 @@ begin
     components.health = HealthComponent(id, __characterData[charType].startingHealth);
     components.animator = CharacterAnimator(id, charType);
     components.faction = CharacterFaction(id, charType);
-    components.physics = PhysicsComponent(id, __characterData[charType].maxMoveSpeed);
+    components.physics = PhysicsComponent(id, __characterData[charType].walkSpeed, __characterData[charType].runSpeed);
 
     // debugging
     LogValueFollow("health.value", &components.health.value);
-    LogValueFollow("input.lookAt.x", &input.lookAt.x);
-    LogValueFollow("input.lookAt.y", &input.lookAt.y);
+    LogValueFollow("input.move.walk", &input.move.walk);
     LogValueFollow("ai.previousState", &ai.previousState);
     LogValueFollow("ai.currentState", &ai.currentState);
     LogValueFollow("ai.model.knownOpponentCount", &ai.model.knownOpponentCount);
@@ -579,7 +588,7 @@ begin
                     controllerId.spawnPosition.x, 
                     controllerId.spawnPosition.y);
                 if (distance > AI_RESET_DISTANCE)
-                    InputMoveTowards(controllerId, controllerId.spawnPosition.x, controllerId.spawnPosition.y);
+                    InputMoveTowards(controllerId, controllerId.spawnPosition.x, controllerId.spawnPosition.y, INPUT_RUN);
                     InputLookAt(controllerId, controllerId.spawnPosition.x, controllerId.spawnPosition.y);
                 else
                     nextState = AI_STATE_IDLE;
@@ -594,7 +603,7 @@ begin
             if (targetOpponentIndex > -1)
                 if (targetOpponentDistance > AI_ENGAGE_DISTANCE)
                     InputLookAt(controllerId, targetOpponentX, targetOpponentY);
-                    InputMoveTowards(controllerId, targetOpponentX, targetOpponentY);
+                    InputMoveTowards(controllerId, targetOpponentX, targetOpponentY, INPUT_WALK);
                 else
                     nextState = AI_STATE_SHOOT;
                 end
@@ -616,7 +625,7 @@ begin
             if (targetOpponentIndex > -1)
                 if (targetOpponentDistance > AI_ENGAGE_DISTANCE)
                     InputLookAt(controllerId, targetOpponentX, targetOpponentY);
-                    InputMoveTowards(controllerId, targetOpponentX, targetOpponentY);
+                    InputMoveTowards(controllerId, targetOpponentX, targetOpponentY, INPUT_RUN);
                 else
                     nextState = AI_STATE_SHOOT;
                 end
@@ -804,7 +813,7 @@ private
     weapon;
 begin
     // initialization
-    resolution = GAME_PROCESS_RESOLUTION;
+    resolution = GPR;
     // sub-processes
     arms = CharacterArms(controllerId, charType);
     base = CharacterBase(controllerId, charType);
@@ -819,7 +828,7 @@ end
 process CharacterArms(controllerId, charType)
 begin
     // initialization
-    resolution = GAME_PROCESS_RESOLUTION;
+    resolution = GPR;
     file = __gfxCharacters;
     graph = 200 + __characterData[charType].gfxOffset;
     z = -90;
@@ -832,7 +841,7 @@ end
 process CharacterBase(controllerId, charType)
 begin
     // initialization
-    resolution = GAME_PROCESS_RESOLUTION;
+    resolution = GPR;
     components.health = controllerId.components.health;
     file = __gfxCharacters;
     graph = 100 + __characterData[charType].gfxOffset;
@@ -846,7 +855,7 @@ end
 process CharacterHead(controllerId, charType)
 begin
     // initialization
-    resolution = GAME_PROCESS_RESOLUTION;
+    resolution = GPR;
     file = __gfxCharacters;
     graph = 401;
     z = -110;
@@ -861,7 +870,7 @@ private
     lastShotTime = 0;
 begin
     // initialization
-    resolution = GAME_PROCESS_RESOLUTION;
+    resolution = GPR;
     file = __gfxMain;
     graph = 800;
     z = -95;
@@ -898,9 +907,10 @@ begin
     controllerId.alive = false;
 end
 
-process PhysicsComponent(controllerId, maxMoveSpeed)
+process PhysicsComponent(controllerId, walkSpeed, runSpeed)
 begin
-    controllerId.physics.maxMoveSpeed = maxMoveSpeed;
+    controllerId.physics.walkSpeed = walkSpeed;
+    controllerId.physics.runSpeed = runSpeed;
     repeat
         ApplyInputToVelocity(controllerId);
         ApplyVelocity(controllerId);
@@ -919,7 +929,7 @@ private
     collisionId;
 begin
     // initialization
-    resolution = GAME_PROCESS_RESOLUTION;
+    resolution = GPR;
     // graphics
     file = __gfxMain;
     graph = 601;
@@ -952,7 +962,7 @@ private
     forwardOffset = 44;
 begin
     // initialization
-    resolution = GAME_PROCESS_RESOLUTION;
+    resolution = GPR;
     file = __gfxMain;
     graph = 700;
     z = -710;
@@ -966,7 +976,7 @@ begin
 
         // positioning
         CopyXY(father);
-        advance(forwardOffset * GAME_PROCESS_RESOLUTION);
+        advance(forwardOffset * GPR);
         frame;
     end
 end
@@ -979,13 +989,13 @@ end
 process MouseCursor()
 begin
     // initialization
-    resolution = GAME_PROCESS_RESOLUTION;
+    resolution = GPR;
     file = __gfxMain;
     graph = 300;
     z = -1000;
     loop
-        x = mouse.x * GAME_PROCESS_RESOLUTION;
-        y = mouse.y * GAME_PROCESS_RESOLUTION;
+        x = mouse.x * GPR;
+        y = mouse.y * GPR;
         frame;
     end
 end
@@ -1045,10 +1055,16 @@ function ApplyInputToVelocity(processId)
 begin
     x = processId.input.move.x * processId.input.move.granularity;
     y = processId.input.move.y * processId.input.move.granularity;
-    VectorNormalize(&x, &y, GAME_PROCESS_RESOLUTION);
+    VectorNormalize(&x, &y, GPR);
+
     // TODO: Don't hard set the velocity, instead implement acceleration.
-    processId.physics.velocity.x = x * processId.physics.maxMoveSpeed / GAME_PROCESS_RESOLUTION;
-    processId.physics.velocity.y = y * processId.physics.maxMoveSpeed / GAME_PROCESS_RESOLUTION;
+    if (processId.input.move.walk == INPUT_WALK)
+        processId.physics.targetMoveSpeed = processId.physics.walkSpeed;
+    else
+        processId.physics.targetMoveSpeed = processId.physics.runSpeed;
+    end
+    processId.physics.velocity.x = x * processId.physics.targetMoveSpeed / GPR;
+    processId.physics.velocity.y = y * processId.physics.targetMoveSpeed / GPR;
 end
 
 function ApplyVelocity(processId)
@@ -1057,19 +1073,21 @@ begin
     processId.y += processId.physics.velocity.y;
 end
 
-function InputMoveTowards(processId, x, y)
+function InputMoveTowards(processId, x, y, walk)
 begin
     x = x - processId.x;
     y = y - processId.y;
     VectorNormalize(&x, &y, 10);
     processId.input.move.x = x;
     processId.input.move.y = y;
+    processId.input.move.walk = walk;
 end
 
 function InputMoveNone(processId)
 begin
     processId.input.move.x = 0;
     processId.input.move.y = 0;
+    processId.input.move.walk = INPUT_RUN;
 end
 
 function InputLookAt(processId, x, y)
@@ -1199,8 +1217,8 @@ begin
     index = GetNextLocalLogIndex(father);
     LogValueBase(father, label, val, true);
     loop
-        x = father.x / GAME_PROCESS_RESOLUTION;
-        y = (father.y / GAME_PROCESS_RESOLUTION) + (index * __logsYOffset);
+        x = father.x / GPR;
+        y = (father.y / GPR) + (index * __logsYOffset);
         move_text(father.logs[index].txtLabel, x, y);
         move_text(father.logs[index].txtVal, x, y);
         frame;
