@@ -85,6 +85,7 @@ const
     AI_STATE_FLEE        = 12;
     AI_STATE_HIDE        = 13;
     AI_STATE_PEEK        = 14;
+    AI_RESET_DISTANCE  = 30 * GAME_PROCESS_RESOLUTION;
     AI_ENGAGE_DISTANCE = 200 * GAME_PROCESS_RESOLUTION;
     MAX_CHARACTERS = 32;
 
@@ -165,7 +166,7 @@ global
  * Local variables (every process gets these)
  * ---------------------------------------------------------------------------*/
 local
-    // Component references.
+    // component references
     struct components
         animator;
         faction;
@@ -327,6 +328,7 @@ begin
     // characters
     __playerController = PlayerController(40 * GAME_PROCESS_RESOLUTION, 40 * GAME_PROCESS_RESOLUTION);
     AIController(CHAR_GUARD_1, 320 * GAME_PROCESS_RESOLUTION, 200 * GAME_PROCESS_RESOLUTION);
+    AIController(CHAR_GUARD_1, 350 * GAME_PROCESS_RESOLUTION, 240 * GAME_PROCESS_RESOLUTION);
     AIController(CHAR_ALLIED_COMMANDO, 560 * GAME_PROCESS_RESOLUTION, 100 * GAME_PROCESS_RESOLUTION);
 
     // managers
@@ -355,17 +357,17 @@ begin
 
     // initialization
     alive = true;
+    RecordSpawnPosition(id);
+
+    // components & sub-processes
     components.health = HealthComponent(id, __characterData[CHAR_PLAYER].startingHealth);
     components.animator = CharacterAnimator(id, CHAR_PLAYER);
     components.faction = CharacterFaction(id, CHAR_PLAYER);
     components.physics = PhysicsComponent(id, __characterData[CHAR_PLAYER].maxMoveSpeed);
     mouseCursor = MouseCursor();
-    RecordSpawnPosition(id);
 
     // debugging
     LogValueFollow("health.value", &components.health.value);
-    LogValueFollow("input.lookAt.x", &input.lookAt.x);
-    LogValueFollow("input.lookAt.y", &input.lookAt.y);
     repeat
         // capture input
         if (key(_a))
@@ -389,6 +391,7 @@ begin
         InputLookAt(id, mouseCursor.x, mouseCursor.y);
         input.attackingPreviousFrame = input.attacking;
         input.attacking = mouse.left;
+
         // turn towards the look input
         TurnTowardsPosition(
             id,
@@ -409,14 +412,16 @@ begin
 
     // initialization
     alive = true;
+    RecordSpawnPosition(id);
+    ai.previousState = AI_STATE_NULL;
+    ai.currentState = AI_STATE_NULL;
+    ai.model.targetOpponentIndex = -1;
+
+    // components & sub-processes
     components.health = HealthComponent(id, __characterData[charType].startingHealth);
     components.animator = CharacterAnimator(id, charType);
     components.faction = CharacterFaction(id, charType);
     components.physics = PhysicsComponent(id, __characterData[charType].maxMoveSpeed);
-    ai.previousState = AI_STATE_NULL;
-    ai.currentState = AI_STATE_NULL;
-    ai.model.targetOpponentIndex = -1;
-    RecordSpawnPosition(id);
 
     // debugging
     LogValueFollow("health.value", &components.health.value);
@@ -426,18 +431,20 @@ begin
     LogValueFollow("ai.currentState", &ai.currentState);
     LogValueFollow("ai.model.knownOpponentCount", &ai.model.knownOpponentCount);
     LogValueFollow("ai.model.targetOpponentIndex", &ai.model.targetOpponentIndex);
+    LogValueFollow("spawnPosition.x", &spawnPosition.x);
+    LogValueFollow("spawnPosition.y", &spawnPosition.y);
 
     AIChangeState(id, AI_STATE_IDLE);
     repeat
-        InputMoveNone(id);
         AIHandleState(id);
-        input.attackingPreviousFrame = input.attacking;
+        /*
         if (key(_y))
             AIChangeState(id, AI_STATE_SHOOT);
         end
         if (key(_u))
             AIChangeState(id, AI_STATE_IDLE);
         end
+        */
         // turn towards the look input
         TurnTowardsPosition(
             id,
@@ -532,7 +539,11 @@ private
     targetOpponentX;
     targetOpponentY;
     targetOpponentDistance = max_int;
+    distance = max_int;
 begin
+    // reset move input
+    InputMoveNone(controllerId);
+
     // select target opponent
     targetOpponentIndex = controllerId.ai.model.targetOpponentIndex;
     if (targetOpponentIndex == -1)
@@ -554,11 +565,26 @@ begin
         end
         case AI_STATE_IDLE:
             if (targetOpponentIndex > -1)
-                nextState = AI_STATE_INVESTIGATE; // TODO: SHOOT
+                nextState = AI_STATE_INVESTIGATE;
             end
         end
         case AI_STATE_RESET:
             // TODO: return to spawn position OR last position ordered by higher ranking AI
+            if (targetOpponentIndex > -1)
+                nextState = AI_STATE_INVESTIGATE;
+            else
+                distance = fget_dist(
+                    controllerId.x, 
+                    controllerId.y, 
+                    controllerId.spawnPosition.x, 
+                    controllerId.spawnPosition.y);
+                if (distance > AI_RESET_DISTANCE)
+                    InputMoveTowards(controllerId, controllerId.spawnPosition.x, controllerId.spawnPosition.y);
+                    InputLookAt(controllerId, controllerId.spawnPosition.x, controllerId.spawnPosition.y);
+                else
+                    nextState = AI_STATE_IDLE;
+                end
+            end
         end
         case AI_STATE_PATROL:
         end
@@ -567,19 +593,36 @@ begin
         case AI_STATE_INVESTIGATE:
             if (targetOpponentIndex > -1)
                 if (targetOpponentDistance > AI_ENGAGE_DISTANCE)
-                    InputMoveTowards(controllerId, targetOpponentX, targetOpponentY);
                     InputLookAt(controllerId, targetOpponentX, targetOpponentY);
+                    InputMoveTowards(controllerId, targetOpponentX, targetOpponentY);
+                else
+                    nextState = AI_STATE_SHOOT;
                 end
+            else
+                nextState = AI_STATE_RESET;
             end
         end
         case AI_STATE_SHOOT:
             if (targetOpponentIndex > -1)
                 InputLookAt(controllerId, targetOpponentX, targetOpponentY);
+                if (targetOpponentDistance > AI_ENGAGE_DISTANCE)
+                    nextState = AI_STATE_CHASE;
+                end
             else
                 nextState = AI_STATE_RESET;
             end
         end
         case AI_STATE_CHASE:
+            if (targetOpponentIndex > -1)
+                if (targetOpponentDistance > AI_ENGAGE_DISTANCE)
+                    InputLookAt(controllerId, targetOpponentX, targetOpponentY);
+                    InputMoveTowards(controllerId, targetOpponentX, targetOpponentY);
+                else
+                    nextState = AI_STATE_SHOOT;
+                end
+            else
+                nextState = AI_STATE_RESET;
+            end
         end
         case AI_STATE_HUNT:
         end
@@ -598,6 +641,7 @@ begin
     end
 
     controllerId.ai.model.targetOpponentIndex = targetOpponentIndex;
+    controllerId.input.attackingPreviousFrame = input.attacking;
 
     if (nextState > -1)
         AIChangeState(controllerId, nextState);
@@ -709,7 +753,8 @@ private
 begin
     if (controllerId.ai.model.knownOpponentCount > 0)
         for (z = 0; z < MAX_CHARACTERS - 1; ++z)
-            if (controllerId.ai.model.knownOpponents[z].visible)
+            if (controllerId.ai.model.knownOpponents[z].processId > -1 
+                && controllerId.ai.model.knownOpponents[z].visible)
                 distance = fget_dist(
                     controllerId.x, 
                     controllerId.y, 
