@@ -11,6 +11,9 @@ program Faust2;
  * Constants
  * ---------------------------------------------------------------------------*/
 const
+    // general
+    NULL = -1;
+
     // DIV command enums
     REGION_FULL_SCREEN = 0;
     SCROLL_FOREGROUND_HORIZONTAL = 1;
@@ -42,9 +45,9 @@ const
     MAX_SOUNDS = 4;
 
     // file paths
-    GFX_MAIN_PATH       = "assets/graphics/main.fpg";
+    GFX_MAIN_PATH   = "assets/graphics/main.fpg";
     GFX_ACTORS_PATH = "assets/graphics/actors.fpg";
-    FNT_MENU_PATH       = "assets/fonts/16x16-w-arcade.fnt";
+    FNT_MENU_PATH   = "assets/fonts/16x16-w-arcade.fnt";
 
     // graphics
     SCREEN_MODE        = m640x400;
@@ -55,8 +58,16 @@ const
     GPR = 10;
 
     // gameplay
-    BULLET_PISTOL = 0;
-    BULLET_RIFLE  = 1;
+    ITEM_TYPE_WEAPON     = 0;
+    ITEM_TYPE_AMMO       = 1;
+    ITEM_TYPE_CONSUMABLE = 2;
+    ITEM_TYPE_SPECIAL    = 3;
+    ITEM_MP40       = 0;
+    ITEM_KAR98K     = 1;
+    ITEM_AMMO_9MM   = 2;
+    ITEM_AMMO_RIFLE = 3;
+    BULLET_9MM   = 0;
+    BULLET_RIFLE = 1;
     ACTOR_PLAYER          = 0;
     ACTOR_GUARD_1         = 1;
     ACTOR_GUARD_2         = 2;
@@ -68,19 +79,20 @@ const
     FACTION_NEUTRAL = 0;
     FACTION_GOOD    = 1;
     FACTION_EVIL    = 2;
+    INVENTORY_CAPACITY = 5;
 
     // input
     INPUT_RUN  = 0;
     INPUT_WALK = 1;
 
     // AI
-    AI_STATE_NULL        = 0;
+    AI_STATE_NONE        = 0;
     AI_STATE_IDLE        = 1;
     AI_STATE_RESET       = 2;
     AI_STATE_PATROL      = 3;
     AI_STATE_GUARD       = 4;
     AI_STATE_INVESTIGATE = 5;
-    AI_STATE_SHOOT       = 6;
+    AI_STATE_ENGAGE       = 6;
     AI_STATE_CHASE       = 7;
     AI_STATE_HUNT        = 8;
     AI_STATE_RAISE_ALARM = 9;
@@ -111,16 +123,19 @@ global
     __sounds[MAX_SOUNDS - 1];
 
     // gameplay
-    struct __weaponStats[1]
+    struct __itemStats[1]
         string name;
+        itemType;
+        maxCarry;
+        magazineSize;
         soundIndex;
         offsetForward;
         offsetLeft;
     end =
-        // mp40
-        "MP40", 0, 45 * GPR, 0 * GPR,
-        // karabiner 98k
-        "Kar 98k", 0, 45 * GPR, 0 * GPR;
+        "MP40",       ITEM_TYPE_WEAPON, 1,   30,   SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
+        "Kar 98k",    ITEM_TYPE_WEAPON, 1,   5,    SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
+        "9mm Ammo",   ITEM_TYPE_AMMO,   150, NULL, NULL,            NULL,     NULL,
+        "Rifle Ammo", ITEM_TYPE_AMMO,   90,  NULL, NULL,            NULL,     NULL;
 
     struct __bulletStats[1]
         damage;
@@ -129,10 +144,8 @@ global
         offsetForward;
         offsetLeft;
     end = 
-        // pistol
-        25, 40, 20 * GPR, 45 * GPR, 0 * GPR,
-        // rifle
-        65, 50, 30 * GPR, 45 * GPR, 0 * GPR;
+        25, 40, 20 * GPR, 45 * GPR, 0 * GPR, // pistol
+        65, 50, 30 * GPR, 45 * GPR, 0 * GPR; // rifle
 
     struct __actorStats[7]
         walkSpeed;
@@ -187,6 +200,7 @@ local
         animator;
         faction;
         health;
+        inventory;
         physics;
     end
     value; // A value held by a component. What this holds is determined by the individual component.
@@ -233,7 +247,6 @@ local
         // the model determines what an NPC knows about it's environment
         struct model
             knownOpponentCount;
-            knownAllyCount;
             targetOpponentIndex;
             struct knownOpponents[MAX_ACTORS - 1]
                 processId;
@@ -242,6 +255,12 @@ local
                 visible;
             end
         end
+    end
+    
+    // items
+    struct item
+        index;
+        count;
     end
 
     // debugging
@@ -346,7 +365,10 @@ begin
 
     // actors
     __playerController = PlayerController(40 * GPR, 40 * GPR);
-    AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR);
+    GiveItem(__playerController, CreateItem(ITEM_MP40, 1));
+    GiveItem(__playerController, CreateItem(ITEM_AMMO_9MM, 90));
+
+    //AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR);
     //AIController(ACTOR_GUARD_1, 350 * GPR, 240 * GPR);
     //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR);
 
@@ -361,12 +383,41 @@ begin
     until (state == GAME_STATE_GAME_OVER)
 end
 
+function CreateItem(index, count)
+private
+    itemId;
+begin
+    itemId = Item();
+    itemId.item.index = index;
+    // TODO: Check if count is valid for this item type.
+    itemId.item.count = count;
+    return itemId;
+end
+
+function GiveItem(actorId, itemId)
+private
+    i;
+begin
+    if (__itemStats[itemId.item.index].itemType == ITEM_TYPE_AMMO)
+        // TODO: if not too much, increase ammo count
+        // TODO: if too much, split ammo item
+    end
+
+    // TODO: implement
+    //actorId.components.inventory.value[
+end
+
+process Item()
+begin
+    // TODO: implement
+end
+
 
 
 /* -----------------------------------------------------------------------------
  * Actor Controllers
  * ---------------------------------------------------------------------------*/
-process PlayerController(x, y)
+process PlayerController(x, y, inventoryContents)
 private
     mouseCursor;
 begin
@@ -382,6 +433,7 @@ begin
     components.health = HealthComponent(id, __actorStats[ACTOR_PLAYER].startingHealth);
     components.animator = ActorAnimator(id, ACTOR_PLAYER);
     components.faction = ActorFaction(id, ACTOR_PLAYER);
+    components.inventory = InventoryComponent(id, inventoryContents);
     components.physics = PhysicsComponent(id, __actorStats[ACTOR_PLAYER].walkSpeed, __actorStats[ACTOR_PLAYER].runSpeed);
     mouseCursor = MouseCursor();
 
@@ -434,9 +486,9 @@ begin
     // initialization
     alive = true;
     RecordSpawnPosition(id);
-    ai.previousState = AI_STATE_NULL;
-    ai.currentState = AI_STATE_NULL;
-    ai.model.targetOpponentIndex = -1;
+    ai.previousState = AI_STATE_NONE;
+    ai.currentState = AI_STATE_NONE;
+    ai.model.targetOpponentIndex = NULL;
 
     // components & sub-processes
     components.health = HealthComponent(id, __actorStats[charType].startingHealth);
@@ -459,7 +511,7 @@ begin
         AIHandleState(id);
         /*
         if (key(_y))
-            AIChangeState(id, AI_STATE_SHOOT);
+            AIChangeState(id, AI_STATE_ENGAGE);
         end
         if (key(_u))
             AIChangeState(id, AI_STATE_IDLE);
@@ -484,7 +536,7 @@ function AIChangeState(controllerId, nextState)
 begin
     controllerId.ai.previousState = controllerId.ai.currentState;
     switch (controllerId.ai.previousState)
-        case AI_STATE_NULL:
+        case AI_STATE_NONE:
         end
         case AI_STATE_IDLE:
         end
@@ -496,7 +548,7 @@ begin
         end
         case AI_STATE_INVESTIGATE:
         end
-        case AI_STATE_SHOOT:
+        case AI_STATE_ENGAGE:
             controllerId.input.attacking = false;
         end
         case AI_STATE_CHASE:
@@ -518,7 +570,7 @@ begin
     end
     controllerId.ai.currentState = nextState;
     switch (controllerId.ai.currentState)
-        case AI_STATE_NULL:
+        case AI_STATE_NONE:
         end
         case AI_STATE_IDLE:
         end
@@ -530,7 +582,7 @@ begin
         end
         case AI_STATE_INVESTIGATE:
         end
-        case AI_STATE_SHOOT:
+        case AI_STATE_ENGAGE:
             controllerId.input.attacking = true;
         end
         case AI_STATE_CHASE:
@@ -554,7 +606,7 @@ end
 
 function AIHandleState(controllerId)
 private
-    nextState = -1;
+    nextState = NULL;
     targetOpponentIndex;
     targetOpponentX;
     targetOpponentY;
@@ -566,10 +618,10 @@ begin
 
     // select target opponent
     targetOpponentIndex = controllerId.ai.model.targetOpponentIndex;
-    if (targetOpponentIndex == -1)
+    if (targetOpponentIndex == NULL)
         targetOpponentIndex = AIGetNearestVisibleKnownOpponentIndex(controllerId);
     end
-    if (targetOpponentIndex > -1)
+    if (targetOpponentIndex > NULL)
         z = targetOpponentIndex;
         targetOpponentX = controllerId.ai.model.knownOpponents[z].x;
         targetOpponentY = controllerId.ai.model.knownOpponents[z].y;
@@ -581,16 +633,16 @@ begin
     end
 
     switch (controllerId.ai.currentState)
-        case AI_STATE_NULL:
+        case AI_STATE_NONE:
         end
         case AI_STATE_IDLE:
-            if (targetOpponentIndex > -1)
+            if (targetOpponentIndex > NULL)
                 nextState = AI_STATE_INVESTIGATE;
             end
         end
         case AI_STATE_RESET:
             // TODO: return to spawn position OR last position ordered by higher ranking AI
-            if (targetOpponentIndex > -1)
+            if (targetOpponentIndex > NULL)
                 nextState = AI_STATE_INVESTIGATE;
             else
                 distance = fget_dist(
@@ -611,19 +663,19 @@ begin
         case AI_STATE_GUARD:
         end
         case AI_STATE_INVESTIGATE:
-            if (targetOpponentIndex > -1)
+            if (targetOpponentIndex > NULL)
                 if (targetOpponentDistance > AI_ENGAGE_DISTANCE)
                     InputLookAt(controllerId, targetOpponentX, targetOpponentY);
                     InputMoveTowards(controllerId, targetOpponentX, targetOpponentY, INPUT_WALK);
                 else
-                    nextState = AI_STATE_SHOOT;
+                    nextState = AI_STATE_ENGAGE;
                 end
             else
                 nextState = AI_STATE_RESET;
             end
         end
-        case AI_STATE_SHOOT:
-            if (targetOpponentIndex > -1)
+        case AI_STATE_ENGAGE:
+            if (targetOpponentIndex > NULL)
                 InputLookAt(controllerId, targetOpponentX, targetOpponentY);
                 if (targetOpponentDistance > AI_ENGAGE_DISTANCE)
                     nextState = AI_STATE_CHASE;
@@ -633,12 +685,12 @@ begin
             end
         end
         case AI_STATE_CHASE:
-            if (targetOpponentIndex > -1)
+            if (targetOpponentIndex > NULL)
                 if (targetOpponentDistance > AI_ENGAGE_DISTANCE)
                     InputLookAt(controllerId, targetOpponentX, targetOpponentY);
                     InputMoveTowards(controllerId, targetOpponentX, targetOpponentY, INPUT_RUN);
                 else
-                    nextState = AI_STATE_SHOOT;
+                    nextState = AI_STATE_ENGAGE;
                 end
             else
                 nextState = AI_STATE_RESET;
@@ -663,13 +715,14 @@ begin
     controllerId.ai.model.targetOpponentIndex = targetOpponentIndex;
     controllerId.input.attackingPreviousFrame = input.attacking;
 
-    if (nextState > -1)
+    if (nextState > NULL)
         AIChangeState(controllerId, nextState);
     end
 end
 
 
 
+// TODO: Clean up with CicTec's improvements on DIV-arena.
 /* -----------------------------------------------------------------------------
  * AI model management
  * ---------------------------------------------------------------------------*/
@@ -677,7 +730,7 @@ process AIModelManager(faction)
 private
     pointer opponents;
     pointer actors;
-    knownOpponentIndex = -1;
+    knownOpponentIndex = NULL;
     pointer opponent;
     pointer actor;
     isVisible = false;
@@ -697,10 +750,10 @@ begin
                     continue;
                 end
                 if ((*actor).ai.model.knownOpponents[y].processId.alive == false)
-                    (*actor).ai.model.knownOpponents[y].processId = -1;
+                    (*actor).ai.model.knownOpponents[y].processId = NULL;
                     (*actor).ai.model.knownOpponentCount--;
                     if ((*actor).ai.model.targetOpponentIndex == y)
-                        (*actor).ai.model.targetOpponentIndex = -1;
+                        (*actor).ai.model.targetOpponentIndex = NULL;
                     end
                 end
             end
@@ -716,7 +769,7 @@ begin
                 // can AI see opponent?
                 // TODO: Test cleaning up * syntax, might be unnecessary.
                 isVisible = AILineOfSight((*actor).x, (*actor).y, (*opponent).x, (*opponent).y);
-                knownOpponentIndex = -1;
+                knownOpponentIndex = NULL;
                 // TODO: Clean this up into a function.
                 // find index of element where processId == opponent
                 for (z = 0; z < MAX_ACTORS - 1; ++z)
@@ -766,14 +819,14 @@ end
 
 function AIGetNearestVisibleKnownOpponentIndex(controllerId)
 private
-    closestOpponentIndex = -1;
+    closestOpponentIndex = NULL;
     shortestDistance = max_int;
     distance;
     pointer opponent;
 begin
     if (controllerId.ai.model.knownOpponentCount > 0)
         for (z = 0; z < MAX_ACTORS - 1; ++z)
-            if (controllerId.ai.model.knownOpponents[z].processId > -1 
+            if (controllerId.ai.model.knownOpponents[z].processId > NULL 
                 && controllerId.ai.model.knownOpponents[z].visible)
                 distance = fget_dist(
                     controllerId.x, 
@@ -793,7 +846,7 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Actor components -> 560
+ * Actor components
  * ---------------------------------------------------------------------------*/
 process ActorFaction(controllerId, charType)
 private
@@ -813,7 +866,7 @@ begin
         frame;
     until (controllerId.alive == false)
     // clear table entry
-    factionActors[x] = -1;
+    factionActors[x] = NULL;
 end
 
 process ActorAnimator(controllerId, charType)
@@ -892,7 +945,7 @@ begin
             //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 50);
             PlaySound(SOUND_MP40_SHOT, 128, 512);
             MuzzleFlash();
-            Bullet(BULLET_PISTOL);
+            Bullet(BULLET_9MM);
             lastShotTime = timer[0];
         end
         // Play a single 'shell drop' sound when stopped firing.
@@ -927,6 +980,14 @@ begin
         ApplyVelocity(controllerId);
         frame;
     until (controllerId.alive == false)
+end
+
+process InventoryComponent(controllerId, pointer contentsPtr)
+begin
+    repeat
+        frame;
+    until (controllerId.alive == false)
+    // TODO: drop all items when dead
 end
 
 
@@ -1303,7 +1364,7 @@ begin
             return (x);
         end
     end
-    return (-1);
+    return (NULL);
 end
 
 function GetNextLocalLogIndex(processId)
@@ -1313,7 +1374,7 @@ begin
             return (x);
         end
     end
-    return (-1);
+    return (NULL);
 end
 
 function CleanUpLocalLogs(processId)
@@ -1359,7 +1420,7 @@ private
     index;
 begin
     index = GetDelayIndex(processId);
-    if (index == -1)
+    if (index == NULL)
         index = GetNextFreeDelayIndex();
         __delays[index].processId = processId;
         __delays[index].startTime = timer[0];
@@ -1368,9 +1429,9 @@ begin
     end
     if (timer[0] > __delays[index].startTime + __delays[index].delayLength)
         __delayCount--;
-        __delays[index].processId = -1;
-        __delays[index].startTime = -1;
-        __delays[index].delayLength = -1;
+        __delays[index].processId = NULL;
+        __delays[index].startTime = NULL;
+        __delays[index].delayLength = NULL;
         return (false);
     end
     return (true);
@@ -1384,7 +1445,7 @@ begin
             return (x);
         end
     end
-    return (-1);
+    return (NULL);
 end
 
 function GetNextFreeDelayIndex()
@@ -1394,7 +1455,7 @@ begin
             return (x);
         end
     end
-    return (-1);
+    return (NULL);
 end
 
 
