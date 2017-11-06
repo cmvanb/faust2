@@ -43,7 +43,7 @@ const
 
     // file paths
     GFX_MAIN_PATH       = "assets/graphics/main.fpg";
-    GFX_CHARACTERS_PATH = "assets/graphics/characters.fpg";
+    GFX_ACTORS_PATH = "assets/graphics/actors.fpg";
     FNT_MENU_PATH       = "assets/fonts/16x16-w-arcade.fnt";
 
     // graphics
@@ -57,14 +57,14 @@ const
     // gameplay
     BULLET_PISTOL = 0;
     BULLET_RIFLE  = 1;
-    CHAR_PLAYER          = 0;
-    CHAR_GUARD_1         = 1;
-    CHAR_GUARD_2         = 2;
-    CHAR_GUARD_3         = 3;
-    CHAR_OFFICER_1       = 4;
-    CHAR_OFFICER_2       = 5;
-    CHAR_OFFICER_3       = 6;
-    CHAR_ALLIED_COMMANDO = 7;
+    ACTOR_PLAYER          = 0;
+    ACTOR_GUARD_1         = 1;
+    ACTOR_GUARD_2         = 2;
+    ACTOR_GUARD_3         = 3;
+    ACTOR_OFFICER_1       = 4;
+    ACTOR_OFFICER_2       = 5;
+    ACTOR_OFFICER_3       = 6;
+    ACTOR_ALLIED_COMMANDO = 7;
     FACTION_NEUTRAL = 0;
     FACTION_GOOD    = 1;
     FACTION_EVIL    = 2;
@@ -91,7 +91,7 @@ const
     AI_STATE_PEEK        = 14;
     AI_RESET_DISTANCE  = 30 * GPR;
     AI_ENGAGE_DISTANCE = 200 * GPR;
-    MAX_CHARACTERS = 32;
+    MAX_ACTORS = 32;
 
     // timing
     MAX_DELAYS = 32;
@@ -105,13 +105,24 @@ const
 global
     // resources
     __gfxMain;
-    __gfxCharacters;
+    __gfxActors;
     __fntSystem;
     __fntMenu;
     __sounds[MAX_SOUNDS - 1];
 
     // gameplay
-    struct __bulletData[1]
+    struct __weaponStats[1]
+        string name;
+        soundIndex;
+        offsetForward;
+        offsetLeft;
+    end =
+        // mp40
+        "MP40", 0, 45 * GPR, 0 * GPR,
+        // karabiner 98k
+        "Kar 98k", 0, 45 * GPR, 0 * GPR;
+
+    struct __bulletStats[1]
         damage;
         lifeDuration;
         speed;
@@ -123,7 +134,7 @@ global
         // rifle
         65, 50, 30 * GPR, 45 * GPR, 0 * GPR;
 
-    struct __characterData[7]
+    struct __actorStats[7]
         walkSpeed;
         runSpeed;
         maxTurnSpeed;
@@ -142,10 +153,10 @@ global
 
     // game processes
     __playerController;
-    // TODO: Check if 2D arrays work in DIV, if yes turn this into one array of characters by faction.
-    __neutralCharacters[MAX_CHARACTERS - 1];
-    __goodCharacters[MAX_CHARACTERS - 1];
-    __evilCharacters[MAX_CHARACTERS - 1];
+    // TODO: Check if 2D arrays work in DIV, if yes turn this into one array of actors by faction.
+    __neutralActors[MAX_ACTORS - 1];
+    __goodActors[MAX_ACTORS - 1];
+    __evilActors[MAX_ACTORS - 1];
 
     // timing
     __deltaTime;
@@ -224,7 +235,7 @@ local
             knownOpponentCount;
             knownAllyCount;
             targetOpponentIndex;
-            struct knownOpponents[MAX_CHARACTERS - 1]
+            struct knownOpponents[MAX_ACTORS - 1]
                 processId;
                 x;
                 y;
@@ -251,7 +262,7 @@ begin
 
     // load graphics
     __gfxMain       = load_fpg(GFX_MAIN_PATH);
-    __gfxCharacters = load_fpg(GFX_CHARACTERS_PATH);
+    __gfxActors = load_fpg(GFX_ACTORS_PATH);
 
     // load fonts
     __fntSystem = 0;
@@ -265,8 +276,8 @@ begin
 
     // timing
     LogValue("FPS", &fps);
-    LogValue("__goodCharacters[0]", &__goodCharacters[0]);
-    LogValue("__evilCharacters[0]", &__evilCharacters[0]);
+    LogValue("__goodActors[0]", &__goodActors[0]);
+    LogValue("__evilActors[0]", &__evilActors[0]);
     DeltaTimer();
 
     // show title screen
@@ -333,11 +344,11 @@ begin
     // gameplay
     state = GAME_STATE_ACTIVE;
 
-    // characters
+    // actors
     __playerController = PlayerController(40 * GPR, 40 * GPR);
-    AIController(CHAR_GUARD_1, 320 * GPR, 200 * GPR);
-    //AIController(CHAR_GUARD_1, 350 * GPR, 240 * GPR);
-    //AIController(CHAR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR);
+    AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR);
+    //AIController(ACTOR_GUARD_1, 350 * GPR, 240 * GPR);
+    //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR);
 
     // managers
     AIModelManager(FACTION_EVIL);
@@ -368,10 +379,10 @@ begin
     RecordSpawnPosition(id);
 
     // components & sub-processes
-    components.health = HealthComponent(id, __characterData[CHAR_PLAYER].startingHealth);
-    components.animator = CharacterAnimator(id, CHAR_PLAYER);
-    components.faction = CharacterFaction(id, CHAR_PLAYER);
-    components.physics = PhysicsComponent(id, __characterData[CHAR_PLAYER].walkSpeed, __characterData[CHAR_PLAYER].runSpeed);
+    components.health = HealthComponent(id, __actorStats[ACTOR_PLAYER].startingHealth);
+    components.animator = ActorAnimator(id, ACTOR_PLAYER);
+    components.faction = ActorFaction(id, ACTOR_PLAYER);
+    components.physics = PhysicsComponent(id, __actorStats[ACTOR_PLAYER].walkSpeed, __actorStats[ACTOR_PLAYER].runSpeed);
     mouseCursor = MouseCursor();
 
     // debugging
@@ -407,7 +418,7 @@ begin
             id,
             input.lookAt.x, 
             input.lookAt.y, 
-            __characterData[CHAR_PLAYER].maxTurnSpeed);
+            __actorStats[ACTOR_PLAYER].maxTurnSpeed);
         frame;
     until (alive == false)
 end
@@ -428,10 +439,10 @@ begin
     ai.model.targetOpponentIndex = -1;
 
     // components & sub-processes
-    components.health = HealthComponent(id, __characterData[charType].startingHealth);
-    components.animator = CharacterAnimator(id, charType);
-    components.faction = CharacterFaction(id, charType);
-    components.physics = PhysicsComponent(id, __characterData[charType].walkSpeed, __characterData[charType].runSpeed);
+    components.health = HealthComponent(id, __actorStats[charType].startingHealth);
+    components.animator = ActorAnimator(id, charType);
+    components.faction = ActorFaction(id, charType);
+    components.physics = PhysicsComponent(id, __actorStats[charType].walkSpeed, __actorStats[charType].runSpeed);
 
     // debugging
     LogValueFollow("health.value", &components.health.value);
@@ -459,7 +470,7 @@ begin
             id,
             input.lookAt.x, 
             input.lookAt.y, 
-            __characterData[charType].maxTurnSpeed);
+            __actorStats[charType].maxTurnSpeed);
         frame;
     until (alive == false)
 end
@@ -675,13 +686,13 @@ begin
     actors = GetFactionActors(faction);
     loop
         // foreach AI
-        for (x = 0; x < MAX_CHARACTERS; ++x)
+        for (x = 0; x < MAX_ACTORS; ++x)
             if (actors[x] <= 0)
                 continue;
             end
             actor = actors[x];
             // prune dead opponents
-            for (y = 0; y < MAX_CHARACTERS - 1; ++y)
+            for (y = 0; y < MAX_ACTORS - 1; ++y)
                 if ((*actor).ai.model.knownOpponents[y].processId <= 0)
                     continue;
                 end
@@ -694,7 +705,7 @@ begin
                 end
             end
             // find new opponents and update known ones
-            for (y = 0; y < MAX_CHARACTERS; ++y)
+            for (y = 0; y < MAX_ACTORS; ++y)
                 if (opponents[y] <= 0)
                     continue;
                 end
@@ -708,7 +719,7 @@ begin
                 knownOpponentIndex = -1;
                 // TODO: Clean this up into a function.
                 // find index of element where processId == opponent
-                for (z = 0; z < MAX_CHARACTERS - 1; ++z)
+                for (z = 0; z < MAX_ACTORS - 1; ++z)
                     if ((*actor).ai.model.knownOpponents[z].processId == opponent)
                         knownOpponentIndex = z;
                         break;
@@ -717,7 +728,7 @@ begin
                 if (knownOpponentIndex < 0 && isVisible)
                     // TODO: Clean this up into a function.
                     // find next free index
-                    for (z = 0; z < MAX_CHARACTERS - 1; ++z)
+                    for (z = 0; z < MAX_ACTORS - 1; ++z)
                         if ((*actor).ai.model.knownOpponents[z].processId <= 0)
                             knownOpponentIndex = z;
                             break;
@@ -761,7 +772,7 @@ private
     pointer opponent;
 begin
     if (controllerId.ai.model.knownOpponentCount > 0)
-        for (z = 0; z < MAX_CHARACTERS - 1; ++z)
+        for (z = 0; z < MAX_ACTORS - 1; ++z)
             if (controllerId.ai.model.knownOpponents[z].processId > -1 
                 && controllerId.ai.model.knownOpponents[z].visible)
                 distance = fget_dist(
@@ -782,17 +793,17 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Character components -> 560
+ * Actor components -> 560
  * ---------------------------------------------------------------------------*/
-process CharacterFaction(controllerId, charType)
+process ActorFaction(controllerId, charType)
 private
     pointer factionActors;
 begin
     // initialization
-    value = __characterData[charType].faction;
+    value = __actorStats[charType].faction;
     factionActors = GetFactionActors(value);
     // find next free index
-    for (x = 0; x < MAX_CHARACTERS - 1; ++x)
+    for (x = 0; x < MAX_ACTORS - 1; ++x)
         if (factionActors[x] <= 0)
             factionActors[x] = father;
             break;
@@ -805,7 +816,7 @@ begin
     factionActors[x] = -1;
 end
 
-process CharacterAnimator(controllerId, charType)
+process ActorAnimator(controllerId, charType)
 private
     arms;
     base;
@@ -815,22 +826,22 @@ begin
     // initialization
     resolution = GPR;
     // sub-processes
-    arms = CharacterArms(controllerId, charType);
-    base = CharacterBase(controllerId, charType);
-    head = CharacterHead(controllerId, charType);
-    weapon = CharacterWeapon(controllerId);
+    arms = ActorArms(controllerId, charType);
+    base = ActorBase(controllerId, charType);
+    head = ActorHead(controllerId, charType);
+    weapon = ActorWeapon(controllerId);
     repeat
         CopyXYAngle(controllerId);
         frame;
     until (controllerId.alive == false)
 end
 
-process CharacterArms(controllerId, charType)
+process ActorArms(controllerId, charType)
 begin
     // initialization
     resolution = GPR;
-    file = __gfxCharacters;
-    graph = 200 + __characterData[charType].gfxOffset;
+    file = __gfxActors;
+    graph = 200 + __actorStats[charType].gfxOffset;
     z = -90;
     repeat
         CopyXYAngle(controllerId);
@@ -838,13 +849,13 @@ begin
     until (controllerId.alive == false)
 end
 
-process CharacterBase(controllerId, charType)
+process ActorBase(controllerId, charType)
 begin
     // initialization
     resolution = GPR;
     components.health = controllerId.components.health;
-    file = __gfxCharacters;
-    graph = 100 + __characterData[charType].gfxOffset;
+    file = __gfxActors;
+    graph = 100 + __actorStats[charType].gfxOffset;
     z = -100;
     repeat
         CopyXYAngle(controllerId);
@@ -852,11 +863,11 @@ begin
     until (controllerId.alive == false)
 end
 
-process CharacterHead(controllerId, charType)
+process ActorHead(controllerId, charType)
 begin
     // initialization
     resolution = GPR;
-    file = __gfxCharacters;
+    file = __gfxActors;
     graph = 401;
     z = -110;
     repeat
@@ -865,7 +876,7 @@ begin
     until (controllerId.alive == false)
 end
 
-process CharacterWeapon(controllerId)
+process ActorWeapon(controllerId)
 private
     lastShotTime = 0;
 begin
@@ -936,14 +947,14 @@ begin
     z = -700;
     // positioning
     CopyXYAngle(father);
-    advance(__bulletData[bulletType].offsetForward); // TODO: implement offsetLeft
+    advance(__bulletStats[bulletType].offsetForward); // TODO: implement offsetLeft
     // children
-    LifeTimer(__bulletData[bulletType].lifeDuration);
+    LifeTimer(__bulletStats[bulletType].lifeDuration);
     loop
-        advance(__bulletData[bulletType].speed);
-        collisionId = collision(type CharacterBase);
+        advance(__bulletStats[bulletType].speed);
+        collisionId = collision(type ActorBase);
         if (collisionId != 0)
-            collisionId.components.health.value -= __bulletData[bulletType].damage;
+            collisionId.components.health.value -= __bulletStats[bulletType].damage;
             break;
         end
         frame;
@@ -1010,10 +1021,10 @@ begin
     // TODO: This code is fragile, improve it.
     switch (faction)
         case FACTION_GOOD:
-            return (&__evilCharacters);
+            return (&__evilActors);
         end
         case FACTION_EVIL:
-            return (&__goodCharacters);
+            return (&__goodActors);
         end
     end
 end
@@ -1023,13 +1034,13 @@ begin
     // TODO: This code is fragile, improve it.
     switch (faction)
         case FACTION_NEUTRAL:
-            return (&__neutralCharacters);
+            return (&__neutralActors);
         end
         case FACTION_GOOD:
-            return (&__goodCharacters);
+            return (&__goodActors);
         end
         case FACTION_EVIL:
-            return (&__evilCharacters);
+            return (&__evilActors);
         end
     end
 end
