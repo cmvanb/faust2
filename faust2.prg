@@ -42,7 +42,7 @@ const
     SOUND_SHELL_DROPPED_1 = 1;
     SOUND_SHELL_DROPPED_2 = 2;
     SOUND_SHELL_DROPPED_3 = 3;
-    MAX_SOUNDS = 4;
+    SOUNDS_COUNT = 4;
 
     // file paths
     GFX_MAIN_PATH   = "assets/graphics/main.fpg";
@@ -66,6 +66,7 @@ const
     ITEM_KAR98K     = 1;
     ITEM_AMMO_9MM   = 2;
     ITEM_AMMO_RIFLE = 3;
+    ITEMS_COUNT = 4;
     BULLET_9MM   = 0;
     BULLET_RIFLE = 1;
     ACTOR_PLAYER          = 0;
@@ -120,10 +121,10 @@ global
     __gfxActors;
     __fntSystem;
     __fntMenu;
-    __sounds[MAX_SOUNDS - 1];
+    __sounds[SOUNDS_COUNT - 1];
 
     // gameplay
-    struct __itemStats[1]
+    struct __itemStats[ITEMS_COUNT - 1]
         string name;
         itemType;
         maxCarry;
@@ -368,7 +369,7 @@ begin
     GiveItem(__playerController, CreateItem(ITEM_MP40, 1));
     GiveItem(__playerController, CreateItem(ITEM_AMMO_9MM, 90));
 
-    //AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR);
+    AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR);
     //AIController(ACTOR_GUARD_1, 350 * GPR, 240 * GPR);
     //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR);
 
@@ -391,7 +392,7 @@ begin
     itemId.item.index = index;
     // TODO: Check if count is valid for this item type.
     itemId.item.count = count;
-    return itemId;
+    return (itemId);
 end
 
 function GiveItem(actorId, itemId)
@@ -417,7 +418,7 @@ end
 /* -----------------------------------------------------------------------------
  * Actor Controllers
  * ---------------------------------------------------------------------------*/
-process PlayerController(x, y, inventoryContents)
+process PlayerController(x, y)
 private
     mouseCursor;
 begin
@@ -433,7 +434,7 @@ begin
     components.health = HealthComponent(id, __actorStats[ACTOR_PLAYER].startingHealth);
     components.animator = ActorAnimator(id, ACTOR_PLAYER);
     components.faction = ActorFaction(id, ACTOR_PLAYER);
-    components.inventory = InventoryComponent(id, inventoryContents);
+    components.inventory = InventoryComponent(id);
     components.physics = PhysicsComponent(id, __actorStats[ACTOR_PLAYER].walkSpeed, __actorStats[ACTOR_PLAYER].runSpeed);
     mouseCursor = MouseCursor();
 
@@ -982,7 +983,7 @@ begin
     until (controllerId.alive == false)
 end
 
-process InventoryComponent(controllerId, pointer contentsPtr)
+process InventoryComponent(controllerId)
 begin
     repeat
         frame;
