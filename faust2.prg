@@ -11,9 +11,6 @@ program Faust2;
  * Constants
  * ---------------------------------------------------------------------------*/
 const
-    // general
-    NULL = -1;
-
     // DIV command enums
     REGION_FULL_SCREEN = 0;
     SCROLL_FOREGROUND_HORIZONTAL = 1;
@@ -30,7 +27,10 @@ const
     FONT_ANCHOR_BOTTOM_CENTER = 7;
     FONT_ANCHOR_BOTTOM_RIGHT  = 8;
 
-    // application
+    // null index value
+    NULL = -1;
+
+    // application state
     MENU_OPTION_NONE = 0;
     MENU_OPTION_PLAY = 1;
     GAME_STATE_NOT_STARTED = 0;
@@ -47,6 +47,7 @@ const
     // file paths
     GFX_MAIN_PATH   = "assets/graphics/main.fpg";
     GFX_ACTORS_PATH = "assets/graphics/actors.fpg";
+    GFX_ITEMS_PATH = "assets/graphics/items.fpg";
     FNT_MENU_PATH   = "assets/fonts/16x16-w-arcade.fnt";
 
     // graphics
@@ -59,15 +60,15 @@ const
 
     // inventory & items
     INVENTORY_SLOTS = 5;
+    ITEMS_COUNT = 4;
+    ITEM_MP40       = 0;
+    ITEM_KAR98K     = 1;
+    ITEM_AMMO_9MM   = 2;
+    ITEM_AMMO_RIFLE = 3;
     ITEM_TYPE_WEAPON     = 0;
     ITEM_TYPE_CONSUMABLE = 1;
     ITEM_TYPE_SPECIAL    = 2;
     ITEM_TYPE_AMMO       = 3;
-    ITEMS_COUNT = 4;
-    ITEM_MP40       = 0;
-    ITEM_KAR98K     = 1;
-    ITEM_AMMO_9MM   = 1;
-    ITEM_AMMO_RIFLE = 2;
 
     // projectiles
     BULLET_9MM   = 0;
@@ -125,6 +126,7 @@ global
     // resources
     __gfxMain;
     __gfxActors;
+    __gfxItems;
     __fntSystem;
     __fntMenu;
     __sounds[SOUNDS_COUNT - 1];
@@ -133,17 +135,19 @@ global
     struct __itemStats[ITEMS_COUNT - 1]
         string name;
         itemType;
+        gfxOffset;
         slotsNeeded; // TODO: consider just adding check for ITEM_TYPE_AMMO where relevant
+        isSplittable;
         maxCarry;
         magazineSize;
         soundIndex;
         offsetForward;
         offsetLeft;
     end =
-        "MP40",       ITEM_TYPE_WEAPON, 1, 1,   30,   SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
-        "Kar 98k",    ITEM_TYPE_WEAPON, 1, 1,   5,    SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
-        "9mm Ammo",   ITEM_TYPE_AMMO,   0, 150, NULL, NULL,            NULL,     NULL,
-        "Rifle Ammo", ITEM_TYPE_AMMO,   0, 90,  NULL, NULL,            NULL,     NULL;
+        "MP40",       ITEM_TYPE_WEAPON, 101, false, 1, 1,   30,   SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
+        "Kar 98k",    ITEM_TYPE_WEAPON, 111, false, 1, 1,   5,    SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
+        "9mm Ammo",   ITEM_TYPE_AMMO,   501, true,  0, 150, NULL, NULL,            NULL,     NULL,
+        "Rifle Ammo", ITEM_TYPE_AMMO,   511, true,  0, 90,  NULL, NULL,            NULL,     NULL;
 
     struct __bulletStats[1]
         damage;
@@ -151,7 +155,7 @@ global
         speed;
         offsetForward;
         offsetLeft;
-    end = 
+    end =
         25, 40, 20 * GPR, 45 * GPR, 0 * GPR, // pistol
         65, 50, 30 * GPR, 45 * GPR, 0 * GPR; // rifle
 
@@ -162,7 +166,7 @@ global
         gfxOffset;
         startingHealth;
         faction;
-    end = 
+    end =
         2 * GPR, 4 * GPR, 10000, 2, 200, FACTION_GOOD, // player
         2 * GPR, 3 * GPR, 10000, 1, 100, FACTION_EVIL, // guard level 1
         2 * GPR, 3 * GPR, 10000, 1, 150, FACTION_EVIL, // guard level 2
@@ -173,15 +177,13 @@ global
         2 * GPR, 3 * GPR, 10000, 2, 200, FACTION_GOOD; // allied commando
 
     // starting inventories
-    struct guardInventory[INVENTORY_SLOTS - 1]
-        statsIndex;
-        count;
-    end =
-        ITEM_MP40, 1,
+    __guardInventory[(INVENTORY_SLOTS * 2) - 1] =
+        // statsIndex, count
+        ITEM_KAR98K,     1,
         ITEM_AMMO_9MM, 90,
-        NULL, NULL,
-        NULL, NULL,
-        NULL, NULL;
+        NULL,          NULL,
+        NULL,          NULL,
+        NULL,          NULL;
 
     // game processes
     __playerController;
@@ -259,6 +261,7 @@ local
     end
 
     // actor inventory
+    selectedItemIndex;
     struct inventory[INVENTORY_SLOTS - 1]
         statsIndex;
         count;
@@ -299,8 +302,9 @@ begin
     set_fps(60, 1);
 
     // load graphics
-    __gfxMain       = load_fpg(GFX_MAIN_PATH);
+    __gfxMain   = load_fpg(GFX_MAIN_PATH);
     __gfxActors = load_fpg(GFX_ACTORS_PATH);
+    __gfxItems  = load_fpg(GFX_ITEMS_PATH);
 
     // load fonts
     __fntSystem = 0;
@@ -383,11 +387,11 @@ begin
     state = GAME_STATE_ACTIVE;
 
     // actors
-    __playerController = PlayerController(40 * GPR, 40 * GPR, &guardInventory);
+    __playerController = PlayerController(40 * GPR, 40 * GPR, &__guardInventory);
     //GiveItem(__playerController, CreateItem(ITEM_MP40, 1));
     //GiveItem(__playerController, CreateItem(ITEM_AMMO_9MM, 90));
 
-    AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR, &guardInventory);
+    AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR, &__guardInventory);
     //AIController(ACTOR_GUARD_1, 350 * GPR, 240 * GPR, &aiStartingItems);
     //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR, &aiStartingItems);
 
@@ -429,6 +433,8 @@ begin
 
     // debugging
     LogValueFollow("health.value", &components.health.value);
+    LogValueFollow("inventory[0].statsIndex", &inventory[0].statsIndex);
+    LogValueFollow("inventory[1].count", &inventory[1].count);
     repeat
         // capture input
         if (key(_a))
@@ -494,8 +500,6 @@ begin
     LogValueFollow("ai.currentState", &ai.currentState);
     LogValueFollow("ai.model.knownOpponentCount", &ai.model.knownOpponentCount);
     LogValueFollow("ai.model.targetOpponentIndex", &ai.model.targetOpponentIndex);
-    LogValueFollow("spawnPosition.x", &spawnPosition.x);
-    LogValueFollow("spawnPosition.y", &spawnPosition.y);
 
     AIChangeState(id, AI_STATE_IDLE);
     repeat
@@ -924,13 +928,22 @@ end
 process ActorWeapon(controllerId)
 private
     lastShotTime = 0;
+    statsIndex;
+    count;
 begin
     // initialization
     resolution = GPR;
-    file = __gfxMain;
-    graph = 800;
+    file = __gfxItems;
     z = -95;
     repeat
+        statsIndex = controllerId.inventory[controllerId.selectedItemIndex].statsIndex;
+        // If actor isn't holding a weapon, do nothing and make this invisible.
+        if (statsIndex == NULL)
+            graph = 0;
+            continue;
+        else
+            graph = __itemStats[statsIndex].gfxOffset;
+        end
         CopyXYAngle(controllerId);
         if (controllerId.input.attacking && timer[0] > lastShotTime + 12)
             // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
@@ -977,13 +990,19 @@ end
 process InventoryComponent(controllerId, pointer startingItems)
 private
     i;
+    statsIndex;
+    count;
 begin
     for (i = 0; i < INVENTORY_SLOTS; ++i)
-        if (startingItems[i] > NULL)
+        controllerId.inventory[i].statsIndex = NULL;
+        controllerId.inventory[i].count = NULL;
+        statsIndex = i * 2;
+        count = statsIndex + 1;
+        if (startingItems[statsIndex] > NULL)
             GiveItem(
                 controllerId, 
-                startingItems[i].statsIndex, 
-                startingItems[i].count);
+                startingItems[statsIndex], 
+                startingItems[count]);
         end
     end
     repeat
@@ -999,38 +1018,97 @@ end
  * ---------------------------------------------------------------------------*/
 function GiveItem(actorId, statsIndex, count)
 private
-    freeIndex = NULL;
+    i;
 begin
     // Can't give 0 or negative items.
     if (count <= 0)
         return;
     end
 
-    // TODO: Check if count against maxCarry.
-
-    // TODO: implement
-    for (freeIndex = 0; freeIndex < INVENTORY_SLOTS; ++freeIndex)
-        if (actorId.inventory[freeIndex].itemId == NULL)
-            break;
+    // If the actor already has this item...
+    i = GetItemInventoryIndex(actorId, statsIndex);
+    if (i != NULL)
+        // ...and it's splittable, then split it. If not, drop it.
+        if (__itemStats[statsIndex].isSplittable)
+            SplitItem(actorId, i, statsIndex, count);
+        else
+            Item(actorId.x, actorId.y, actorId.angle, statsIndex, count);
         end
-    end
-    // Handle no free index.
-    if (freeIndex == NULL)
-        // TODO: drop item
         return;
     end
-    // Add item to actor's inventory table.
-    actorId.inventory[freeIndex].statsIndex = statsIndex;
-    actorId.inventory[freeIndex].count = count;
+
+    // If actor hasn't got this item already, find a free index.
+    i = GetNextFreeInventoryIndex(actorId);
+    // If there is space, add item to actor's inventory.
+    if (i != NULL)
+        // If maxCarry is exceeded...
+        if (actorId.inventory[i].count + count > __itemStats[statsIndex].maxCarry)
+            // ...and it's splittable, then split it. If not, drop it.
+            if (__itemStats[statsIndex].isSplittable)
+                SplitItem(actorId, i, statsIndex, count);
+            else
+                Item(actorId.x, actorId.y, actorId.angle, statsIndex, count);
+            end
+            return;
+        // Otherwise, pick up item fully.
+        else
+            actorId.inventory[i].statsIndex = statsIndex;
+            actorId.inventory[i].count = count;
+            return;
+        end
+    end
+
+    // Actor unable to pick up this item, so drop it.
+    Item(actorId.x, actorId.y, actorId.angle, statsIndex, count);
 end
 
-function PickUpItem(actorId, itemId, statsIndex, count)
+function SplitItem(actorId, inventoryIndex, statsIndex, count)
+private
+    combinedCount;
+    splitCount;
 begin
+    combinedCount = actorId.inventory[inventoryIndex].count + count;
+
+    // Give actor amount up to maxCarry.
+    actorId.inventory[inventoryIndex].count = Min(combinedCount, __itemStats[statsIndex].maxCarry);
+
+    // Drop the rest.
+    splitCount = __itemStats[statsIndex].maxCarry - combinedCount;
+    if (splitCount > 0)
+        Item(actorId.x, actorId.y, actorId.angle, statsIndex, splitCount);
+    end
 end
 
-process Item(statsIndex, count)
+function GetItemInventoryIndex(actorId, statsIndex)
+private
+    i;
+begin
+    while (i < INVENTORY_SLOTS)
+        if (actorId.inventory[i].statsIndex == statsIndex)
+            return (i);
+        end
+        ++i;
+    end
+    return (NULL);
+end
+
+function GetNextFreeInventoryIndex(actorId)
+private
+    i;
+begin
+    while (i < INVENTORY_SLOTS)
+        if (actorId.inventory[i].statsIndex == NULL)
+            return (i);
+        end
+        ++i;
+    end
+    return (NULL);
+end
+
+process Item(x, y, angle, statsIndex, count) 
 begin
     // TODO: implement
+    graph = __itemStats[statsIndex].gfxOffset;
     loop
         // TODO: detect collision with actor and attempt pick up
         //PickUpItem(actorId, id, statsIndex, count);
