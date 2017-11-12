@@ -934,7 +934,6 @@ process ActorWeapon(controllerId)
 private
     lastShotTime = 0;
     statsIndex;
-    count;
 begin
     // initialization
     resolution = GPR;
@@ -951,13 +950,17 @@ begin
         end
         CopyXYAngle(controllerId);
         if (controllerId.input.attacking)             
-            if (timer[0] > lastShotTime + __itemStats[statsIndex].timeBetweenShots)
-                // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
-                //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 50);
-                PlaySound(SOUND_MP40_SHOT, 128, 512);
-                MuzzleFlash();
-                Bullet(BULLET_9MM);
-                lastShotTime = timer[0];
+            // TODO: Finish implementing.
+            if (__itemStats[statsIndex].firingMode == FIRING_MODE_SINGLE)
+            else
+                if (timer[0] > lastShotTime + __itemStats[statsIndex].timeBetweenShots)
+                    // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
+                    //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 50);
+                    PlaySound(SOUND_MP40_SHOT, 128, 512);
+                    MuzzleFlash();
+                    Bullet(BULLET_9MM);
+                    lastShotTime = timer[0];
+                end
             end
         end
         // Play a single 'shell drop' sound when stopped firing.
