@@ -69,6 +69,8 @@ const
     ITEM_TYPE_CONSUMABLE = 1;
     ITEM_TYPE_SPECIAL    = 2;
     ITEM_TYPE_AMMO       = 3;
+    FIRING_MODE_SINGLE = 0;
+    FIRING_MODE_AUTO   = 1;
 
     // projectiles
     BULLET_9MM   = 0;
@@ -140,14 +142,17 @@ global
         isSplittable;
         maxCarry;
         magazineSize;
+        timeBetweenShots;
+        firingMode;
         soundIndex;
         offsetForward;
         offsetLeft;
     end =
-        "MP40",       ITEM_TYPE_WEAPON, 101, false, 1, 1,   30,   SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
-        "Kar 98k",    ITEM_TYPE_WEAPON, 111, false, 1, 1,   5,    SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
-        "9mm Ammo",   ITEM_TYPE_AMMO,   501, true,  0, 150, NULL, NULL,            NULL,     NULL,
-        "Rifle Ammo", ITEM_TYPE_AMMO,   511, true,  0, 90,  NULL, NULL,            NULL,     NULL;
+    //  name          itemType          gfx  slots  i  max  mag   t     firingMode          soundIndex       offsetF   offsetL
+        "MP40",       ITEM_TYPE_WEAPON, 101, false, 1, 1,   30,   12,   FIRING_MODE_AUTO,   SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
+        "Kar 98k",    ITEM_TYPE_WEAPON, 111, false, 1, 1,   5,    100,  FIRING_MODE_SINGLE, SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
+        "9mm Ammo",   ITEM_TYPE_AMMO,   501, true,  0, 150, NULL, NULL, NULL,               NULL,            NULL,     NULL,
+        "Rifle Ammo", ITEM_TYPE_AMMO,   511, true,  0, 90,  NULL, NULL, NULL,               NULL,            NULL,     NULL;
 
     struct __bulletStats[1]
         damage;
@@ -945,13 +950,15 @@ begin
             graph = __itemStats[statsIndex].gfxOffset;
         end
         CopyXYAngle(controllerId);
-        if (controllerId.input.attacking && timer[0] > lastShotTime + 12)
-            // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
-            //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 50);
-            PlaySound(SOUND_MP40_SHOT, 128, 512);
-            MuzzleFlash();
-            Bullet(BULLET_9MM);
-            lastShotTime = timer[0];
+        if (controllerId.input.attacking)             
+            if (timer[0] > lastShotTime + __itemStats[statsIndex].timeBetweenShots)
+                // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
+                //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 50);
+                PlaySound(SOUND_MP40_SHOT, 128, 512);
+                MuzzleFlash();
+                Bullet(BULLET_9MM);
+                lastShotTime = timer[0];
+            end
         end
         // Play a single 'shell drop' sound when stopped firing.
         if (controllerId.input.attacking == false && controllerId.input.attackingPreviousFrame == true)
