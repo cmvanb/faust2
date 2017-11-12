@@ -57,18 +57,23 @@ const
     HALF_SCREEN_HEIGHT = SCREEN_HEIGHT / 2;
     GPR = 10;
 
-    // gameplay
+    // inventory & items
+    INVENTORY_SLOTS = 5;
     ITEM_TYPE_WEAPON     = 0;
-    ITEM_TYPE_AMMO       = 1;
-    ITEM_TYPE_CONSUMABLE = 2;
-    ITEM_TYPE_SPECIAL    = 3;
+    ITEM_TYPE_CONSUMABLE = 1;
+    ITEM_TYPE_SPECIAL    = 2;
+    ITEM_TYPE_AMMO       = 3;
+    ITEMS_COUNT = 4;
     ITEM_MP40       = 0;
     ITEM_KAR98K     = 1;
-    ITEM_AMMO_9MM   = 2;
-    ITEM_AMMO_RIFLE = 3;
-    ITEMS_COUNT = 4;
+    ITEM_AMMO_9MM   = 1;
+    ITEM_AMMO_RIFLE = 2;
+
+    // projectiles
     BULLET_9MM   = 0;
     BULLET_RIFLE = 1;
+
+    // actors
     ACTOR_PLAYER          = 0;
     ACTOR_GUARD_1         = 1;
     ACTOR_GUARD_2         = 2;
@@ -77,10 +82,11 @@ const
     ACTOR_OFFICER_2       = 5;
     ACTOR_OFFICER_3       = 6;
     ACTOR_ALLIED_COMMANDO = 7;
+
+    // factions
     FACTION_NEUTRAL = 0;
     FACTION_GOOD    = 1;
     FACTION_EVIL    = 2;
-    INVENTORY_CAPACITY = 5;
 
     // input
     INPUT_RUN  = 0;
@@ -93,7 +99,7 @@ const
     AI_STATE_PATROL      = 3;
     AI_STATE_GUARD       = 4;
     AI_STATE_INVESTIGATE = 5;
-    AI_STATE_ENGAGE       = 6;
+    AI_STATE_ENGAGE      = 6;
     AI_STATE_CHASE       = 7;
     AI_STATE_HUNT        = 8;
     AI_STATE_RAISE_ALARM = 9;
@@ -123,20 +129,21 @@ global
     __fntMenu;
     __sounds[SOUNDS_COUNT - 1];
 
-    // gameplay
+    // gameplay stats
     struct __itemStats[ITEMS_COUNT - 1]
         string name;
         itemType;
+        slotsNeeded; // TODO: consider just adding check for ITEM_TYPE_AMMO where relevant
         maxCarry;
         magazineSize;
         soundIndex;
         offsetForward;
         offsetLeft;
     end =
-        "MP40",       ITEM_TYPE_WEAPON, 1,   30,   SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
-        "Kar 98k",    ITEM_TYPE_WEAPON, 1,   5,    SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
-        "9mm Ammo",   ITEM_TYPE_AMMO,   150, NULL, NULL,            NULL,     NULL,
-        "Rifle Ammo", ITEM_TYPE_AMMO,   90,  NULL, NULL,            NULL,     NULL;
+        "MP40",       ITEM_TYPE_WEAPON, 1, 1,   30,   SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
+        "Kar 98k",    ITEM_TYPE_WEAPON, 1, 1,   5,    SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
+        "9mm Ammo",   ITEM_TYPE_AMMO,   0, 150, NULL, NULL,            NULL,     NULL,
+        "Rifle Ammo", ITEM_TYPE_AMMO,   0, 90,  NULL, NULL,            NULL,     NULL;
 
     struct __bulletStats[1]
         damage;
@@ -164,6 +171,17 @@ global
         2 * GPR, 3 * GPR, 10000, 1, 150, FACTION_EVIL, // officer level 2
         2 * GPR, 3 * GPR, 10000, 1, 200, FACTION_EVIL, // officer level 3
         2 * GPR, 3 * GPR, 10000, 2, 200, FACTION_GOOD; // allied commando
+
+    // starting inventories
+    struct guardInventory[INVENTORY_SLOTS - 1]
+        statsIndex;
+        count;
+    end =
+        ITEM_MP40, 1,
+        ITEM_AMMO_9MM, 90,
+        NULL, NULL,
+        NULL, NULL,
+        NULL, NULL;
 
     // game processes
     __playerController;
@@ -240,6 +258,12 @@ local
         end
     end
 
+    // actor inventory
+    struct inventory[INVENTORY_SLOTS - 1]
+        statsIndex;
+        count;
+    end
+
     // ai data
     struct ai
         // the state determines what the NPC is currently doing
@@ -258,12 +282,6 @@ local
         end
     end
     
-    // items
-    struct item
-        index;
-        count;
-    end
-
     // debugging
     logCount;
     struct logs[MAX_LOGS - 1]
@@ -365,13 +383,13 @@ begin
     state = GAME_STATE_ACTIVE;
 
     // actors
-    __playerController = PlayerController(40 * GPR, 40 * GPR);
-    GiveItem(__playerController, CreateItem(ITEM_MP40, 1));
-    GiveItem(__playerController, CreateItem(ITEM_AMMO_9MM, 90));
+    __playerController = PlayerController(40 * GPR, 40 * GPR, &guardInventory);
+    //GiveItem(__playerController, CreateItem(ITEM_MP40, 1));
+    //GiveItem(__playerController, CreateItem(ITEM_AMMO_9MM, 90));
 
-    AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR);
-    //AIController(ACTOR_GUARD_1, 350 * GPR, 240 * GPR);
-    //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR);
+    AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR, &guardInventory);
+    //AIController(ACTOR_GUARD_1, 350 * GPR, 240 * GPR, &aiStartingItems);
+    //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR, &aiStartingItems);
 
     // managers
     AIModelManager(FACTION_EVIL);
@@ -384,41 +402,12 @@ begin
     until (state == GAME_STATE_GAME_OVER)
 end
 
-function CreateItem(index, count)
-private
-    itemId;
-begin
-    itemId = Item();
-    itemId.item.index = index;
-    // TODO: Check if count is valid for this item type.
-    itemId.item.count = count;
-    return (itemId);
-end
-
-function GiveItem(actorId, itemId)
-private
-    i;
-begin
-    if (__itemStats[itemId.item.index].itemType == ITEM_TYPE_AMMO)
-        // TODO: if not too much, increase ammo count
-        // TODO: if too much, split ammo item
-    end
-
-    // TODO: implement
-    //actorId.components.inventory.value[
-end
-
-process Item()
-begin
-    // TODO: implement
-end
-
 
 
 /* -----------------------------------------------------------------------------
  * Actor Controllers
  * ---------------------------------------------------------------------------*/
-process PlayerController(x, y)
+process PlayerController(x, y, startingItems)
 private
     mouseCursor;
 begin
@@ -434,7 +423,7 @@ begin
     components.health = HealthComponent(id, __actorStats[ACTOR_PLAYER].startingHealth);
     components.animator = ActorAnimator(id, ACTOR_PLAYER);
     components.faction = ActorFaction(id, ACTOR_PLAYER);
-    components.inventory = InventoryComponent(id);
+    components.inventory = InventoryComponent(id, startingItems);
     components.physics = PhysicsComponent(id, __actorStats[ACTOR_PLAYER].walkSpeed, __actorStats[ACTOR_PLAYER].runSpeed);
     mouseCursor = MouseCursor();
 
@@ -476,7 +465,7 @@ begin
     until (alive == false)
 end
 
-process AIController(charType, x, y)
+process AIController(actorType, x, y, startingItems)
 private
     animator;
 begin
@@ -492,10 +481,11 @@ begin
     ai.model.targetOpponentIndex = NULL;
 
     // components & sub-processes
-    components.health = HealthComponent(id, __actorStats[charType].startingHealth);
-    components.animator = ActorAnimator(id, charType);
-    components.faction = ActorFaction(id, charType);
-    components.physics = PhysicsComponent(id, __actorStats[charType].walkSpeed, __actorStats[charType].runSpeed);
+    components.health = HealthComponent(id, __actorStats[actorType].startingHealth);
+    components.animator = ActorAnimator(id, actorType);
+    components.faction = ActorFaction(id, actorType);
+    components.inventory = InventoryComponent(id, startingItems);
+    components.physics = PhysicsComponent(id, __actorStats[actorType].walkSpeed, __actorStats[actorType].runSpeed);
 
     // debugging
     LogValueFollow("health.value", &components.health.value);
@@ -523,7 +513,7 @@ begin
             id,
             input.lookAt.x, 
             input.lookAt.y, 
-            __actorStats[charType].maxTurnSpeed);
+            __actorStats[actorType].maxTurnSpeed);
         frame;
     until (alive == false)
 end
@@ -732,6 +722,7 @@ private
     pointer opponents;
     pointer actors;
     knownOpponentIndex = NULL;
+    // TODO: Remove this pointer, might be unnecessary.
     pointer opponent;
     pointer actor;
     isVisible = false;
@@ -747,14 +738,14 @@ begin
             actor = actors[x];
             // prune dead opponents
             for (y = 0; y < MAX_ACTORS - 1; ++y)
-                if ((*actor).ai.model.knownOpponents[y].processId <= 0)
+                if (actor.ai.model.knownOpponents[y].processId <= 0)
                     continue;
                 end
-                if ((*actor).ai.model.knownOpponents[y].processId.alive == false)
-                    (*actor).ai.model.knownOpponents[y].processId = NULL;
-                    (*actor).ai.model.knownOpponentCount--;
-                    if ((*actor).ai.model.targetOpponentIndex == y)
-                        (*actor).ai.model.targetOpponentIndex = NULL;
+                if (actor.ai.model.knownOpponents[y].processId.alive == false)
+                    actor.ai.model.knownOpponents[y].processId = NULL;
+                    actor.ai.model.knownOpponentCount--;
+                    if (actor.ai.model.targetOpponentIndex == y)
+                        actor.ai.model.targetOpponentIndex = NULL;
                     end
                 end
             end
@@ -769,12 +760,12 @@ begin
                 end
                 // can AI see opponent?
                 // TODO: Test cleaning up * syntax, might be unnecessary.
-                isVisible = AILineOfSight((*actor).x, (*actor).y, (*opponent).x, (*opponent).y);
+                isVisible = AILineOfSight(actor.x, actor.y, (*opponent).x, (*opponent).y);
                 knownOpponentIndex = NULL;
                 // TODO: Clean this up into a function.
                 // find index of element where processId == opponent
                 for (z = 0; z < MAX_ACTORS - 1; ++z)
-                    if ((*actor).ai.model.knownOpponents[z].processId == opponent)
+                    if (actor.ai.model.knownOpponents[z].processId == opponent)
                         knownOpponentIndex = z;
                         break;
                     end
@@ -783,22 +774,22 @@ begin
                     // TODO: Clean this up into a function.
                     // find next free index
                     for (z = 0; z < MAX_ACTORS - 1; ++z)
-                        if ((*actor).ai.model.knownOpponents[z].processId <= 0)
+                        if (actor.ai.model.knownOpponents[z].processId <= 0)
                             knownOpponentIndex = z;
                             break;
                         end
                     end
                     // visible but previously unknown opponents are added to AI's model
-                    (*actor).ai.model.knownOpponents[z].processId = opponent;
-                    (*actor).ai.model.knownOpponentCount++;
+                    actor.ai.model.knownOpponents[z].processId = opponent;
+                    actor.ai.model.knownOpponentCount++;
                 end
                 // if knownOpponentIndex is valid (>= 0), then update x, y and visible properties of AI's model
                 if (knownOpponentIndex >= 0)
                     z = knownOpponentIndex;
-                    (*actor).ai.model.knownOpponents[z].visible = isVisible;
+                    actor.ai.model.knownOpponents[z].visible = isVisible;
                     if (isVisible)
-                        (*actor).ai.model.knownOpponents[z].x = opponent.x;
-                        (*actor).ai.model.knownOpponents[z].y = opponent.y;
+                        actor.ai.model.knownOpponents[z].x = opponent.x;
+                        actor.ai.model.knownOpponents[z].y = opponent.y;
                     end
                 end
             end
@@ -849,12 +840,12 @@ end
 /* -----------------------------------------------------------------------------
  * Actor components
  * ---------------------------------------------------------------------------*/
-process ActorFaction(controllerId, charType)
+process ActorFaction(controllerId, actorType)
 private
     pointer factionActors;
 begin
     // initialization
-    value = __actorStats[charType].faction;
+    value = __actorStats[actorType].faction;
     factionActors = GetFactionActors(value);
     // find next free index
     for (x = 0; x < MAX_ACTORS - 1; ++x)
@@ -870,7 +861,7 @@ begin
     factionActors[x] = NULL;
 end
 
-process ActorAnimator(controllerId, charType)
+process ActorAnimator(controllerId, actorType)
 private
     arms;
     base;
@@ -880,9 +871,9 @@ begin
     // initialization
     resolution = GPR;
     // sub-processes
-    arms = ActorArms(controllerId, charType);
-    base = ActorBase(controllerId, charType);
-    head = ActorHead(controllerId, charType);
+    arms = ActorArms(controllerId, actorType);
+    base = ActorBase(controllerId, actorType);
+    head = ActorHead(controllerId, actorType);
     weapon = ActorWeapon(controllerId);
     repeat
         CopyXYAngle(controllerId);
@@ -890,12 +881,12 @@ begin
     until (controllerId.alive == false)
 end
 
-process ActorArms(controllerId, charType)
+process ActorArms(controllerId, actorType)
 begin
     // initialization
     resolution = GPR;
     file = __gfxActors;
-    graph = 200 + __actorStats[charType].gfxOffset;
+    graph = 200 + __actorStats[actorType].gfxOffset;
     z = -90;
     repeat
         CopyXYAngle(controllerId);
@@ -903,13 +894,13 @@ begin
     until (controllerId.alive == false)
 end
 
-process ActorBase(controllerId, charType)
+process ActorBase(controllerId, actorType)
 begin
     // initialization
     resolution = GPR;
     components.health = controllerId.components.health;
     file = __gfxActors;
-    graph = 100 + __actorStats[charType].gfxOffset;
+    graph = 100 + __actorStats[actorType].gfxOffset;
     z = -100;
     repeat
         CopyXYAngle(controllerId);
@@ -917,7 +908,7 @@ begin
     until (controllerId.alive == false)
 end
 
-process ActorHead(controllerId, charType)
+process ActorHead(controllerId, actorType)
 begin
     // initialization
     resolution = GPR;
@@ -983,12 +974,68 @@ begin
     until (controllerId.alive == false)
 end
 
-process InventoryComponent(controllerId)
+process InventoryComponent(controllerId, pointer startingItems)
+private
+    i;
 begin
+    for (i = 0; i < INVENTORY_SLOTS; ++i)
+        if (startingItems[i] > NULL)
+            GiveItem(
+                controllerId, 
+                startingItems[i].statsIndex, 
+                startingItems[i].count);
+        end
+    end
     repeat
         frame;
     until (controllerId.alive == false)
     // TODO: drop all items when dead
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Inventory & items
+ * ---------------------------------------------------------------------------*/
+function GiveItem(actorId, statsIndex, count)
+private
+    freeIndex = NULL;
+begin
+    // Can't give 0 or negative items.
+    if (count <= 0)
+        return;
+    end
+
+    // TODO: Check if count against maxCarry.
+
+    // TODO: implement
+    for (freeIndex = 0; freeIndex < INVENTORY_SLOTS; ++freeIndex)
+        if (actorId.inventory[freeIndex].itemId == NULL)
+            break;
+        end
+    end
+    // Handle no free index.
+    if (freeIndex == NULL)
+        // TODO: drop item
+        return;
+    end
+    // Add item to actor's inventory table.
+    actorId.inventory[freeIndex].statsIndex = statsIndex;
+    actorId.inventory[freeIndex].count = count;
+end
+
+function PickUpItem(actorId, itemId, statsIndex, count)
+begin
+end
+
+process Item(statsIndex, count)
+begin
+    // TODO: implement
+    loop
+        // TODO: detect collision with actor and attempt pick up
+        //PickUpItem(actorId, id, statsIndex, count);
+        frame;
+    end
 end
 
 
