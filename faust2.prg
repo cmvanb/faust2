@@ -245,6 +245,7 @@ local
     struct input
         attackingPreviousFrame;
         attacking;
+        reloading;
         struct move
             x;
             y;
@@ -270,6 +271,7 @@ local
 
     // actor inventory
     selectedItemIndex;
+    // NOTE: Potential micro-optimization: use count var for weapons ammo loaded (this prevents holding multiple of same weapon, but that probably is undesirable anyway, but that probably is undesirable anyway).
     struct inventory[INVENTORY_SLOTS - 1]
         statsIndex;
         count;
@@ -435,7 +437,7 @@ begin
 
     // components & sub-processes
     components.health = HealthComponent(id, __actorStats[ACTOR_PLAYER].startingHealth);
-    components.animator = ActorAnimator(id, ACTOR_PLAYER);
+    components.animator = HumanAnimator(id, ACTOR_PLAYER);
     components.faction = ActorFaction(id, ACTOR_PLAYER);
     components.inventory = InventoryComponent(id, inventoryContents);
     components.physics = PhysicsComponent(id, __actorStats[ACTOR_PLAYER].walkSpeed, __actorStats[ACTOR_PLAYER].runSpeed);
@@ -469,6 +471,7 @@ begin
                 input.move.y = 0;
             end
         end
+        input.reloading = key(_r);
         InputLookAt(id, mouseCursor.x, mouseCursor.y);
         input.attackingPreviousFrame = input.attacking;
         input.attacking = mouse.left;
@@ -502,7 +505,7 @@ begin
 
     // components & sub-processes
     components.health = HealthComponent(id, __actorStats[actorType].startingHealth);
-    components.animator = ActorAnimator(id, actorType);
+    components.animator = HumanAnimator(id, actorType);
     components.faction = ActorFaction(id, actorType);
     components.inventory = InventoryComponent(id, inventoryContents);
     components.physics = PhysicsComponent(id, __actorStats[actorType].walkSpeed, __actorStats[actorType].runSpeed);
@@ -887,7 +890,7 @@ begin
     factionActors[x] = NULL;
 end
 
-process ActorAnimator(controllerId, actorType)
+process HumanAnimator(controllerId, actorType)
 private
     arms;
     base;
@@ -897,9 +900,9 @@ begin
     // initialization
     resolution = GPR;
     // sub-processes
-    arms = ActorArms(controllerId, actorType);
-    base = ActorBase(controllerId, actorType);
-    head = ActorHead(controllerId, actorType);
+    arms = HumanArms(controllerId, actorType);
+    base = HumanBase(controllerId, actorType);
+    head = HumanHead(controllerId, actorType);
     weapon = ActorWeapon(controllerId);
     repeat
         CopyXYAngle(controllerId);
@@ -907,7 +910,7 @@ begin
     until (controllerId.alive == false)
 end
 
-process ActorArms(controllerId, actorType)
+process HumanArms(controllerId, actorType)
 begin
     // initialization
     resolution = GPR;
@@ -920,7 +923,7 @@ begin
     until (controllerId.alive == false)
 end
 
-process ActorBase(controllerId, actorType)
+process HumanBase(controllerId, actorType)
 begin
     // initialization
     resolution = GPR;
@@ -934,7 +937,7 @@ begin
     until (controllerId.alive == false)
 end
 
-process ActorHead(controllerId, actorType)
+process HumanHead(controllerId, actorType)
 begin
     // initialization
     resolution = GPR;
@@ -947,60 +950,6 @@ begin
     until (controllerId.alive == false)
 end
 
-process ActorWeapon(controllerId)
-private
-    lastShotTime = 0;
-    statsIndex;
-    ammoIndex;
-begin
-    // initialization
-    resolution = GPR;
-    file = __gfxItems;
-    z = -95;
-    repeat
-        CopyXYAngle(controllerId);
-        statsIndex = controllerId.inventory[controllerId.selectedItemIndex].statsIndex;
-
-        // If actor isn't holding a weapon, do nothing and make this invisible.
-        if (statsIndex == NULL)
-            graph = 0;
-            continue;
-        else
-            graph = __itemStats[statsIndex].gfxOffset;
-        end
-
-        // Firing logic.
-        if (controllerId.input.attacking)             
-            if ((__itemStats[statsIndex].firingMode == FIRING_MODE_SINGLE 
-                && controllerId.input.attackingPreviousFrame == false)
-                || (__itemStats[statsIndex].firingMode == FIRING_MODE_AUTO))
-                // Check if actor is holding ammo for this weapon.
-                if (__itemStats[statsIndex].itemType == ITEM_TYPE_WEAPON)
-                    ammoIndex = GetItemInventoryIndex(controllerId, __itemStats[statsIndex].ammoType);
-                end
-                //if (controllerId.inventory[ammoIndex].count > 0)
-                if (controllerId.inventory[statsIndex].ammoLoaded > 0)
-                    if (timer[0] > lastShotTime + __itemStats[statsIndex].timeBetweenShots)
-                        // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
-                        //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 50);
-                        PlaySound(__itemStats[statsIndex].soundIndex, 128, 512);
-                        MuzzleFlash(__itemStats[statsIndex].offsetMuzzleForward);
-                        Bullet(BULLET_9MM);
-                        lastShotTime = timer[0];
-                        controllerId.inventory[statsIndex].ammoLoaded--;
-                    end
-                end
-            end
-        end
-        frame;
-    until (controllerId.alive == false)
-end
-
-
-
-/* -----------------------------------------------------------------------------
- * Components
- * ---------------------------------------------------------------------------*/
 process HealthComponent(controllerId, startingHealth)
 begin
     value = startingHealth;
@@ -1050,6 +999,102 @@ begin
         frame;
     until (controllerId.alive == false)
     // TODO: drop all items when dead
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Weapons
+ * ---------------------------------------------------------------------------*/
+process ActorWeapon(controllerId)
+private
+    lastShotTime = 0;
+    statsIndex;
+    ammoIndex;
+begin
+    // initialization
+    resolution = GPR;
+    file = __gfxItems;
+    z = -95;
+    repeat
+        CopyXYAngle(controllerId);
+        statsIndex = controllerId.inventory[controllerId.selectedItemIndex].statsIndex;
+
+        // If actor isn't holding a weapon, do nothing and make this invisible.
+        if (statsIndex == NULL)
+            graph = 0;
+            continue;
+        else
+            graph = __itemStats[statsIndex].gfxOffset;
+        end
+
+        // Firing logic.
+        if (controllerId.input.attacking)             
+            if ((__itemStats[statsIndex].firingMode == FIRING_MODE_SINGLE 
+                && controllerId.input.attackingPreviousFrame == false)
+                || (__itemStats[statsIndex].firingMode == FIRING_MODE_AUTO))
+                //if (controllerId.inventory[ammoIndex].count > 0)
+                if (controllerId.inventory[statsIndex].ammoLoaded > 0)
+                    if (timer[0] > lastShotTime + __itemStats[statsIndex].timeBetweenShots)
+                        // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
+                        //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 50);
+                        PlaySound(__itemStats[statsIndex].soundIndex, 128, 512);
+                        MuzzleFlash(__itemStats[statsIndex].offsetMuzzleForward);
+                        Bullet(BULLET_9MM);
+                        lastShotTime = timer[0];
+                        controllerId.inventory[statsIndex].ammoLoaded--;
+                    end
+                end
+            end
+        end
+
+        // Reloading logic.
+        if (controllerId.input.reloading)
+            if (ActorCanReloadSelectedWeapon(controllerId))
+                ActorReload(controllerId);
+            end
+        end
+        frame;
+    until (controllerId.alive == false)
+end
+
+function ActorCanReloadSelectedWeapon(actorId)
+private
+    statsIndex;
+    ammoIndex;
+begin
+    statsIndex = actorId.inventory[actorId.selectedItemIndex].statsIndex;
+    // Must have selected an item.
+    if (statsIndex == NULL)
+        return (false);
+    end
+    // Selected item must be a weapon.
+    if (__itemStats[statsIndex].itemType != ITEM_TYPE_WEAPON)
+        return (false);
+    end
+    // Must be holding some appropriate ammo.
+    ammoIndex = GetItemInventoryIndex(actorId, __itemStats[statsIndex].ammoType);
+    if (ammoIndex == NULL || actorId.inventory[ammoIndex].count <= 0)
+        return (false);
+    end
+    // Must have less than full magazine loaded.
+    if (actorId.inventory[actorId.selectedItemIndex].ammoLoaded >= __itemStats[statsIndex].magazineSize)
+        return (false);
+    end
+    return (true);
+end
+
+function ActorReload(actorId)
+private
+    statsIndex;
+    ammoIndex;
+    count;
+begin
+    statsIndex = actorId.inventory[actorId.selectedItemIndex].statsIndex;
+    ammoIndex = GetItemInventoryIndex(actorId, __itemStats[statsIndex].ammoType);
+    count = Min(actorId.inventory[ammoIndex].count, __itemStats[statsIndex].magazineSize);
+    actorId.inventory[ammoIndex].count -= count;
+    actorId.inventory[actorId.selectedItemIndex].ammoLoaded = count;
 end
 
 
@@ -1182,7 +1227,7 @@ begin
     LifeTimer(__bulletStats[bulletType].lifeDuration);
     loop
         advance(__bulletStats[bulletType].speed);
-        collisionId = collision(type ActorBase);
+        collisionId = collision(type HumanBase);
         if (collisionId != 0)
             collisionId.components.health.value -= __bulletStats[bulletType].damage;
             break;
