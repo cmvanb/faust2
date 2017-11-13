@@ -1071,7 +1071,7 @@ begin
     if (i != NULL)
         // ...and it's splittable, then split it. If not, drop it.
         if (__itemStats[statsIndex].isSplittable)
-            SplitItem(actorId, i, statsIndex, count);
+            SplitItem(actorId, i, statsIndex, count, ammoLoaded);
         else
             Item(actorId.x, actorId.y, actorId.angle, statsIndex, count);
         end
@@ -1086,7 +1086,7 @@ begin
         if (actorId.inventory[i].count + count > __itemStats[statsIndex].maxCarry)
             // ...and it's splittable, then split it. If not, drop it.
             if (__itemStats[statsIndex].isSplittable)
-                SplitItem(actorId, i, statsIndex, count);
+                SplitItem(actorId, i, statsIndex, count, ammoLoaded);
             else
                 Item(actorId.x, actorId.y, actorId.angle, statsIndex, count);
             end
@@ -1104,7 +1104,7 @@ begin
     Item(actorId.x, actorId.y, actorId.angle, statsIndex, count);
 end
 
-function SplitItem(actorId, inventoryIndex, statsIndex, count)
+function SplitItem(actorId, inventoryIndex, statsIndex, count, ammoLoaded)
 private
     combinedCount;
     splitCount;
@@ -1113,6 +1113,7 @@ begin
 
     // Give actor amount up to maxCarry.
     actorId.inventory[inventoryIndex].count = Min(combinedCount, __itemStats[statsIndex].maxCarry);
+    actorId.inventory[inventoryIndex].ammoLoaded = ammoLoaded;
 
     // Drop the rest.
     splitCount = __itemStats[statsIndex].maxCarry - combinedCount;
