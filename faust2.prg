@@ -42,7 +42,8 @@ const
     SOUND_SHELL_DROPPED_1 = 1;
     SOUND_SHELL_DROPPED_2 = 2;
     SOUND_SHELL_DROPPED_3 = 3;
-    SOUNDS_COUNT = 4;
+    SOUND_KAR98K_SHOT     = 4;
+    SOUNDS_COUNT = 5;
 
     // file paths
     GFX_MAIN_PATH   = "assets/graphics/main.fpg";
@@ -144,15 +145,17 @@ global
         magazineSize;
         timeBetweenShots;
         firingMode;
+        ammoType;
         soundIndex;
         offsetForward;
         offsetLeft;
+        offsetMuzzleForward;
     end =
-    //  name          itemType          gfx  slots  i  max  mag   t     firingMode          soundIndex       offsetF   offsetL
-        "MP40",       ITEM_TYPE_WEAPON, 101, false, 1, 1,   30,   12,   FIRING_MODE_AUTO,   SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
-        "Kar 98k",    ITEM_TYPE_WEAPON, 111, false, 1, 1,   5,    100,  FIRING_MODE_SINGLE, SOUND_MP40_SHOT, 45 * GPR, 0 * GPR,
-        "9mm Ammo",   ITEM_TYPE_AMMO,   501, true,  0, 150, NULL, NULL, NULL,               NULL,            NULL,     NULL,
-        "Rifle Ammo", ITEM_TYPE_AMMO,   511, true,  0, 90,  NULL, NULL, NULL,               NULL,            NULL,     NULL;
+    //  name          itemType          gfx  s  i  max  mag   t      firingMode          ammoType,        soundIndex         offsetF   offsetL  muzzleF
+        "MP40",       ITEM_TYPE_WEAPON, 101, 0, 1, 1,   30,   12,    FIRING_MODE_AUTO,   ITEM_AMMO_9MM,   SOUND_MP40_SHOT,   45 * GPR, 0 * GPR, 44 * GPR,
+        "Kar 98k",    ITEM_TYPE_WEAPON, 111, 0, 1, 1,   5,    100,   FIRING_MODE_SINGLE, ITEM_AMMO_RIFLE, SOUND_KAR98K_SHOT, 45 * GPR, 0 * GPR, 51 * GPR,
+        "9mm Ammo",   ITEM_TYPE_AMMO,   501, 1,  0, 150, NULL, NULL, NULL,               NULL,            NULL,              NULL,     NULL,    NULL,
+        "Rifle Ammo", ITEM_TYPE_AMMO,   511, 1,  0, 90,  NULL, NULL, NULL,               NULL,            NULL,              NULL,     NULL,    NULL;
 
     struct __bulletStats[1]
         damage;
@@ -182,13 +185,13 @@ global
         2 * GPR, 3 * GPR, 10000, 2, 200, FACTION_GOOD; // allied commando
 
     // starting inventories
-    __guardInventory[(INVENTORY_SLOTS * 2) - 1] =
-        // statsIndex, count
-        ITEM_KAR98K,     1,
-        ITEM_AMMO_9MM, 90,
-        NULL,          NULL,
-        NULL,          NULL,
-        NULL,          NULL;
+    __guardInventory[(INVENTORY_SLOTS * 3) - 1] =
+        // statsIndex  count ammoLoaded
+        ITEM_MP40,     1,    30,
+        ITEM_AMMO_9MM, 60,   NULL,
+        NULL,          NULL, NULL,
+        NULL,          NULL, NULL,
+        NULL,          NULL, NULL;
 
     // game processes
     __playerController;
@@ -270,6 +273,7 @@ local
     struct inventory[INVENTORY_SLOTS - 1]
         statsIndex;
         count;
+        ammoLoaded;
     end
 
     // ai data
@@ -320,6 +324,7 @@ begin
     __sounds[SOUND_SHELL_DROPPED_1] = load_sound("assets/audio/shell-dropped1.wav", 0);
     __sounds[SOUND_SHELL_DROPPED_2] = load_sound("assets/audio/shell-dropped2.wav", 0);
     __sounds[SOUND_SHELL_DROPPED_3] = load_sound("assets/audio/shell-dropped3.wav", 0);
+    __sounds[SOUND_KAR98K_SHOT]     = load_sound("assets/audio/test-shot7.wav", 0);
 
     // timing
     LogValue("FPS", &fps);
@@ -416,7 +421,7 @@ end
 /* -----------------------------------------------------------------------------
  * Actor Controllers
  * ---------------------------------------------------------------------------*/
-process PlayerController(x, y, startingItems)
+process PlayerController(x, y, inventoryContents)
 private
     mouseCursor;
 begin
@@ -432,14 +437,18 @@ begin
     components.health = HealthComponent(id, __actorStats[ACTOR_PLAYER].startingHealth);
     components.animator = ActorAnimator(id, ACTOR_PLAYER);
     components.faction = ActorFaction(id, ACTOR_PLAYER);
-    components.inventory = InventoryComponent(id, startingItems);
+    components.inventory = InventoryComponent(id, inventoryContents);
     components.physics = PhysicsComponent(id, __actorStats[ACTOR_PLAYER].walkSpeed, __actorStats[ACTOR_PLAYER].runSpeed);
     mouseCursor = MouseCursor();
 
     // debugging
     LogValueFollow("health.value", &components.health.value);
     LogValueFollow("inventory[0].statsIndex", &inventory[0].statsIndex);
+    LogValueFollow("inventory[0].count", &inventory[0].count);
+    LogValueFollow("inventory[0].ammoLoaded", &inventory[0].ammoLoaded);
+    LogValueFollow("inventory[1].statsIndex", &inventory[1].statsIndex);
     LogValueFollow("inventory[1].count", &inventory[1].count);
+    LogValueFollow("inventory[1].ammoLoaded", &inventory[1].ammoLoaded);
     repeat
         // capture input
         if (key(_a))
@@ -476,7 +485,7 @@ begin
     until (alive == false)
 end
 
-process AIController(actorType, x, y, startingItems)
+process AIController(actorType, x, y, inventoryContents)
 private
     animator;
 begin
@@ -495,16 +504,24 @@ begin
     components.health = HealthComponent(id, __actorStats[actorType].startingHealth);
     components.animator = ActorAnimator(id, actorType);
     components.faction = ActorFaction(id, actorType);
-    components.inventory = InventoryComponent(id, startingItems);
+    components.inventory = InventoryComponent(id, inventoryContents);
     components.physics = PhysicsComponent(id, __actorStats[actorType].walkSpeed, __actorStats[actorType].runSpeed);
 
     // debugging
     LogValueFollow("health.value", &components.health.value);
+    LogValueFollow("inventory[0].statsIndex", &inventory[0].statsIndex);
+    LogValueFollow("inventory[0].count", &inventory[0].count);
+    LogValueFollow("inventory[0].ammoLoaded", &inventory[0].ammoLoaded);
+    LogValueFollow("inventory[1].statsIndex", &inventory[1].statsIndex);
+    LogValueFollow("inventory[1].count", &inventory[1].count);
+    LogValueFollow("inventory[1].ammoLoaded", &inventory[1].ammoLoaded);
+    /*
     LogValueFollow("input.move.walk", &input.move.walk);
     LogValueFollow("ai.previousState", &ai.previousState);
     LogValueFollow("ai.currentState", &ai.currentState);
     LogValueFollow("ai.model.knownOpponentCount", &ai.model.knownOpponentCount);
     LogValueFollow("ai.model.targetOpponentIndex", &ai.model.targetOpponentIndex);
+    */
 
     AIChangeState(id, AI_STATE_IDLE);
     repeat
@@ -934,13 +951,16 @@ process ActorWeapon(controllerId)
 private
     lastShotTime = 0;
     statsIndex;
+    ammoIndex;
 begin
     // initialization
     resolution = GPR;
     file = __gfxItems;
     z = -95;
     repeat
+        CopyXYAngle(controllerId);
         statsIndex = controllerId.inventory[controllerId.selectedItemIndex].statsIndex;
+
         // If actor isn't holding a weapon, do nothing and make this invisible.
         if (statsIndex == NULL)
             graph = 0;
@@ -948,24 +968,29 @@ begin
         else
             graph = __itemStats[statsIndex].gfxOffset;
         end
-        CopyXYAngle(controllerId);
+
+        // Firing logic.
         if (controllerId.input.attacking)             
-            // TODO: Finish implementing.
-            if (__itemStats[statsIndex].firingMode == FIRING_MODE_SINGLE)
-            else
-                if (timer[0] > lastShotTime + __itemStats[statsIndex].timeBetweenShots)
-                    // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
-                    //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 50);
-                    PlaySound(SOUND_MP40_SHOT, 128, 512);
-                    MuzzleFlash();
-                    Bullet(BULLET_9MM);
-                    lastShotTime = timer[0];
+            if ((__itemStats[statsIndex].firingMode == FIRING_MODE_SINGLE 
+                && controllerId.input.attackingPreviousFrame == false)
+                || (__itemStats[statsIndex].firingMode == FIRING_MODE_AUTO))
+                // Check if actor is holding ammo for this weapon.
+                if (__itemStats[statsIndex].itemType == ITEM_TYPE_WEAPON)
+                    ammoIndex = GetItemInventoryIndex(controllerId, __itemStats[statsIndex].ammoType);
+                end
+                //if (controllerId.inventory[ammoIndex].count > 0)
+                if (controllerId.inventory[statsIndex].ammoLoaded > 0)
+                    if (timer[0] > lastShotTime + __itemStats[statsIndex].timeBetweenShots)
+                        // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
+                        //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 50);
+                        PlaySound(__itemStats[statsIndex].soundIndex, 128, 512);
+                        MuzzleFlash(__itemStats[statsIndex].offsetMuzzleForward);
+                        Bullet(BULLET_9MM);
+                        lastShotTime = timer[0];
+                        controllerId.inventory[statsIndex].ammoLoaded--;
+                    end
                 end
             end
-        end
-        // Play a single 'shell drop' sound when stopped firing.
-        if (controllerId.input.attacking == false && controllerId.input.attackingPreviousFrame == true)
-            PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 15);
         end
         frame;
     until (controllerId.alive == false)
@@ -997,22 +1022,28 @@ begin
     until (controllerId.alive == false)
 end
 
-process InventoryComponent(controllerId, pointer startingItems)
+process InventoryComponent(controllerId, pointer inventoryContents)
 private
     i;
     statsIndex;
     count;
+    ammoLoaded;
 begin
     for (i = 0; i < INVENTORY_SLOTS; ++i)
         controllerId.inventory[i].statsIndex = NULL;
         controllerId.inventory[i].count = NULL;
-        statsIndex = i * 2;
+        controllerId.inventory[i].ammoLoaded = NULL;
+    end
+    for (i = 0; i < INVENTORY_SLOTS; ++i)
+        statsIndex = i * 3;
         count = statsIndex + 1;
-        if (startingItems[statsIndex] > NULL)
+        ammoLoaded = statsIndex + 2;
+        if (inventoryContents[statsIndex] > NULL)
             GiveItem(
                 controllerId, 
-                startingItems[statsIndex], 
-                startingItems[count]);
+                inventoryContents[statsIndex], 
+                inventoryContents[count],
+                inventoryContents[ammoLoaded]);
         end
     end
     repeat
@@ -1026,7 +1057,7 @@ end
 /* -----------------------------------------------------------------------------
  * Inventory & items
  * ---------------------------------------------------------------------------*/
-function GiveItem(actorId, statsIndex, count)
+function GiveItem(actorId, statsIndex, count, ammoLoaded)
 private
     i;
 begin
@@ -1064,6 +1095,7 @@ begin
         else
             actorId.inventory[i].statsIndex = statsIndex;
             actorId.inventory[i].count = count;
+            actorId.inventory[i].ammoLoaded = ammoLoaded;
             return;
         end
     end
@@ -1163,11 +1195,10 @@ end
 /* -----------------------------------------------------------------------------
  * Special FX
  * ---------------------------------------------------------------------------*/
-process MuzzleFlash()
+process MuzzleFlash(forwardOffset)
 private
     lifeDuration = 5;
     animationTime = 0;
-    forwardOffset = 44;
 begin
     // initialization
     resolution = GPR;
@@ -1184,7 +1215,7 @@ begin
 
         // positioning
         CopyXY(father);
-        advance(forwardOffset * GPR);
+        advance(forwardOffset);
         frame;
     end
 end
