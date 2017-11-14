@@ -436,11 +436,11 @@ begin
     RecordSpawnPosition(id);
 
     // components & sub-processes
-    components.health = HealthComponent(id, __actorStats[ACTOR_PLAYER].startingHealth);
+    components.health = Health(id, __actorStats[ACTOR_PLAYER].startingHealth);
     components.animator = HumanAnimator(id, ACTOR_PLAYER);
     components.faction = ActorFaction(id, ACTOR_PLAYER);
-    components.inventory = InventoryComponent(id, inventoryContents);
-    components.physics = PhysicsComponent(id, __actorStats[ACTOR_PLAYER].walkSpeed, __actorStats[ACTOR_PLAYER].runSpeed);
+    components.inventory = Inventory(id, inventoryContents);
+    components.physics = Physics(id, __actorStats[ACTOR_PLAYER].walkSpeed, __actorStats[ACTOR_PLAYER].runSpeed);
     mouseCursor = MouseCursor();
 
     // debugging
@@ -504,11 +504,11 @@ begin
     ai.model.targetOpponentIndex = NULL;
 
     // components & sub-processes
-    components.health = HealthComponent(id, __actorStats[actorType].startingHealth);
+    components.health = Health(id, __actorStats[actorType].startingHealth);
     components.animator = HumanAnimator(id, actorType);
     components.faction = ActorFaction(id, actorType);
-    components.inventory = InventoryComponent(id, inventoryContents);
-    components.physics = PhysicsComponent(id, __actorStats[actorType].walkSpeed, __actorStats[actorType].runSpeed);
+    components.inventory = Inventory(id, inventoryContents);
+    components.physics = Physics(id, __actorStats[actorType].walkSpeed, __actorStats[actorType].runSpeed);
 
     // debugging
     LogValueFollow("health.value", &components.health.value);
@@ -903,7 +903,7 @@ begin
     arms = HumanArms(controllerId, actorType);
     base = HumanBase(controllerId, actorType);
     head = HumanHead(controllerId, actorType);
-    weapon = ActorWeapon(controllerId);
+    weapon = Weapon(controllerId);
     repeat
         CopyXYAngle(controllerId);
         frame;
@@ -950,7 +950,7 @@ begin
     until (controllerId.alive == false)
 end
 
-process HealthComponent(controllerId, startingHealth)
+process Health(controllerId, startingHealth)
 begin
     value = startingHealth;
     repeat
@@ -960,7 +960,7 @@ begin
     controllerId.alive = false;
 end
 
-process PhysicsComponent(controllerId, walkSpeed, runSpeed)
+process Physics(controllerId, walkSpeed, runSpeed)
 begin
     controllerId.physics.walkSpeed = walkSpeed;
     controllerId.physics.runSpeed = runSpeed;
@@ -971,7 +971,7 @@ begin
     until (controllerId.alive == false)
 end
 
-process InventoryComponent(controllerId, pointer inventoryContents)
+process Inventory(controllerId, pointer inventoryContents)
 private
     i;
     statsIndex;
@@ -1006,7 +1006,7 @@ end
 /* -----------------------------------------------------------------------------
  * Weapons
  * ---------------------------------------------------------------------------*/
-process ActorWeapon(controllerId)
+process Weapon(controllerId)
 private
     lastShotTime = 0;
     statsIndex;
@@ -1050,15 +1050,15 @@ begin
 
         // Reloading logic.
         if (controllerId.input.reloading)
-            if (ActorCanReloadSelectedWeapon(controllerId))
-                ActorReload(controllerId);
+            if (CanReloadSelectedWeapon(controllerId))
+                ReloadWeapon(controllerId);
             end
         end
         frame;
     until (controllerId.alive == false)
 end
 
-function ActorCanReloadSelectedWeapon(actorId)
+function CanReloadSelectedWeapon(actorId)
 private
     statsIndex;
     ammoIndex;
@@ -1084,7 +1084,7 @@ begin
     return (true);
 end
 
-function ActorReload(actorId)
+function ReloadWeapon(actorId)
 private
     statsIndex;
     ammoIndex;
@@ -1092,7 +1092,11 @@ private
 begin
     statsIndex = actorId.inventory[actorId.selectedItemIndex].statsIndex;
     ammoIndex = GetItemInventoryIndex(actorId, __itemStats[statsIndex].ammoType);
+    // Return loaded ammo from weapon to inventory.
+    actorId.inventory[ammoIndex].count += actorId.inventory[actorId.selectedItemIndex].ammoLoaded; 
+    // Determine new magazine count.
     count = Min(actorId.inventory[ammoIndex].count, __itemStats[statsIndex].magazineSize);
+    // Remove ammo from inventory and add it to weapon.
     actorId.inventory[ammoIndex].count -= count;
     actorId.inventory[actorId.selectedItemIndex].ammoLoaded = count;
 end
@@ -1114,30 +1118,23 @@ begin
     // If the actor already has this item...
     i = GetItemInventoryIndex(actorId, statsIndex);
     if (i != NULL)
-        // ...and it's splittable, then split it. If not, drop it.
-        if (__itemStats[statsIndex].isSplittable)
-            SplitItem(actorId, i, statsIndex, count, ammoLoaded);
-        else
-            Item(actorId.x, actorId.y, actorId.angle, statsIndex, count);
-        end
-        return;
-    end
-
-    // If actor hasn't got this item already, find a free index.
-    i = GetNextFreeInventoryIndex(actorId);
-    // If there is space, add item to actor's inventory.
-    if (i != NULL)
-        // If maxCarry is exceeded...
+        // ...and maxCarry is exceeded...
         if (actorId.inventory[i].count + count > __itemStats[statsIndex].maxCarry)
-            // ...and it's splittable, then split it. If not, drop it.
+            // ...and it's splittable, then split it.
             if (__itemStats[statsIndex].isSplittable)
                 SplitItem(actorId, i, statsIndex, count, ammoLoaded);
-            else
-                Item(actorId.x, actorId.y, actorId.angle, statsIndex, count);
+                return;
             end
-            return;
-        // Otherwise, pick up item fully.
+        // If maxCarry is not exceeded, just increase the existing item's count.
         else
+            actorId.inventory[i].count += count;
+            return;
+        end
+    // If actor hasn't got this item already, find a free index.
+    else
+        i = GetNextFreeInventoryIndex(actorId);
+        // If there is space, add item to actor's inventory.
+        if (i != NULL)
             actorId.inventory[i].statsIndex = statsIndex;
             actorId.inventory[i].count = count;
             actorId.inventory[i].ammoLoaded = ammoLoaded;
