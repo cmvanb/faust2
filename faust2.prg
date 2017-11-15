@@ -187,8 +187,10 @@ global
     // starting inventories
     __guardInventory[(INVENTORY_SLOTS * 3) - 1] =
         // statsIndex  count ammoLoaded
-        ITEM_MP40,     1,    30,
-        ITEM_AMMO_9MM, 60,   NULL,
+        ITEM_KAR98K,     1,    5,
+        ITEM_AMMO_RIFLE, 60,   NULL,
+        //ITEM_MP40,     1,    30,
+        //ITEM_AMMO_9MM, 60,   NULL,
         NULL,          NULL, NULL,
         NULL,          NULL, NULL,
         NULL,          NULL, NULL;
@@ -448,9 +450,8 @@ begin
     LogValueFollow("inventory[0].statsIndex", &inventory[0].statsIndex);
     LogValueFollow("inventory[0].count", &inventory[0].count);
     LogValueFollow("inventory[0].ammoLoaded", &inventory[0].ammoLoaded);
-    LogValueFollow("inventory[1].statsIndex", &inventory[1].statsIndex);
-    LogValueFollow("inventory[1].count", &inventory[1].count);
-    LogValueFollow("inventory[1].ammoLoaded", &inventory[1].ammoLoaded);
+    LogValueFollow("input.attacking", &input.attacking);
+    LogValueFollow("input.attackingPreviousFrame", &input.attackingPreviousFrame);
     repeat
         // capture input
         if (key(_a))
@@ -471,14 +472,14 @@ begin
                 input.move.y = 0;
             end
         end
-        input.reloading = key(_r);
         InputLookAt(id, mouseCursor.x, mouseCursor.y);
         input.attackingPreviousFrame = input.attacking;
         input.attacking = mouse.left;
+        input.reloading = key(_r);
         // TODO: implement player walk controls
         input.move.walk = false;
 
-        // turn towards the look input
+        // apply input
         TurnTowardsPosition(
             id,
             input.lookAt.x, 
@@ -1009,8 +1010,8 @@ end
 process Weapon(controllerId)
 private
     lastShotTime = 0;
+    inventoryIndex;
     statsIndex;
-    ammoIndex;
 begin
     // initialization
     resolution = GPR;
@@ -1018,7 +1019,8 @@ begin
     z = -95;
     repeat
         CopyXYAngle(controllerId);
-        statsIndex = controllerId.inventory[controllerId.selectedItemIndex].statsIndex;
+        inventoryIndex = controllerId.selectedItemIndex;
+        statsIndex = controllerId.inventory[inventoryIndex].statsIndex;
 
         // If actor isn't holding a weapon, do nothing and make this invisible.
         if (statsIndex == NULL)
@@ -1033,8 +1035,8 @@ begin
             if ((__itemStats[statsIndex].firingMode == FIRING_MODE_SINGLE 
                 && controllerId.input.attackingPreviousFrame == false)
                 || (__itemStats[statsIndex].firingMode == FIRING_MODE_AUTO))
-                //if (controllerId.inventory[ammoIndex].count > 0)
-                if (controllerId.inventory[statsIndex].ammoLoaded > 0)
+                debug;
+                if (controllerId.inventory[inventoryIndex].ammoLoaded > 0)
                     if (timer[0] > lastShotTime + __itemStats[statsIndex].timeBetweenShots)
                         // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
                         //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 50);
@@ -1042,7 +1044,7 @@ begin
                         MuzzleFlash(__itemStats[statsIndex].offsetMuzzleForward);
                         Bullet(BULLET_9MM);
                         lastShotTime = timer[0];
-                        controllerId.inventory[statsIndex].ammoLoaded--;
+                        controllerId.inventory[inventoryIndex].ammoLoaded--;
                     end
                 end
             end
