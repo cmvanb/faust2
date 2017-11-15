@@ -145,19 +145,20 @@ global
         magazineSize;
         timeBetweenShots;
         firingMode;
+        projectileType;
         ammoType;
         soundIndex;
         offsetForward;
         offsetLeft;
         offsetMuzzleForward;
     end =
-    //  name          itemType          gfx  s  i  max  mag   t      firingMode          ammoType,        soundIndex         offsetF   offsetL  muzzleF
-        "MP40",       ITEM_TYPE_WEAPON, 101, 0, 1, 1,   30,   12,    FIRING_MODE_AUTO,   ITEM_AMMO_9MM,   SOUND_MP40_SHOT,   45 * GPR, 0 * GPR, 44 * GPR,
-        "Kar 98k",    ITEM_TYPE_WEAPON, 111, 0, 1, 1,   5,    100,   FIRING_MODE_SINGLE, ITEM_AMMO_RIFLE, SOUND_KAR98K_SHOT, 45 * GPR, 0 * GPR, 51 * GPR,
-        "9mm Ammo",   ITEM_TYPE_AMMO,   501, 1,  0, 150, NULL, NULL, NULL,               NULL,            NULL,              NULL,     NULL,    NULL,
-        "Rifle Ammo", ITEM_TYPE_AMMO,   511, 1,  0, 90,  NULL, NULL, NULL,               NULL,            NULL,              NULL,     NULL,    NULL;
+    //  name          itemType          gfx  s  i  max  mag   t      firingMode          projectileType  ammoType,        soundIndex         offsetF   offsetL  muzzleF
+        "MP40",       ITEM_TYPE_WEAPON, 101, 0, 1, 1,   30,   12,    FIRING_MODE_AUTO,   BULLET_9MM,     ITEM_AMMO_9MM,   SOUND_MP40_SHOT,   45 * GPR, 0 * GPR, 44 * GPR,
+        "Kar 98k",    ITEM_TYPE_WEAPON, 111, 0, 1, 1,   5,    100,   FIRING_MODE_SINGLE, BULLET_RIFLE,   ITEM_AMMO_RIFLE, SOUND_KAR98K_SHOT, 45 * GPR, 0 * GPR, 51 * GPR,
+        "9mm Ammo",   ITEM_TYPE_AMMO,   501, 1,  0, 150, NULL, NULL, NULL,               NULL,           NULL,            NULL,              NULL,     NULL,    NULL,
+        "Rifle Ammo", ITEM_TYPE_AMMO,   511, 1,  0, 90,  NULL, NULL, NULL,               NULL,           NULL,            NULL,              NULL,     NULL,    NULL;
 
-    struct __bulletStats[1]
+    struct __projectileStats[1]
         damage;
         lifeDuration;
         speed;
@@ -1035,14 +1036,13 @@ begin
             if ((__itemStats[statsIndex].firingMode == FIRING_MODE_SINGLE 
                 && controllerId.input.attackingPreviousFrame == false)
                 || (__itemStats[statsIndex].firingMode == FIRING_MODE_AUTO))
-                debug;
                 if (controllerId.inventory[inventoryIndex].ammoLoaded > 0)
                     if (timer[0] > lastShotTime + __itemStats[statsIndex].timeBetweenShots)
                         // NOTE: Disabled because DIV doesn't handle multiple sounds at the same time very well...
                         //PlaySoundWithDelay(SOUND_SHELL_DROPPED_1 + rand(0, 2), 128, 256, 50);
                         PlaySound(__itemStats[statsIndex].soundIndex, 128, 512);
                         MuzzleFlash(__itemStats[statsIndex].offsetMuzzleForward);
-                        Bullet(BULLET_9MM);
+                        Projectile(__itemStats[statsIndex].projectileType);
                         lastShotTime = timer[0];
                         controllerId.inventory[inventoryIndex].ammoLoaded--;
                     end
@@ -1208,8 +1208,7 @@ end
 /* -----------------------------------------------------------------------------
  * Projectiles
  * ---------------------------------------------------------------------------*/
-// TODO: Refactor to generic projectile.
-process Bullet(bulletType)
+process Projectile(projectileType)
 private
     collisionId;
 begin
@@ -1221,14 +1220,15 @@ begin
     z = -700;
     // positioning
     CopyXYAngle(father);
-    advance(__bulletStats[bulletType].offsetForward); // TODO: implement offsetLeft
+    advance(__projectileStats[projectileType].offsetForward); 
+    // TODO: implement offsetLeft
     // children
-    LifeTimer(__bulletStats[bulletType].lifeDuration);
+    LifeTimer(__projectileStats[projectileType].lifeDuration);
     loop
-        advance(__bulletStats[bulletType].speed);
+        advance(__projectileStats[projectileType].speed);
         collisionId = collision(type HumanBase);
         if (collisionId != 0)
-            collisionId.components.health.value -= __bulletStats[bulletType].damage;
+            collisionId.components.health.value -= __projectileStats[projectileType].damage;
             break;
         end
         frame;
