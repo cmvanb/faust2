@@ -153,10 +153,10 @@ global
         offsetMuzzleForward;
     end =
     //  name          itemType          gfx  s  i  max  mag   t      firingMode          projectileType  ammoType,        soundIndex         offsetF   offsetL  muzzleF
-        "MP40",       ITEM_TYPE_WEAPON, 101, 0, 1, 1,   30,   12,    FIRING_MODE_AUTO,   BULLET_9MM,     ITEM_AMMO_9MM,   SOUND_MP40_SHOT,   45 * GPR, 0 * GPR, 44 * GPR,
-        "Kar 98k",    ITEM_TYPE_WEAPON, 111, 0, 1, 1,   5,    100,   FIRING_MODE_SINGLE, BULLET_RIFLE,   ITEM_AMMO_RIFLE, SOUND_KAR98K_SHOT, 45 * GPR, 0 * GPR, 51 * GPR,
-        "9mm Ammo",   ITEM_TYPE_AMMO,   501, 1,  0, 150, NULL, NULL, NULL,               NULL,           NULL,            NULL,              NULL,     NULL,    NULL,
-        "Rifle Ammo", ITEM_TYPE_AMMO,   511, 1,  0, 90,  NULL, NULL, NULL,               NULL,           NULL,            NULL,              NULL,     NULL,    NULL;
+        "MP40",       ITEM_TYPE_WEAPON, 101, 1, 0, 1,   30,   12,    FIRING_MODE_AUTO,   BULLET_9MM,     ITEM_AMMO_9MM,   SOUND_MP40_SHOT,   45 * GPR, 0 * GPR, 44 * GPR,
+        "Kar 98k",    ITEM_TYPE_WEAPON, 111, 1, 0, 1,   5,    100,   FIRING_MODE_SINGLE, BULLET_RIFLE,   ITEM_AMMO_RIFLE, SOUND_KAR98K_SHOT, 45 * GPR, 0 * GPR, 51 * GPR,
+        "9mm Ammo",   ITEM_TYPE_AMMO,   501, 0, 1, 150, NULL, NULL, NULL,               NULL,           NULL,            NULL,              NULL,     NULL,    NULL,
+        "Rifle Ammo", ITEM_TYPE_AMMO,   511, 0, 1, 90,  NULL, NULL, NULL,               NULL,           NULL,            NULL,              NULL,     NULL,    NULL;
 
     struct __projectileStats[1]
         damage;
@@ -188,10 +188,10 @@ global
     // starting inventories
     __guardInventory[(INVENTORY_SLOTS * 3) - 1] =
         // statsIndex  count ammoLoaded
-        ITEM_KAR98K,     1,    5,
-        ITEM_AMMO_RIFLE, 60,   NULL,
-        //ITEM_MP40,     1,    30,
-        //ITEM_AMMO_9MM, 60,   NULL,
+        //ITEM_KAR98K,     1,    5,
+        //ITEM_AMMO_RIFLE, 60,   NULL,
+        ITEM_MP40,     1,    30,
+        ITEM_AMMO_9MM, 60,   NULL,
         NULL,          NULL, NULL,
         NULL,          NULL, NULL,
         NULL,          NULL, NULL;
@@ -403,12 +403,12 @@ begin
 
     // actors
     __playerController = PlayerController(40 * GPR, 40 * GPR, &__guardInventory);
-    //GiveItem(__playerController, CreateItem(ITEM_MP40, 1));
-    //GiveItem(__playerController, CreateItem(ITEM_AMMO_9MM, 90));
-
-    AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR, &__guardInventory);
+    //AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR, &__guardInventory);
     //AIController(ACTOR_GUARD_1, 350 * GPR, 240 * GPR, &aiStartingItems);
     //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR, &aiStartingItems);
+
+    // items
+    Item(200 * GPR, 200 * GPR, 0, ITEM_AMMO_9MM, 150, NULL);
 
     // managers
     AIModelManager(FACTION_EVIL);
@@ -439,8 +439,8 @@ begin
     RecordSpawnPosition(id);
 
     // components & sub-processes
-    components.health = Health(id, __actorStats[ACTOR_PLAYER].startingHealth);
     components.animator = HumanAnimator(id, ACTOR_PLAYER);
+    components.health = Health(id, __actorStats[ACTOR_PLAYER].startingHealth);
     components.faction = ActorFaction(id, ACTOR_PLAYER);
     components.inventory = Inventory(id, inventoryContents);
     components.physics = Physics(id, __actorStats[ACTOR_PLAYER].walkSpeed, __actorStats[ACTOR_PLAYER].runSpeed);
@@ -451,8 +451,9 @@ begin
     LogValueFollow("inventory[0].statsIndex", &inventory[0].statsIndex);
     LogValueFollow("inventory[0].count", &inventory[0].count);
     LogValueFollow("inventory[0].ammoLoaded", &inventory[0].ammoLoaded);
-    LogValueFollow("input.attacking", &input.attacking);
-    LogValueFollow("input.attackingPreviousFrame", &input.attackingPreviousFrame);
+    LogValueFollow("inventory[1].statsIndex", &inventory[1].statsIndex);
+    LogValueFollow("inventory[1].count", &inventory[1].count);
+    LogValueFollow("inventory[1].ammoLoaded", &inventory[1].ammoLoaded);
     repeat
         // capture input
         if (key(_a))
@@ -506,8 +507,8 @@ begin
     ai.model.targetOpponentIndex = NULL;
 
     // components & sub-processes
-    components.health = Health(id, __actorStats[actorType].startingHealth);
     components.animator = HumanAnimator(id, actorType);
+    components.health = Health(id, __actorStats[actorType].startingHealth);
     components.faction = ActorFaction(id, actorType);
     components.inventory = Inventory(id, inventoryContents);
     components.physics = Physics(id, __actorStats[actorType].walkSpeed, __actorStats[actorType].runSpeed);
@@ -929,10 +930,11 @@ process HumanBase(controllerId, actorType)
 begin
     // initialization
     resolution = GPR;
-    components.health = controllerId.components.health;
+    //components.health = controllerId.components.health;
     file = __gfxActors;
     graph = 100 + __actorStats[actorType].gfxOffset;
     z = -100;
+    value = controllerId;
     repeat
         CopyXYAngle(controllerId);
         frame;
@@ -1114,23 +1116,26 @@ private
 begin
     // Can't give 0 or negative items.
     if (count <= 0)
-        return;
+        return (false);
     end
 
     // If the actor already has this item...
     i = GetItemInventoryIndex(actorId, statsIndex);
     if (i != NULL)
-        // ...and maxCarry is exceeded...
-        if (actorId.inventory[i].count + count > __itemStats[statsIndex].maxCarry)
-            // ...and it's splittable, then split it.
-            if (__itemStats[statsIndex].isSplittable)
-                SplitItem(actorId, i, statsIndex, count, ammoLoaded);
-                return;
+        // ...and maxCarry is not yet exceeded...
+        if (actorId.inventory[i].count < __itemStats[statsIndex].maxCarry)
+            // ...and the combined count still doesn't exceed maxCarry...
+            if (actorId.inventory[i].count + count <= __itemStats[statsIndex].maxCarry)
+                // ...then increase the existing item's count.
+                actorId.inventory[i].count += count;
+                return (true);
+            else
+                // ...but it is splittable, then split it.
+                if (__itemStats[statsIndex].isSplittable)
+                    SplitItem(actorId, i, statsIndex, count, ammoLoaded);
+                    return (true);
+                end
             end
-        // If maxCarry is not exceeded, just increase the existing item's count.
-        else
-            actorId.inventory[i].count += count;
-            return;
         end
     // If actor hasn't got this item already, find a free index.
     else
@@ -1140,12 +1145,13 @@ begin
             actorId.inventory[i].statsIndex = statsIndex;
             actorId.inventory[i].count = count;
             actorId.inventory[i].ammoLoaded = ammoLoaded;
-            return;
+            return (true);
         end
     end
 
     // Actor unable to pick up this item, so drop it.
-    Item(actorId.x, actorId.y, actorId.angle, statsIndex, count);
+    Item(actorId.x, actorId.y, actorId.angle, statsIndex, count, ammoLoaded);
+    return (false);
 end
 
 function SplitItem(actorId, inventoryIndex, statsIndex, count, ammoLoaded)
@@ -1160,9 +1166,9 @@ begin
     actorId.inventory[inventoryIndex].ammoLoaded = ammoLoaded;
 
     // Drop the rest.
-    splitCount = __itemStats[statsIndex].maxCarry - combinedCount;
+    splitCount = combinedCount - __itemStats[statsIndex].maxCarry;
     if (splitCount > 0)
-        Item(actorId.x, actorId.y, actorId.angle, statsIndex, splitCount);
+        Item(actorId.x, actorId.y, actorId.angle, statsIndex, splitCount, NULL);
     end
 end
 
@@ -1192,15 +1198,23 @@ begin
     return (NULL);
 end
 
-process Item(x, y, angle, statsIndex, count) 
+process Item(x, y, angle, statsIndex, count, ammoLoaded) 
+private
+    collisionId;
 begin
-    // TODO: implement
+    resolution = GPR;
+    file = __gfxItems;
     graph = __itemStats[statsIndex].gfxOffset;
+    //LogValueFollow("count", &count);
     loop
-        // TODO: detect collision with actor and attempt pick up
-        //PickUpItem(actorId, id, statsIndex, count);
+        collisionId = collision(type HumanBase);
+        if (collisionId != 0)
+            GiveItem(collisionId.value, statsIndex, count, ammoLoaded);
+            break;
+        end
         frame;
     end
+    //CleanUpLocalLogs(id);
 end
 
 
@@ -1212,23 +1226,19 @@ process Projectile(projectileType)
 private
     collisionId;
 begin
-    // initialization
     resolution = GPR;
-    // graphics
     file = __gfxMain;
     graph = 601;
     z = -700;
-    // positioning
     CopyXYAngle(father);
     advance(__projectileStats[projectileType].offsetForward); 
     // TODO: implement offsetLeft
-    // children
     LifeTimer(__projectileStats[projectileType].lifeDuration);
     loop
         advance(__projectileStats[projectileType].speed);
         collisionId = collision(type HumanBase);
         if (collisionId != 0)
-            collisionId.components.health.value -= __projectileStats[projectileType].damage;
+            collisionId.value.components.health.value -= __projectileStats[projectileType].damage;
             break;
         end
         frame;
