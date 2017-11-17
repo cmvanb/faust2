@@ -1149,8 +1149,7 @@ begin
         end
     end
 
-    // Actor unable to pick up this item, so drop it.
-    Item(actorId.x, actorId.y, actorId.angle, statsIndex, count, ammoLoaded);
+    // Actor unable to hold this item.
     return (false);
 end
 
@@ -1205,16 +1204,19 @@ begin
     resolution = GPR;
     file = __gfxItems;
     graph = __itemStats[statsIndex].gfxOffset;
-    //LogValueFollow("count", &count);
+    LogValueFollow("count", &count);
+    value = false;
     loop
         collisionId = collision(type HumanBase);
         if (collisionId != 0)
-            GiveItem(collisionId.value, statsIndex, count, ammoLoaded);
-            break;
+            value = GiveItem(collisionId.value, statsIndex, count, ammoLoaded);
+            if (value)
+                break;
+            end
         end
         frame;
     end
-    //CleanUpLocalLogs(id);
+    CleanUpLocalLogs(id);
 end
 
 
