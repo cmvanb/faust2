@@ -139,11 +139,10 @@ global
         string name;
         itemType;
         gfxOffset;
-        slotsNeeded; // TODO: consider just adding check for ITEM_TYPE_AMMO where relevant
-        isSplittable;
         maxCarry;
         magazineSize;
         timeBetweenShots;
+        timeToReload;
         firingMode;
         projectileType;
         ammoType;
@@ -152,11 +151,11 @@ global
         offsetLeft;
         offsetMuzzleForward;
     end =
-    //  name          itemType          gfx  s  i  max  mag   t      firingMode          projectileType  ammoType,        soundIndex         offsetF   offsetL  muzzleF
-        "MP40",       ITEM_TYPE_WEAPON, 101, 1, 0, 1,   30,   12,    FIRING_MODE_AUTO,   BULLET_9MM,     ITEM_AMMO_9MM,   SOUND_MP40_SHOT,   45 * GPR, 0 * GPR, 44 * GPR,
-        "Kar 98k",    ITEM_TYPE_WEAPON, 111, 1, 0, 1,   5,    100,   FIRING_MODE_SINGLE, BULLET_RIFLE,   ITEM_AMMO_RIFLE, SOUND_KAR98K_SHOT, 45 * GPR, 0 * GPR, 51 * GPR,
-        "9mm Ammo",   ITEM_TYPE_AMMO,   501, 0, 1, 150, NULL, NULL, NULL,               NULL,           NULL,            NULL,              NULL,     NULL,    NULL,
-        "Rifle Ammo", ITEM_TYPE_AMMO,   511, 0, 1, 90,  NULL, NULL, NULL,               NULL,           NULL,            NULL,              NULL,     NULL,    NULL;
+    //  name          itemType          gfx  maxCarry  magazineSize  timeBetweenShots  timeToReload  firingMode          projectileType  ammoType,        soundIndex         offsetForward  offsetLeft  offsetMuzzleForward
+        "MP40",       ITEM_TYPE_WEAPON, 101, 1,        30,           12,               300,           FIRING_MODE_AUTO,   BULLET_9MM,     ITEM_AMMO_9MM,   SOUND_MP40_SHOT,   45 * GPR,      0 * GPR,    44 * GPR,
+        "Kar 98k",    ITEM_TYPE_WEAPON, 111, 1,        5,            100,              250,          FIRING_MODE_SINGLE, BULLET_RIFLE,   ITEM_AMMO_RIFLE, SOUND_KAR98K_SHOT, 45 * GPR,      0 * GPR,    51 * GPR,
+        "9mm Ammo",   ITEM_TYPE_AMMO,   501, 150,      NULL,         NULL,             NULL,         NULL,               NULL,           NULL,            NULL,              NULL,          NULL,       NULL,
+        "Rifle Ammo", ITEM_TYPE_AMMO,   511, 90,       NULL,         NULL,             NULL,         NULL,               NULL,           NULL,            NULL,              NULL,          NULL,       NULL;
 
     struct __projectileStats[1]
         damage;
@@ -1015,6 +1014,7 @@ private
     lastShotTime = 0;
     inventoryIndex;
     statsIndex;
+    reloadInProgress = false;
 begin
     // initialization
     resolution = GPR;
@@ -1053,11 +1053,23 @@ begin
         end
 
         // Reloading logic.
-        if (controllerId.input.reloading)
-            if (CanReloadSelectedWeapon(controllerId))
-                ReloadWeapon(controllerId);
+        // TODO: Consider how to cancel reloads due to weapon switching or other overriding input.
+        if (!reloadInProgress)
+            if (controllerId.input.reloading)
+                if (CanReloadSelectedWeapon(controllerId))
+                    reloadInProgress = true;
+                end
             end
+        else
+            while (Delay(id, __itemStats[statsIndex].timeToReload))
+                CopyXYAngle(controllerId);
+                // TODO: Reload animations.
+                frame;
+            end
+            reloadInProgress = false;
+            ReloadWeapon(controllerId);
         end
+
         frame;
     until (controllerId.alive == false)
 end
@@ -1096,10 +1108,13 @@ private
 begin
     statsIndex = actorId.inventory[actorId.selectedItemIndex].statsIndex;
     ammoIndex = GetItemInventoryIndex(actorId, __itemStats[statsIndex].ammoType);
+
     // Return loaded ammo from weapon to inventory.
     actorId.inventory[ammoIndex].count += actorId.inventory[actorId.selectedItemIndex].ammoLoaded; 
+
     // Determine new magazine count.
     count = Min(actorId.inventory[ammoIndex].count, __itemStats[statsIndex].magazineSize);
+
     // Remove ammo from inventory and add it to weapon.
     actorId.inventory[ammoIndex].count -= count;
     actorId.inventory[actorId.selectedItemIndex].ammoLoaded = count;
@@ -1131,7 +1146,7 @@ begin
                 return (true);
             else
                 // ...but it is splittable, then split it.
-                if (__itemStats[statsIndex].isSplittable)
+                if (__itemStats[statsIndex].itemType == ITEM_TYPE_AMMO)
                     SplitItem(actorId, i, statsIndex, count, ammoLoaded);
                     return (true);
                 end
