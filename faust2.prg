@@ -419,10 +419,16 @@ end
 process GameCamera(followProcessId)
 private
     scrollBackground = 0;
+    aimAngle;
+    aimDistance;
+    aimPointX;
+    aimPointY;
+    aimMaxDistance = 180;
 begin
     // configuration
     resolution = GPR;
     ctype = c_scroll;
+    graph = 300;
 
     // initialization
     start_scroll(
@@ -430,11 +436,36 @@ begin
         __gfxMain, 200, 0, 
         REGION_FULL_SCREEN, 
         SCROLL_FOREGROUND_HORIZONTAL + SCROLL_FOREGROUND_VERTICAL);
+
+    LogValue("aimAngle", &aimAngle);
+    LogValue("aimDistance", &aimDistance);
+    LogValue("aimPointX", &aimPointX);
+    LogValue("aimPointY", &aimPointY);
+    LogValue("gameCamera.x", &x);
+    LogValue("gameCamera.y", &y);
     loop
         if (followProcessId != NULL)
-            x = followProcessId.x;
-            y = followProcessId.y;
+            // basic static scroll
+            //x = followProcessId.x;
+            //y = followProcessId.y;
+            //scroll[0].x0 = (x / GPR) - HALF_SCREEN_WIDTH;
+            //scroll[0].y0 = (y / GPR) - HALF_SCREEN_HEIGHT;
 
+            // elastic scroll
+            aimAngle = fget_angle(
+                HALF_SCREEN_WIDTH, 
+                HALF_SCREEN_HEIGHT, 
+                mouse.x,
+                mouse.y);
+            aimDistance = fget_dist(
+                HALF_SCREEN_WIDTH, 
+                HALF_SCREEN_HEIGHT, 
+                mouse.x,
+                mouse.y);
+            aimPointX = followProcessId.x + get_distx(aimAngle, Min(aimDistance, aimMaxDistance)) * GPR * 2;
+            aimPointY = followProcessId.y + get_disty(aimAngle, Min(aimDistance, aimMaxDistance)) * GPR * 2;
+            x = (followProcessId.x + aimPointX) / 2;
+            y = (followProcessId.y + aimPointY) / 2;
             scroll[0].x0 = (x / GPR) - HALF_SCREEN_WIDTH;
             scroll[0].y0 = (y / GPR) - HALF_SCREEN_HEIGHT;
         end
