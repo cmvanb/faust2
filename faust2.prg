@@ -424,11 +424,12 @@ private
     aimPointX;
     aimPointY;
     aimMaxDistance = 180;
+    aimBoost = 2;
 begin
     // configuration
     resolution = GPR;
     ctype = c_scroll;
-    graph = 300;
+    graph = 301;
 
     // initialization
     start_scroll(
@@ -462,8 +463,8 @@ begin
                 HALF_SCREEN_HEIGHT, 
                 mouse.x,
                 mouse.y);
-            aimPointX = followProcessId.x + get_distx(aimAngle, Min(aimDistance, aimMaxDistance)) * GPR * 2;
-            aimPointY = followProcessId.y + get_disty(aimAngle, Min(aimDistance, aimMaxDistance)) * GPR * 2;
+            aimPointX = followProcessId.x + get_distx(aimAngle, Min(aimDistance, aimMaxDistance)) * GPR * aimBoost;
+            aimPointY = followProcessId.y + get_disty(aimAngle, Min(aimDistance, aimMaxDistance)) * GPR * aimBoost;
             x = (followProcessId.x + aimPointX) / 2;
             y = (followProcessId.y + aimPointY) / 2;
             scroll[0].x0 = (x / GPR) - HALF_SCREEN_WIDTH;
@@ -1364,7 +1365,7 @@ begin
     // initialization
     resolution = GPR;
     file = __gfxMain;
-    graph = 300;
+    graph = 302;
     z = -1000;
     loop
         x = mouse.x * GPR;
