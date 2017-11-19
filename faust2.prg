@@ -175,7 +175,7 @@ global
         startingHealth;
         faction;
     end =
-        2 * GPR, 4 * GPR, 10000, 2, 200, FACTION_GOOD, // player
+        2 * GPR, 4 * GPR, 10000, 2, 2000, FACTION_GOOD, // player
         2 * GPR, 3 * GPR, 10000, 1, 100, FACTION_EVIL, // guard level 1
         2 * GPR, 3 * GPR, 10000, 1, 150, FACTION_EVIL, // guard level 2
         2 * GPR, 3 * GPR, 10000, 1, 200, FACTION_EVIL, // guard level 3
@@ -187,15 +187,16 @@ global
     // starting inventories
     __guardInventory[(INVENTORY_SLOTS * 3) - 1] =
         // statsIndex  count ammoLoaded
-        //ITEM_KAR98K,     1,    5,
-        //ITEM_AMMO_RIFLE, 60,   NULL,
-        ITEM_MP40,     1,    30,
-        ITEM_AMMO_9MM, 60,   NULL,
+        ITEM_KAR98K,     1,    5,
+        ITEM_AMMO_RIFLE, 60,   NULL,
+        //ITEM_MP40,     1,    30,
+        //ITEM_AMMO_9MM, 60,   NULL,
         NULL,          NULL, NULL,
         NULL,          NULL, NULL,
         NULL,          NULL, NULL;
 
     // game processes
+    __gameCamera;
     __playerController;
     // TODO: Check if 2D arrays work in DIV, if yes turn this into one array of actors by faction.
     __neutralActors[MAX_ACTORS - 1];
@@ -385,17 +386,9 @@ end
 function GameManager()
 private
     state = GAME_STATE_NOT_STARTED;
-    scrollBackground = 0;
 begin
     // initialization
     clear_screen();
-
-    // graphics
-    start_scroll(
-        scrollBackground, 
-        __gfxMain, 200, 0, 
-        REGION_FULL_SCREEN, 
-        SCROLL_FOREGROUND_HORIZONTAL + SCROLL_FOREGROUND_VERTICAL);
 
     // gameplay
     state = GAME_STATE_ACTIVE;
@@ -403,21 +396,50 @@ begin
     // actors
     __playerController = PlayerController(40 * GPR, 40 * GPR, &__guardInventory);
     //AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR, &__guardInventory);
-    //AIController(ACTOR_GUARD_1, 350 * GPR, 240 * GPR, &aiStartingItems);
-    //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR, &aiStartingItems);
+    //AIController(ACTOR_GUARD_1, 480 * GPR, 360 * GPR, &__guardInventory);
+    //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR, &__guardInventory);
 
     // items
-    Item(200 * GPR, 200 * GPR, 0, ITEM_AMMO_9MM, 150, NULL);
+    //Item(200 * GPR, 200 * GPR, 0, ITEM_AMMO_9MM, 150, NULL);
 
     // managers
     AIModelManager(FACTION_EVIL);
     AIModelManager(FACTION_GOOD);
+
+    // camera
+    __gameCamera = GameCamera(__playerController);
 
     // game loop
     repeat
         // TODO: gameplay goes here
         frame;
     until (state == GAME_STATE_GAME_OVER)
+end
+
+process GameCamera(followProcessId)
+private
+    scrollBackground = 0;
+begin
+    // configuration
+    resolution = GPR;
+    ctype = c_scroll;
+
+    // initialization
+    start_scroll(
+        scrollBackground, 
+        __gfxMain, 200, 0, 
+        REGION_FULL_SCREEN, 
+        SCROLL_FOREGROUND_HORIZONTAL + SCROLL_FOREGROUND_VERTICAL);
+    loop
+        if (followProcessId != NULL)
+            x = followProcessId.x;
+            y = followProcessId.y;
+
+            scroll[0].x0 = (x / GPR) - HALF_SCREEN_WIDTH;
+            scroll[0].y0 = (y / GPR) - HALF_SCREEN_HEIGHT;
+        end
+        frame;
+    end
 end
 
 
@@ -432,27 +454,20 @@ begin
     // configuration
     input.move.granularity = 1;
     resolution = GPR;
+    ctype = c_scroll;
 
     // initialization
     alive = true;
     RecordSpawnPosition(id);
 
     // components & sub-processes
-    components.animator = HumanAnimator(id, ACTOR_PLAYER);
-    components.health = Health(id, __actorStats[ACTOR_PLAYER].startingHealth);
-    components.faction = ActorFaction(id, ACTOR_PLAYER);
-    components.inventory = Inventory(id, inventoryContents);
-    components.physics = Physics(id, __actorStats[ACTOR_PLAYER].walkSpeed, __actorStats[ACTOR_PLAYER].runSpeed);
     mouseCursor = MouseCursor();
-
-    // debugging
-    LogValueFollow("health.value", &components.health.value);
-    LogValueFollow("inventory[0].statsIndex", &inventory[0].statsIndex);
-    LogValueFollow("inventory[0].count", &inventory[0].count);
-    LogValueFollow("inventory[0].ammoLoaded", &inventory[0].ammoLoaded);
-    LogValueFollow("inventory[1].statsIndex", &inventory[1].statsIndex);
-    LogValueFollow("inventory[1].count", &inventory[1].count);
-    LogValueFollow("inventory[1].ammoLoaded", &inventory[1].ammoLoaded);
+    components.physics = Physics(id, __actorStats[ACTOR_PLAYER].walkSpeed, __actorStats[ACTOR_PLAYER].runSpeed);
+    components.animator = HumanAnimator(id, ACTOR_PLAYER);
+    components.faction = ActorFaction(id, ACTOR_PLAYER);
+    components.health = Health(id, __actorStats[ACTOR_PLAYER].startingHealth);
+    components.inventory = Inventory(id, inventoryContents);
+    
     repeat
         // capture input
         if (key(_a))
@@ -473,7 +488,9 @@ begin
                 input.move.y = 0;
             end
         end
-        InputLookAt(id, mouseCursor.x, mouseCursor.y);
+        InputLookAt(id,
+            mouseCursor.x + scroll[0].x0 * GPR, 
+            mouseCursor.y + scroll[0].y0 * GPR);
         input.attackingPreviousFrame = input.attacking;
         input.attacking = mouse.left;
         input.reloading = key(_r);
@@ -497,6 +514,7 @@ begin
     // configuration
     input.move.granularity = 10;
     resolution = GPR;
+    ctype = c_scroll;
 
     // initialization
     alive = true;
@@ -511,22 +529,6 @@ begin
     components.faction = ActorFaction(id, actorType);
     components.inventory = Inventory(id, inventoryContents);
     components.physics = Physics(id, __actorStats[actorType].walkSpeed, __actorStats[actorType].runSpeed);
-
-    // debugging
-    LogValueFollow("health.value", &components.health.value);
-    LogValueFollow("inventory[0].statsIndex", &inventory[0].statsIndex);
-    LogValueFollow("inventory[0].count", &inventory[0].count);
-    LogValueFollow("inventory[0].ammoLoaded", &inventory[0].ammoLoaded);
-    LogValueFollow("inventory[1].statsIndex", &inventory[1].statsIndex);
-    LogValueFollow("inventory[1].count", &inventory[1].count);
-    LogValueFollow("inventory[1].ammoLoaded", &inventory[1].ammoLoaded);
-    /*
-    LogValueFollow("input.move.walk", &input.move.walk);
-    LogValueFollow("ai.previousState", &ai.previousState);
-    LogValueFollow("ai.currentState", &ai.currentState);
-    LogValueFollow("ai.model.knownOpponentCount", &ai.model.knownOpponentCount);
-    LogValueFollow("ai.model.targetOpponentIndex", &ai.model.targetOpponentIndex);
-    */
 
     AIChangeState(id, AI_STATE_IDLE);
     repeat
@@ -554,78 +556,6 @@ end
 /* -----------------------------------------------------------------------------
  * AI state management
  * ---------------------------------------------------------------------------*/
-function AIChangeState(controllerId, nextState)
-begin
-    controllerId.ai.previousState = controllerId.ai.currentState;
-    switch (controllerId.ai.previousState)
-        case AI_STATE_NONE:
-        end
-        case AI_STATE_IDLE:
-        end
-        case AI_STATE_RESET:
-        end
-        case AI_STATE_PATROL:
-        end
-        case AI_STATE_GUARD:
-        end
-        case AI_STATE_INVESTIGATE:
-        end
-        case AI_STATE_ENGAGE:
-            controllerId.input.attacking = false;
-        end
-        case AI_STATE_CHASE:
-        end
-        case AI_STATE_HUNT:
-        end
-        case AI_STATE_RAISE_ALARM:
-        end
-        case AI_STATE_FIND_COVER:
-        end
-        case AI_STATE_FLANK:
-        end
-        case AI_STATE_FLEE:
-        end
-        case AI_STATE_HIDE:
-        end
-        case AI_STATE_PEEK:
-        end
-    end
-    controllerId.ai.currentState = nextState;
-    switch (controllerId.ai.currentState)
-        case AI_STATE_NONE:
-        end
-        case AI_STATE_IDLE:
-        end
-        case AI_STATE_RESET:
-        end
-        case AI_STATE_PATROL:
-        end
-        case AI_STATE_GUARD:
-        end
-        case AI_STATE_INVESTIGATE:
-        end
-        case AI_STATE_ENGAGE:
-            controllerId.input.attacking = true;
-        end
-        case AI_STATE_CHASE:
-        end
-        case AI_STATE_HUNT:
-        end
-        case AI_STATE_RAISE_ALARM:
-        end
-        case AI_STATE_FIND_COVER:
-        end
-        case AI_STATE_FLANK:
-        end
-        case AI_STATE_FLEE:
-        end
-        case AI_STATE_HIDE:
-        end
-        case AI_STATE_PEEK:
-        end
-    end
-end
-
 function AIHandleState(controllerId)
 private
     nextState = NULL;
@@ -653,6 +583,11 @@ begin
             targetOpponentX, 
             targetOpponentY);
     end
+
+    // Only reload if the selected weapon is empty and can be reloaded.
+    controllerId.input.reloading = 
+        IsSelectedWeaponEmpty(controllerId) 
+        && CanReloadSelectedWeapon(controllerId);
 
     switch (controllerId.ai.currentState)
         case AI_STATE_NONE:
@@ -742,9 +677,80 @@ begin
     end
 end
 
+function AIChangeState(controllerId, nextState)
+begin
+    controllerId.ai.previousState = controllerId.ai.currentState;
+    switch (controllerId.ai.previousState)
+        case AI_STATE_NONE:
+        end
+        case AI_STATE_IDLE:
+        end
+        case AI_STATE_RESET:
+        end
+        case AI_STATE_PATROL:
+        end
+        case AI_STATE_GUARD:
+        end
+        case AI_STATE_INVESTIGATE:
+        end
+        case AI_STATE_ENGAGE:
+            controllerId.input.attacking = false;
+        end
+        case AI_STATE_CHASE:
+        end
+        case AI_STATE_HUNT:
+        end
+        case AI_STATE_RAISE_ALARM:
+        end
+        case AI_STATE_FIND_COVER:
+        end
+        case AI_STATE_FLANK:
+        end
+        case AI_STATE_FLEE:
+        end
+        case AI_STATE_HIDE:
+        end
+        case AI_STATE_PEEK:
+        end
+    end
+    controllerId.ai.currentState = nextState;
+    switch (controllerId.ai.currentState)
+        case AI_STATE_NONE:
+        end
+        case AI_STATE_IDLE:
+        end
+        case AI_STATE_RESET:
+        end
+        case AI_STATE_PATROL:
+        end
+        case AI_STATE_GUARD:
+        end
+        case AI_STATE_INVESTIGATE:
+        end
+        case AI_STATE_ENGAGE:
+            controllerId.input.attacking = true;
+        end
+        case AI_STATE_CHASE:
+        end
+        case AI_STATE_HUNT:
+        end
+        case AI_STATE_RAISE_ALARM:
+        end
+        case AI_STATE_FIND_COVER:
+        end
+        case AI_STATE_FLANK:
+        end
+        case AI_STATE_FLEE:
+        end
+        case AI_STATE_HIDE:
+        end
+        case AI_STATE_PEEK:
+        end
+    end
+end
 
 
-// TODO: Clean up with CicTec's improvements on DIV-arena.
+
 /* -----------------------------------------------------------------------------
  * AI model management
  * ---------------------------------------------------------------------------*/
@@ -753,9 +759,8 @@ private
     pointer opponents;
     pointer actors;
     knownOpponentIndex = NULL;
-    // TODO: Remove this pointer, might be unnecessary.
-    pointer opponent;
-    pointer actor;
+    opponent;
+    actor;
     isVisible = false;
 begin
     opponents = GetFactionOpponents(faction);
@@ -790,8 +795,7 @@ begin
                     continue;
                 end
                 // can AI see opponent?
-                // TODO: Test cleaning up * syntax, might be unnecessary.
-                isVisible = AILineOfSight(actor.x, actor.y, (*opponent).x, (*opponent).y);
+                isVisible = AILineOfSight(actor.x, actor.y, opponent.x, opponent.y);
                 knownOpponentIndex = NULL;
                 // TODO: Clean this up into a function.
                 // find index of element where processId == opponent
@@ -901,6 +905,8 @@ private
 begin
     // initialization
     resolution = GPR;
+    ctype = c_scroll;
+
     // sub-processes
     arms = HumanArms(controllerId, actorType);
     base = HumanBase(controllerId, actorType);
@@ -916,6 +922,7 @@ process HumanArms(controllerId, actorType)
 begin
     // initialization
     resolution = GPR;
+    ctype = c_scroll;
     file = __gfxActors;
     graph = 200 + __actorStats[actorType].gfxOffset;
     z = -90;
@@ -929,7 +936,7 @@ process HumanBase(controllerId, actorType)
 begin
     // initialization
     resolution = GPR;
-    //components.health = controllerId.components.health;
+    ctype = c_scroll;
     file = __gfxActors;
     graph = 100 + __actorStats[actorType].gfxOffset;
     z = -100;
@@ -944,6 +951,7 @@ process HumanHead(controllerId, actorType)
 begin
     // initialization
     resolution = GPR;
+    ctype = c_scroll;
     file = __gfxActors;
     graph = 401;
     z = -110;
@@ -956,6 +964,7 @@ end
 process Health(controllerId, startingHealth)
 begin
     value = startingHealth;
+    //LogValueFollow(controllerId, "health.value", &value);
     repeat
         frame;
     until (value <= 0)
@@ -998,6 +1007,12 @@ begin
                 inventoryContents[ammoLoaded]);
         end
     end
+    //LogValueFollow(controllerId, "inventory[0].statsIndex", &controllerId.inventory[0].statsIndex);
+    //LogValueFollow(controllerId, "inventory[0].count", &controllerId.inventory[0].count);
+    //LogValueFollow(controllerId, "inventory[0].ammoLoaded", &controllerId.inventory[0].ammoLoaded);
+    //LogValueFollow(controllerId, "inventory[1].statsIndex", &controllerId.inventory[1].statsIndex);
+    //LogValueFollow(controllerId, "inventory[1].count", &controllerId.inventory[1].count);
+    //LogValueFollow(controllerId, "inventory[1].ammoLoaded", &controllerId.inventory[1].ammoLoaded);
     repeat
         frame;
     until (controllerId.alive == false)
@@ -1018,8 +1033,10 @@ private
 begin
     // initialization
     resolution = GPR;
+    ctype = c_scroll;
     file = __gfxItems;
     z = -95;
+    //LogValueFollow(controllerId, "reloadInProgress", &reloadInProgress);
     repeat
         CopyXYAngle(controllerId);
         inventoryIndex = controllerId.selectedItemIndex;
@@ -1061,7 +1078,8 @@ begin
                 end
             end
         else
-            while (Delay(id, __itemStats[statsIndex].timeToReload))
+            while (Delay(id, __itemStats[statsIndex].timeToReload) 
+                && controllerId.alive == true)
                 CopyXYAngle(controllerId);
                 // TODO: Reload animations.
                 frame;
@@ -1072,6 +1090,7 @@ begin
 
         frame;
     until (controllerId.alive == false)
+    CleanUpLocalLogs(id);
 end
 
 function CanReloadSelectedWeapon(actorId)
@@ -1106,6 +1125,10 @@ private
     ammoIndex;
     count;
 begin
+    if (!actorId.alive)
+        return;
+    end
+
     statsIndex = actorId.inventory[actorId.selectedItemIndex].statsIndex;
     ammoIndex = GetItemInventoryIndex(actorId, __itemStats[statsIndex].ammoType);
 
@@ -1118,6 +1141,11 @@ begin
     // Remove ammo from inventory and add it to weapon.
     actorId.inventory[ammoIndex].count -= count;
     actorId.inventory[actorId.selectedItemIndex].ammoLoaded = count;
+end
+
+function IsSelectedWeaponEmpty(actorId)
+begin
+    return (actorId.inventory[actorId.selectedItemIndex].ammoLoaded == 0);
 end
 
 
@@ -1217,9 +1245,10 @@ private
     collisionId;
 begin
     resolution = GPR;
+    ctype = c_scroll;
     file = __gfxItems;
     graph = __itemStats[statsIndex].gfxOffset;
-    LogValueFollow("count", &count);
+    LogValueFollow(id, "count", &count);
     value = false;
     loop
         collisionId = collision(type HumanBase);
@@ -1244,6 +1273,7 @@ private
     collisionId;
 begin
     resolution = GPR;
+    ctype = c_scroll;
     file = __gfxMain;
     graph = 601;
     z = -700;
@@ -1274,6 +1304,7 @@ private
 begin
     // initialization
     resolution = GPR;
+    ctype = c_scroll;
     file = __gfxMain;
     graph = 700;
     z = -710;
@@ -1521,17 +1552,26 @@ begin
     LogValueBase(father, label, val, false);
 end
 
-process LogValueFollow(string label, val)
+function LogValueFollow(processId, string label, val)
+begin
+    return (LogValueFollowOffset(processId, label, val, 1, 0));
+end
+
+process LogValueFollowOffset(processId, string label, val, xOffset, yOffset)
 private
     index;
 begin
-    index = GetNextLocalLogIndex(father);
-    LogValueBase(father, label, val, true);
+    index = GetNextLocalLogIndex(processId);
+    LogValueBase(processId, label, val, true);
     loop
-        x = father.x / GPR;
-        y = (father.y / GPR) + (index * __logsYOffset);
-        move_text(father.logs[index].txtLabel, x, y);
-        move_text(father.logs[index].txtVal, x, y);
+        x = (processId.x / GPR) + xOffset;
+        y = (processId.y / GPR) + (index * __logsYOffset) + yOffset;
+        if (processId.ctype == c_scroll)
+            x -= scroll[0].x0;
+            y -= scroll[0].y0;
+        end
+        move_text(processId.logs[index].txtLabel, x, y);
+        move_text(processId.logs[index].txtVal, x, y);
         frame;
     end
 end
