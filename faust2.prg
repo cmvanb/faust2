@@ -26,6 +26,17 @@ const
     FONT_ANCHOR_BOTTOM_LEFT   = 6;
     FONT_ANCHOR_BOTTOM_CENTER = 7;
     FONT_ANCHOR_BOTTOM_RIGHT  = 8;
+    DRAW_LINE           = 1;
+    DRAW_RECTANGLE      = 2;
+    DRAW_RECTANGLE_FILL = 3;
+    DRAW_ELLIPSE        = 4;
+    DRAW_ELLIPSE_FILL   = 5;
+
+    // color enums
+    COLOR_WHITE = 15;
+    COLOR_RED   = 22;
+    COLOR_GREEN = 41;
+    COLOR_BLUE  = 54;
 
     // null index value
     NULL = -1;
@@ -409,6 +420,9 @@ begin
     // camera
     __gameCamera = GameCamera(__playerController);
 
+    // debugging
+    DrawDebug();
+
     // game loop
     repeat
         // TODO: gameplay goes here
@@ -425,11 +439,13 @@ private
     aimPointY;
     aimMaxDistance = 180;
     aimBoost = 2;
+    lineId;
 begin
     // configuration
     resolution = GPR;
     ctype = c_scroll;
     graph = 301;
+    z = -1000;
 
     // initialization
     start_scroll(
@@ -469,6 +485,7 @@ begin
             y = (followProcessId.y + aimPointY) / 2;
             scroll[0].x0 = (x / GPR) - HALF_SCREEN_WIDTH;
             scroll[0].y0 = (y / GPR) - HALF_SCREEN_HEIGHT;
+            //DrawScrollSpaceLine1Frame(followProcessId.x, followProcessId.y, aimPointX, aimPointY, COLOR_WHITE, 15);
         end
         frame;
     end
@@ -1516,6 +1533,27 @@ end
 
 
 /* -----------------------------------------------------------------------------
+ * Drawing functions
+ * ---------------------------------------------------------------------------*/
+ function DrawScrollSpaceLine(x0, y0, x1, y1, color, opacity)
+ begin
+    x0 = (x0 / GPR) - scroll[0].x0;
+    y0 = (y0 / GPR) - scroll[0].y0;
+    x1 = (x1 / GPR) - scroll[0].x0;
+    y1 = (y1 / GPR) - scroll[0].y0;
+    return (draw(DRAW_LINE, color, opacity, REGION_FULL_SCREEN, x0, y0, x1, y1));
+ end
+
+ process DrawScrollSpaceLine1Frame(x0, y0, x1, y1, color, opacity)
+ begin
+    value = DrawScrollSpaceLine(x0, y0, x1, y1, color, opacity);
+    frame;
+    delete_draw(value);
+ end
+
+
+
+/* -----------------------------------------------------------------------------
  * Math functions
  * ---------------------------------------------------------------------------*/
 function VectorNormalize(pointer vX, pointer vY, multiplier)
@@ -1694,6 +1732,74 @@ begin
     for (x = 0; x < y; ++x)
         DeleteLocalLog(processId);
     end
+end
+
+process DrawDebug()
+private
+    color;
+begin
+    loop
+        DrawScrollSpaceLine1Frame(-100 * GPR, -100 * GPR, 100 * GPR, -100 * GPR, COLOR_RED, 15);
+        DrawScrollSpaceLine1Frame(100 * GPR, -100 * GPR, 100 * GPR, 100 * GPR, COLOR_RED, 15);
+        DrawScrollSpaceLine1Frame(100 * GPR, 100 * GPR, -100 * GPR, 100 * GPR, COLOR_RED, 15);
+        DrawScrollSpaceLine1Frame(-100 * GPR, 100 * GPR, -100 * GPR, -100 * GPR, COLOR_RED, 15);
+
+        color = COLOR_BLUE;
+        if (LineIntersection(
+            __playerController.x, 
+            __playerController.y, 
+            (mouse.x + scroll[0].x0) * GPR, 
+            (mouse.y + scroll[0].y0) * GPR, 
+            100 * GPR,
+            -100 * GPR,
+            100 * GPR,
+            100 * GPR))
+            color = COLOR_GREEN;
+        end
+
+        DrawScrollSpaceLine1Frame(
+            __playerController.x, 
+            __playerController.y, 
+            (mouse.x + scroll[0].x0) * GPR, 
+            (mouse.y + scroll[0].y0) * GPR, 
+            color, 15);
+        frame;
+    end
+end
+
+function LineIntersection(x0, y0, x1, y1, x2, y2, x3, y3)
+private
+    rx, ry;
+    sx, sy;
+    uNumerator;
+    denominator;
+    u, t;
+begin
+    rx = x1 - x0;
+    ry = y1 - y0;
+    sx = x3 - x2;
+    sy = y3 - y2;
+    uNumerator = CrossProduct(x2 - x0, y2 - y0, rx, ry) * 100;
+    denominator = CrossProduct(rx, ry, sx, sy);
+
+    if (uNumerator == 0 && denominator == 0)
+        // collinear
+        // TODO: handle this case
+    end
+
+    if (denominator == 0)
+        return (false);
+    end
+
+    u = uNumerator / denominator;
+    t = CrossProduct(x2 - x0, y2 - y0, sx, sy) / denominator;
+
+    return ((t >= 0) && (t <= 100) && (u >= 0) && (u <= 100));
+end
+
+function CrossProduct(x0, y0, x1, y1)
+begin
+    return (x0 * y1 - x1 * y0);
 end
 
 
