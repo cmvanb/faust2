@@ -1771,7 +1771,7 @@ function LineIntersection(x0, y0, x1, y1, x2, y2, x3, y3)
 private
     rx, ry;
     sx, sy;
-    uNumerator;
+    numerator;
     denominator;
     u, t;
 begin
@@ -1779,23 +1779,30 @@ begin
     ry = y1 - y0;
     sx = x3 - x2;
     sy = y3 - y2;
-    uNumerator = CrossProduct(x2 - x0, y2 - y0, rx, ry);
+    numerator = CrossProduct(x2 - x0, y2 - y0, rx, ry);
     denominator = CrossProduct(rx, ry, sx, sy);
 
-    if (uNumerator == 0 && denominator == 0)
-        // collinear
-        // TODO: handle this case
-        //return (false);
+    // Collinear cases.
+    if (numerator == 0 && denominator == 0)
+        // Equal points = touching end of line segment.
+        if ((x0 == x2 && y0 == y2) 
+            || (x0 == x3 && y0 == y3) 
+            || (x1 == x2 && y1 == y2) 
+            || (x1 == x3 && y1 == y3))
+            return (true);
+        end
 
         return (!((x2 - x0 < 0) == (x2 - x1 < 0) == (x3 - x0 < 0) == (x3 - x1 < 0)) 
             || !((y2 - y0 < 0) == (y2 - y1 < 0) == (y3 - y0 < 0) == (y3 - y1 < 0)));
     end
 
+    // Parallel case.
     if (denominator == 0)
         return (false);
     end
 
-    u = (uNumerator * 100) / denominator;
+    // Skew cases.
+    u = (numerator * 100) / denominator;
     t = (CrossProduct(x2 - x0, y2 - y0, sx, sy) * 100) / denominator;
 
     return ((t >= 0) && (t <= 100) && (u >= 0) && (u <= 100));
