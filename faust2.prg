@@ -1779,20 +1779,24 @@ begin
     ry = y1 - y0;
     sx = x3 - x2;
     sy = y3 - y2;
-    uNumerator = CrossProduct(x2 - x0, y2 - y0, rx, ry) * 100;
+    uNumerator = CrossProduct(x2 - x0, y2 - y0, rx, ry);
     denominator = CrossProduct(rx, ry, sx, sy);
 
     if (uNumerator == 0 && denominator == 0)
         // collinear
         // TODO: handle this case
+        //return (false);
+
+        return (!((x2 - x0 < 0) == (x2 - x1 < 0) == (x3 - x0 < 0) == (x3 - x1 < 0)) 
+            || !((y2 - y0 < 0) == (y2 - y1 < 0) == (y3 - y0 < 0) == (y3 - y1 < 0)));
     end
 
     if (denominator == 0)
         return (false);
     end
 
-    u = uNumerator / denominator;
-    t = CrossProduct(x2 - x0, y2 - y0, sx, sy) / denominator;
+    u = (uNumerator * 100) / denominator;
+    t = (CrossProduct(x2 - x0, y2 - y0, sx, sy) * 100) / denominator;
 
     return ((t >= 0) && (t <= 100) && (u >= 0) && (u <= 100));
 end
