@@ -59,7 +59,7 @@ const
     // file paths
     GFX_MAIN_PATH   = "assets/graphics/main.fpg";
     GFX_ACTORS_PATH = "assets/graphics/actors.fpg";
-    GFX_ITEMS_PATH = "assets/graphics/items.fpg";
+    GFX_ITEMS_PATH  = "assets/graphics/items.fpg";
     FNT_MENU_PATH   = "assets/fonts/16x16-w-arcade.fnt";
 
     // graphics
@@ -127,6 +127,11 @@ const
     AI_ENGAGE_DISTANCE = 200 * GPR;
     MAX_ACTORS = 32;
 
+    // level
+    MATERIAL_CONCRETE = 0;
+    MATERIAL_WOOD     = 1;
+    MATERIAL_METAL    = 2;
+
     // timing
     MAX_DELAYS = 32;
 
@@ -162,11 +167,11 @@ global
         offsetLeft;
         offsetMuzzleForward;
     end =
-    //  name          itemType          gfx  maxCarry  magazineSize  timeBetweenShots  timeToReload  firingMode          projectileType  ammoType,        soundIndex         offsetForward  offsetLeft  offsetMuzzleForward
-        "MP40",       ITEM_TYPE_WEAPON, 101, 1,        30,           12,               300,           FIRING_MODE_AUTO,   BULLET_9MM,     ITEM_AMMO_9MM,   SOUND_MP40_SHOT,   45 * GPR,      0 * GPR,    44 * GPR,
-        "Kar 98k",    ITEM_TYPE_WEAPON, 111, 1,        5,            100,              250,          FIRING_MODE_SINGLE, BULLET_RIFLE,   ITEM_AMMO_RIFLE, SOUND_KAR98K_SHOT, 45 * GPR,      0 * GPR,    51 * GPR,
-        "9mm Ammo",   ITEM_TYPE_AMMO,   501, 150,      NULL,         NULL,             NULL,         NULL,               NULL,           NULL,            NULL,              NULL,          NULL,       NULL,
-        "Rifle Ammo", ITEM_TYPE_AMMO,   511, 90,       NULL,         NULL,             NULL,         NULL,               NULL,           NULL,            NULL,              NULL,          NULL,       NULL;
+    //  name          itemType          gfx  maxCarry magazineSize timeBetweenShots timeToReload firingMode          projectileType  ammoType,        soundIndex         offsetForward offsetLeft offsetMuzzleForward
+        "MP40",       ITEM_TYPE_WEAPON, 101, 1,       30,          12,              300,         FIRING_MODE_AUTO,   BULLET_9MM,     ITEM_AMMO_9MM,   SOUND_MP40_SHOT,   45 * GPR,     0 * GPR,   44 * GPR,
+        "Kar 98k",    ITEM_TYPE_WEAPON, 111, 1,       5,           100,             250,         FIRING_MODE_SINGLE, BULLET_RIFLE,   ITEM_AMMO_RIFLE, SOUND_KAR98K_SHOT, 45 * GPR,     0 * GPR,   51 * GPR,
+        "9mm Ammo",   ITEM_TYPE_AMMO,   501, 150,     NULL,        NULL,            NULL,        NULL,               NULL,           NULL,            NULL,              NULL,         NULL,      NULL,
+        "Rifle Ammo", ITEM_TYPE_AMMO,   511, 90,      NULL,        NULL,            NULL,        NULL,               NULL,           NULL,            NULL,              NULL,         NULL,      NULL;
 
     struct __projectileStats[1]
         damage;
@@ -196,12 +201,17 @@ global
         2 * GPR, 3 * GPR, 10000, 2, 200, FACTION_GOOD; // allied commando
 
     // starting inventories
-    __guardInventory[(INVENTORY_SLOTS * 3) - 1] =
+    __mp40Inventory[(INVENTORY_SLOTS * 3) - 1] =
+        // statsIndex  count ammoLoaded
+        ITEM_MP40,     1,    30,
+        ITEM_AMMO_9MM, 60,   NULL,
+        NULL,          NULL, NULL,
+        NULL,          NULL, NULL,
+        NULL,          NULL, NULL;
+    __kar98kInventory[(INVENTORY_SLOTS * 3) - 1] =
         // statsIndex  count ammoLoaded
         ITEM_KAR98K,     1,    5,
         ITEM_AMMO_RIFLE, 60,   NULL,
-        //ITEM_MP40,     1,    30,
-        //ITEM_AMMO_9MM, 60,   NULL,
         NULL,          NULL, NULL,
         NULL,          NULL, NULL,
         NULL,          NULL, NULL;
@@ -218,6 +228,15 @@ global
     // TODO: Consider turning into table.
     struct __lineIntersectionData
         ix, iy;
+    end
+
+    // level data
+    struct __levelData
+        struct segments[MAX_SEGMENTS - 1]
+            x0, y0;
+            x1, y1;
+            material;
+        end
     end
 
     // timing
@@ -406,10 +425,10 @@ begin
     state = GAME_STATE_ACTIVE;
 
     // actors
-    __playerController = PlayerController(40 * GPR, 40 * GPR, &__guardInventory);
-    //AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR, &__guardInventory);
-    //AIController(ACTOR_GUARD_1, 480 * GPR, 360 * GPR, &__guardInventory);
-    //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR, &__guardInventory);
+    __playerController = PlayerController(40 * GPR, 40 * GPR, &__mp40Inventory);
+    //AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR, &__kar98kInventory);
+    //AIController(ACTOR_GUARD_1, 480 * GPR, 360 * GPR, &__kar98kInventory);
+    //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR, &__kar98kInventory);
 
     // items
     //Item(200 * GPR, 200 * GPR, 0, ITEM_AMMO_9MM, 150, NULL);
