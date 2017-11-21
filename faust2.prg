@@ -214,6 +214,12 @@ global
     __goodActors[MAX_ACTORS - 1];
     __evilActors[MAX_ACTORS - 1];
 
+    // line intersection checking
+    // TODO: Consider turning into table.
+    struct __lineIntersectionData
+        ix, iy;
+    end
+
     // timing
     __deltaTime;
     __delayCount = 0;
@@ -251,8 +257,7 @@ local
     // actor data
     alive;
     struct spawnPosition
-        x;
-        y;
+        x, y;
     end
 
     // actor input data
@@ -261,14 +266,12 @@ local
         attacking;
         reloading;
         struct move
-            x;
-            y;
+            x, y;
             granularity;
             walk;
         end
         struct lookAt
-            x;
-            y;
+            x, y;
         end
     end
 
@@ -278,8 +281,7 @@ local
         runSpeed;
         targetMoveSpeed;
         struct velocity
-            x;
-            y;
+            x, y;
         end
     end
 
@@ -303,8 +305,7 @@ local
             targetOpponentIndex;
             struct knownOpponents[MAX_ACTORS - 1]
                 processId;
-                x;
-                y;
+                x, y;
                 visible;
             end
         end
@@ -454,12 +455,12 @@ begin
         REGION_FULL_SCREEN, 
         SCROLL_FOREGROUND_HORIZONTAL + SCROLL_FOREGROUND_VERTICAL);
 
-    LogValue("aimAngle", &aimAngle);
-    LogValue("aimDistance", &aimDistance);
-    LogValue("aimPointX", &aimPointX);
-    LogValue("aimPointY", &aimPointY);
-    LogValue("gameCamera.x", &x);
-    LogValue("gameCamera.y", &y);
+    //LogValue("aimAngle", &aimAngle);
+    //LogValue("aimDistance", &aimDistance);
+    //LogValue("aimPointX", &aimPointX);
+    //LogValue("aimPointY", &aimPointY);
+    //LogValue("gameCamera.x", &x);
+    //LogValue("gameCamera.y", &y);
     loop
         if (followProcessId != NULL)
             // basic static scroll
@@ -1612,6 +1613,69 @@ begin
     return (b);
 end
 
+function LineIntersection(x0, y0, x1, y1, x2, y2, x3, y3)
+private
+    rx, ry;
+    sx, sy;
+    qx, qy;
+    qxr;
+    qxs;
+    rxs;
+    u, t;
+    precision = 100;
+begin
+    rx = x1 - x0;
+    ry = y1 - y0;
+    sx = x3 - x2;
+    sy = y3 - y2;
+    qx = x2 - x0;
+    qy = y2 - y0;
+    qxr = PerpProduct(qx, qy, rx, ry);
+    rxs = PerpProduct(rx, ry, sx, sy);
+
+    // Collinear cases.
+    if (qxr == 0 && rxs == 0)
+        // Equal points = touching end of line segment.
+        if ((x0 == x2 && y0 == y2) 
+            || (x0 == x3 && y0 == y3) 
+            || (x1 == x2 && y1 == y2) 
+            || (x1 == x3 && y1 == y3))
+            return (true);
+        end
+
+        return (!((x2 - x0 < 0) == (x2 - x1 < 0) == (x3 - x0 < 0) == (x3 - x1 < 0)) 
+            || !((y2 - y0 < 0) == (y2 - y1 < 0) == (y3 - y0 < 0) == (y3 - y1 < 0)));
+    end
+
+    // Parallel case.
+    if (rxs == 0)
+        return (false);
+    end
+
+    // Skew cases.
+    qxs = PerpProduct(qx, qy, sx, sy);
+    u = (qxr * precision) / rxs;
+    t = (qxs * precision) / rxs;
+
+    // Intersecting.
+    if ((t >= 0) && (t <= precision) && (u >= 0) && (u <= precision))
+        // Intersection point.
+        __lineIntersectionData.ix = x0 + ((t * rx) / precision);
+        __lineIntersectionData.iy = y0 + ((t * ry) / precision);
+        return (true);
+    end
+
+    // Non-intersecting.
+    __lineIntersectionData.ix = 0;
+    __lineIntersectionData.iy = 0;
+    return (false);
+end
+
+function PerpProduct(x0, y0, x1, y1)
+begin
+    return ((x0 * y1) - (y0 * x1));
+end
+
 
 
 /* -----------------------------------------------------------------------------
@@ -1737,23 +1801,36 @@ end
 process DrawDebug()
 private
     color;
+    x0, y0;
+    x1, y1;
 begin
+    LogValue("x0", &x0);
+    LogValue("y0", &y0);
+    LogValue("x1", &x1);
+    LogValue("y1", &y1);
+
+    LogValue("ix", &__lineIntersectionData.ix);
+    LogValue("iy", &__lineIntersectionData.iy);
     loop
-        DrawScrollSpaceLine1Frame(-100 * GPR, -100 * GPR, 100 * GPR, -100 * GPR, COLOR_RED, 15);
+        //DrawScrollSpaceLine1Frame(-100 * GPR, -100 * GPR, 100 * GPR, -100 * GPR, COLOR_RED, 15);
         DrawScrollSpaceLine1Frame(100 * GPR, -100 * GPR, 100 * GPR, 100 * GPR, COLOR_RED, 15);
-        DrawScrollSpaceLine1Frame(100 * GPR, 100 * GPR, -100 * GPR, 100 * GPR, COLOR_RED, 15);
-        DrawScrollSpaceLine1Frame(-100 * GPR, 100 * GPR, -100 * GPR, -100 * GPR, COLOR_RED, 15);
+        //DrawScrollSpaceLine1Frame(100 * GPR, 100 * GPR, -100 * GPR, 100 * GPR, COLOR_RED, 15);
+        //DrawScrollSpaceLine1Frame(-100 * GPR, 100 * GPR, -100 * GPR, -100 * GPR, COLOR_RED, 15);
 
         color = COLOR_BLUE;
+        x0 = __playerController.x / GPR;
+        y0 = __playerController.y / GPR;
+        x1 = (mouse.x + scroll[0].x0);
+        y1 = (mouse.y + scroll[0].y0);
         if (LineIntersection(
-            __playerController.x, 
-            __playerController.y, 
-            (mouse.x + scroll[0].x0) * GPR, 
-            (mouse.y + scroll[0].y0) * GPR, 
-            100 * GPR,
-            -100 * GPR,
-            100 * GPR,
-            100 * GPR))
+            x0, 
+            y0, 
+            x1, 
+            y1, 
+            100,
+            -100,
+            100,
+            100))
             color = COLOR_GREEN;
         end
 
@@ -1763,54 +1840,25 @@ begin
             (mouse.x + scroll[0].x0) * GPR, 
             (mouse.y + scroll[0].y0) * GPR, 
             color, 15);
+
+
+        // debugging: v2 - v0
+        DrawScrollSpaceLine1Frame(100 * GPR, -100 * GPR, 100 * GPR, 100 * GPR, COLOR_RED, 15);
+
+        // draw intersection point
+        value = 5;
+        DrawScrollSpaceLine1Frame(
+            (__lineIntersectionData.ix - value) * GPR, 
+            (__lineIntersectionData.iy - value) * GPR, 
+            (__lineIntersectionData.ix + value) * GPR, 
+            (__lineIntersectionData.iy + value) * GPR, COLOR_WHITE, 15);
+        DrawScrollSpaceLine1Frame(
+            (__lineIntersectionData.ix + value) * GPR, 
+            (__lineIntersectionData.iy - value) * GPR, 
+            (__lineIntersectionData.ix - value) * GPR, 
+            (__lineIntersectionData.iy + value) * GPR, COLOR_WHITE, 15);
         frame;
     end
-end
-
-function LineIntersection(x0, y0, x1, y1, x2, y2, x3, y3)
-private
-    rx, ry;
-    sx, sy;
-    numerator;
-    denominator;
-    u, t;
-begin
-    rx = x1 - x0;
-    ry = y1 - y0;
-    sx = x3 - x2;
-    sy = y3 - y2;
-    numerator = CrossProduct(x2 - x0, y2 - y0, rx, ry);
-    denominator = CrossProduct(rx, ry, sx, sy);
-
-    // Collinear cases.
-    if (numerator == 0 && denominator == 0)
-        // Equal points = touching end of line segment.
-        if ((x0 == x2 && y0 == y2) 
-            || (x0 == x3 && y0 == y3) 
-            || (x1 == x2 && y1 == y2) 
-            || (x1 == x3 && y1 == y3))
-            return (true);
-        end
-
-        return (!((x2 - x0 < 0) == (x2 - x1 < 0) == (x3 - x0 < 0) == (x3 - x1 < 0)) 
-            || !((y2 - y0 < 0) == (y2 - y1 < 0) == (y3 - y0 < 0) == (y3 - y1 < 0)));
-    end
-
-    // Parallel case.
-    if (denominator == 0)
-        return (false);
-    end
-
-    // Skew cases.
-    u = (numerator * 100) / denominator;
-    t = (CrossProduct(x2 - x0, y2 - y0, sx, sy) * 100) / denominator;
-
-    return ((t >= 0) && (t <= 100) && (u >= 0) && (u <= 100));
-end
-
-function CrossProduct(x0, y0, x1, y1)
-begin
-    return (x0 * y1 - x1 * y0);
 end
 
 
