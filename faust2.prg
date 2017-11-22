@@ -128,9 +128,10 @@ const
     MAX_ACTORS = 32;
 
     // level
-    MATERIAL_CONCRETE = 0;
-    MATERIAL_WOOD     = 1;
-    MATERIAL_METAL    = 2;
+    MAX_LEVEL_SEGMENTS = 1024;
+    MATERIAL_CONCRETE  = 0;
+    MATERIAL_WOOD      = 1;
+    MATERIAL_METAL     = 2;
 
     // timing
     MAX_DELAYS = 32;
@@ -230,9 +231,11 @@ global
         ix, iy;
     end
 
-    // level data
+    // level
+    __levelManager;
     struct __levelData
-        struct segments[MAX_SEGMENTS - 1]
+        segmentCount;
+        struct segments[MAX_LEVEL_SEGMENTS - 1]
             x0, y0;
             x1, y1;
             material;
@@ -279,7 +282,7 @@ local
         x, y;
     end
 
-    // actor input data
+    // actor input component
     struct input
         attackingPreviousFrame;
         attacking;
@@ -294,7 +297,7 @@ local
         end
     end
 
-    // actor physics
+    // actor physics component
     struct physics
         walkSpeed;
         runSpeed;
@@ -304,7 +307,7 @@ local
         end
     end
 
-    // actor inventory
+    // actor inventory component
     selectedItemIndex;
     // NOTE: Potential micro-optimization: use count var for weapons ammo loaded (this prevents holding multiple of same weapon, but that probably is undesirable anyway, but that probably is undesirable anyway).
     struct inventory[INVENTORY_SLOTS - 1]
@@ -424,6 +427,9 @@ begin
     // gameplay
     state = GAME_STATE_ACTIVE;
 
+    // level
+    __levelManager = LevelManager();
+
     // actors
     __playerController = PlayerController(40 * GPR, 40 * GPR, &__mp40Inventory);
     //AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR, &__kar98kInventory);
@@ -450,6 +456,7 @@ begin
     until (state == GAME_STATE_GAME_OVER)
 end
 
+// TODO: smooth scrolling
 process GameCamera(followProcessId)
 private
     scrollBackground = 0;
@@ -510,6 +517,23 @@ begin
         frame;
     end
 end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Level management
+ * ---------------------------------------------------------------------------*/
+ // TODO: loading level data
+ process LevelManager()
+ begin
+    loop
+        frame;
+    end
+ end
+
+ function AddLevelSegment(x0, y0, x1, y1, material)
+ begin
+ end
 
 
 
