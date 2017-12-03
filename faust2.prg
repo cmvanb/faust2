@@ -44,9 +44,11 @@ const
     // application state
     MENU_OPTION_NONE = 0;
     MENU_OPTION_PLAY = 1;
-    GAME_STATE_NOT_STARTED = 0;
-    GAME_STATE_ACTIVE      = 1;
-    GAME_STATE_GAME_OVER   = 2;
+    GAME_STATE_NOT_STARTED  = 0;
+    GAME_STATE_ACTIVE       = 1;
+    GAME_STATE_PAUSED       = 2;
+    GAME_STATE_GAME_OVER    = 3;
+    GAME_STATE_LEVEL_EDITOR = 4;
 
     // resources
     SOUND_MP40_SHOT       = 0;
@@ -129,15 +131,17 @@ const
 
     // level
     MAX_LEVEL_SEGMENTS = 1024;
-    MATERIAL_CONCRETE  = 0;
-    MATERIAL_WOOD      = 1;
-    MATERIAL_METAL     = 2;
+    MATERIAL_NONE      = 0;
+    MATERIAL_CONCRETE  = 1;
+    MATERIAL_WOOD      = 2;
+    MATERIAL_METAL     = 3;
 
     // timing
     MAX_DELAYS = 32;
 
     // debugging
     MAX_LOGS = 32;
+    DEBUG_MODE = true;
 
 /* -----------------------------------------------------------------------------
  * Global variables
@@ -216,6 +220,17 @@ global
         NULL,          NULL, NULL,
         NULL,          NULL, NULL,
         NULL,          NULL, NULL;
+
+    // game management
+    __gameManager;
+    __previousGameState = NULL;
+    __currentGameState = GAME_STATE_NOT_STARTED;
+
+    // level editor
+    __levelEditor;
+
+    // ui
+    __mouseCursor;
 
     // game processes
     __gameCamera;
@@ -380,7 +395,7 @@ end
 /* -----------------------------------------------------------------------------
  * Menu screens
  * ---------------------------------------------------------------------------*/
-function TitleScreen()
+process TitleScreen()
 private
     selected = MENU_OPTION_NONE;
     txtTitle;
@@ -408,7 +423,7 @@ begin
 
     // handle selection
     if (selected == MENU_OPTION_PLAY)
-        GameManager();
+        __gameManager = GameManager();
     end
 end
 
@@ -417,43 +432,109 @@ end
 /* -----------------------------------------------------------------------------
  * Gameplay
  * ---------------------------------------------------------------------------*/
-function GameManager()
-private
-    state = GAME_STATE_NOT_STARTED;
+process GameManager()
 begin
     // initialization
     clear_screen();
 
+    // ui
+    __mouseCursor = MouseCursor();
+
     // gameplay
-    state = GAME_STATE_ACTIVE;
+    GameChangeState(GAME_STATE_ACTIVE);
 
     // level
     __levelManager = LevelManager();
 
-    // actors
-    __playerController = PlayerController(40 * GPR, 40 * GPR, &__mp40Inventory);
-    //AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR, &__kar98kInventory);
-    //AIController(ACTOR_GUARD_1, 480 * GPR, 360 * GPR, &__kar98kInventory);
-    //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR, &__kar98kInventory);
-
-    // items
-    //Item(200 * GPR, 200 * GPR, 0, ITEM_AMMO_9MM, 150, NULL);
-
-    // managers
-    AIModelManager(FACTION_EVIL);
-    AIModelManager(FACTION_GOOD);
-
-    // camera
-    __gameCamera = GameCamera(__playerController);
-
     // debugging
-    DrawDebug();
+    if (DEBUG_MODE)
+        DrawDebug();
+    end
 
     // game loop
     repeat
-        // TODO: gameplay goes here
+        GameHandleState(__currentGameState);
         frame;
-    until (state == GAME_STATE_GAME_OVER)
+    until (__currentGameState == GAME_STATE_GAME_OVER)
+    // NOTE: GameHandleState() should catch any game over related events, but this is an another
+    // place you can run end of game logic.
+end
+
+function GameChangeState(nextState)
+begin
+    __previousGameState = __currentGameState;
+    switch (__previousGameState)
+        case GAME_STATE_NOT_STARTED:
+        end
+        case GAME_STATE_ACTIVE:
+        end
+        case GAME_STATE_PAUSED:
+            GameResume();
+        end
+        case GAME_STATE_GAME_OVER:
+        end
+        case GAME_STATE_LEVEL_EDITOR:
+        end
+    end
+    __currentGameState = nextState;
+    switch (__currentGameState)
+        case GAME_STATE_NOT_STARTED:
+        end
+        case GAME_STATE_ACTIVE:
+            // If the game just started, reset the level.
+            if (__previousGameState == GAME_STATE_NOT_STARTED)
+                StartLevel();
+            end
+        end
+        case GAME_STATE_PAUSED:
+            GamePause();
+        end
+        case GAME_STATE_GAME_OVER:
+            CleanUpLevel();
+        end
+        case GAME_STATE_LEVEL_EDITOR:
+            CleanUpLevel();
+            __levelEditor = LevelEditor();
+        end
+    end
+end
+
+function GameHandleState(currentState)
+begin
+    switch (currentState)
+        case GAME_STATE_NOT_STARTED:
+        end
+        case GAME_STATE_ACTIVE:
+            if (DEBUG_MODE)
+                if (key(_alt) && key(_e))
+                    GameChangeState(GAME_STATE_LEVEL_EDITOR);
+                    return;
+                end
+            end
+        end
+        case GAME_STATE_PAUSED:
+        end
+        case GAME_STATE_GAME_OVER:
+        end
+        case GAME_STATE_LEVEL_EDITOR:
+            if (DEBUG_MODE)
+                if (key(_alt) && key(_g))
+                    GameChangeState(GAME_STATE_ACTIVE);
+                    return;
+                end
+            end
+        end
+    end
+end
+
+function GamePause()
+begin
+    // TODO: freeze all game processes
+end
+
+function GameResume()
+begin
+    // TODO: unfreeze all game processes
 end
 
 // TODO: smooth scrolling
@@ -523,17 +604,111 @@ end
 /* -----------------------------------------------------------------------------
  * Level management
  * ---------------------------------------------------------------------------*/
- // TODO: loading level data
- process LevelManager()
- begin
+process LevelManager()
+private
+    i;
+begin
     loop
+        for (i = 0; i < MAX_LEVEL_SEGMENTS; ++i)
+            //__levelData.segments[i]
+        end
         frame;
     end
- end
+end
 
- function AddLevelSegment(x0, y0, x1, y1, material)
- begin
- end
+// TODO: implement properly
+function StartLevel()
+begin
+    // player character
+    __playerController = PlayerController(40 * GPR, 40 * GPR, &__mp40Inventory);
+
+    // ai characters
+    AIController(ACTOR_GUARD_1, 480 * GPR, 360 * GPR, &__kar98kInventory);
+    //AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR, &__kar98kInventory);
+    //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR, &__kar98kInventory);
+
+    // items
+    //Item(200 * GPR, 200 * GPR, 0, ITEM_AMMO_9MM, 150, NULL);
+
+    // managers
+    AIModelManager(FACTION_EVIL);
+    AIModelManager(FACTION_GOOD);
+
+    // camera
+    __gameCamera = GameCamera(__playerController);
+end
+
+// TODO: implement
+function CleanUpLevel()
+begin
+end
+
+// TODO: implement
+function LoadLevel(fileName)
+begin
+    // open file handle
+    // read line
+    // parse line
+    // assign levelData
+    // close file handle
+end
+
+function SaveLevel(fileName)
+begin
+    // open file handle
+    // parse levelData
+    // write line
+    // close file handle
+end
+
+function AddLevelSegment(x0, y0, x1, y1, material)
+private
+    i;
+begin
+    i = FindFreeLevelSegmentIndex();
+    if (i > NULL)
+        __levelData.segments[i].x0 = x0;
+        __levelData.segments[i].y0 = y0;
+        __levelData.segments[i].x1 = x1;
+        __levelData.segments[i].y1 = y1;
+        __levelData.segments[i].material = material;
+        __levelData.segmentCount++;
+    end
+end
+
+function RemoveLevelSegment(i)
+begin
+    if (__levelData.segments[i].material != MATERIAL_NONE)
+        __levelData.segments[i].x0 = 0;
+        __levelData.segments[i].y0 = 0;
+        __levelData.segments[i].x1 = 0;
+        __levelData.segments[i].y1 = 0;
+        __levelData.segments[i].material = MATERIAL_NONE;
+        __levelData.segmentCount--;
+    end
+end
+
+function FindFreeLevelSegmentIndex()
+private
+    i;
+begin
+    for (i = 0; i < __levelData.segmentCount + 1; ++i)
+        if (__levelData.segments[i].material == MATERIAL_NONE)
+            return (i);
+        end
+    end
+    return (NULL);
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Level editor
+ * ---------------------------------------------------------------------------*/
+// TODO: implement
+process LevelEditor()
+begin
+end
 
 
 
@@ -541,8 +716,6 @@ end
  * Actor Controllers
  * ---------------------------------------------------------------------------*/
 process PlayerController(x, y, inventoryContents)
-private
-    mouseCursor;
 begin
     // configuration
     input.move.granularity = 1;
@@ -554,7 +727,6 @@ begin
     RecordSpawnPosition(id);
 
     // components & sub-processes
-    mouseCursor = MouseCursor();
     components.physics = Physics(id, __actorStats[ACTOR_PLAYER].walkSpeed, __actorStats[ACTOR_PLAYER].runSpeed);
     components.animator = HumanAnimator(id, ACTOR_PLAYER);
     components.faction = ActorFaction(id, ACTOR_PLAYER);
@@ -582,8 +754,8 @@ begin
             end
         end
         InputLookAt(id,
-            mouseCursor.x + scroll[0].x0 * GPR, 
-            mouseCursor.y + scroll[0].y0 * GPR);
+            __mouseCursor.x + scroll[0].x0 * GPR, 
+            __mouseCursor.y + scroll[0].y0 * GPR);
         input.attackingPreviousFrame = input.attacking;
         input.attacking = mouse.left;
         input.reloading = key(_r);
@@ -1860,6 +2032,7 @@ begin
         //DrawScrollSpaceLine1Frame(100 * GPR, 100 * GPR, -100 * GPR, 100 * GPR, COLOR_RED, 15);
         //DrawScrollSpaceLine1Frame(-100 * GPR, 100 * GPR, -100 * GPR, -100 * GPR, COLOR_RED, 15);
 
+        // draw aim line, blue = no hit, green = hit
         color = COLOR_BLUE;
         x0 = __playerController.x / GPR;
         y0 = __playerController.y / GPR;
@@ -1876,17 +2049,12 @@ begin
             100))
             color = COLOR_GREEN;
         end
-
         DrawScrollSpaceLine1Frame(
             __playerController.x, 
             __playerController.y, 
             (mouse.x + scroll[0].x0) * GPR, 
             (mouse.y + scroll[0].y0) * GPR, 
             color, 15);
-
-
-        // debugging: v2 - v0
-        DrawScrollSpaceLine1Frame(100 * GPR, -100 * GPR, 100 * GPR, 100 * GPR, COLOR_RED, 15);
 
         // draw intersection point
         value = 5;
@@ -1900,6 +2068,7 @@ begin
             (__lineIntersectionData.iy - value) * GPR, 
             (__lineIntersectionData.ix - value) * GPR, 
             (__lineIntersectionData.iy + value) * GPR, COLOR_WHITE, 15);
+
         frame;
     end
 end
