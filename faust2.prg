@@ -72,6 +72,15 @@ const
     HALF_SCREEN_HEIGHT = SCREEN_HEIGHT / 2;
     GPR = 10;
 
+    // ui
+    CURSOR_AIM_CIRCLE = 302;
+    CURSOR_MENU       = 303;
+
+    // camera
+    CAMERA_MOVE_FREE_LOOK   = 0;
+    CAMERA_MOVE_PLAYER_LOOK = 1;
+    CAMERA_FREE_LOOK_MAX_SPEED = 5 * GPR;
+
     // inventory & items
     INVENTORY_SLOTS = 5;
     ITEMS_COUNT = 4;
@@ -85,6 +94,9 @@ const
     ITEM_TYPE_AMMO       = 3;
     FIRING_MODE_SINGLE = 0;
     FIRING_MODE_AUTO   = 1;
+
+    // physics
+    PHYSICS_MAX_MOVE_SPEED = 10 * GPR;
 
     // projectiles
     BULLET_9MM   = 0;
@@ -232,15 +244,19 @@ global
     // ui
     __mouseCursor;
 
-    // game processes
+    // camera
     __gameCamera;
+    __cameraTargetId = NULL;
+    __cameraMoveMode = CAMERA_MOVE_FREE_LOOK;
+
+    // actors
     __playerController;
     // TODO: Check if 2D arrays work in DIV, if yes turn this into one array of actors by faction.
     __neutralActors[MAX_ACTORS - 1];
     __goodActors[MAX_ACTORS - 1];
     __evilActors[MAX_ACTORS - 1];
 
-    // line intersection checking
+    // line intersection checks
     // TODO: Consider turning into table.
     struct __lineIntersectionData
         ix, iy;
@@ -286,12 +302,14 @@ local
         animator;
         faction;
         health;
+        input;
         inventory;
         physics;
     end
     value; // A value held by a component. What this holds is determined by the individual component.
 
     // actor data
+    initialized;
     alive;
     struct spawnPosition
         x, y;
@@ -382,8 +400,8 @@ begin
 
     // timing
     LogValue("FPS", &fps);
-    LogValue("__goodActors[0]", &__goodActors[0]);
-    LogValue("__evilActors[0]", &__evilActors[0]);
+    //LogValue("__goodActors[0]", &__goodActors[0]);
+    //LogValue("__evilActors[0]", &__evilActors[0]);
     DeltaTimer();
 
     // show title screen
@@ -440,23 +458,18 @@ begin
     // ui
     __mouseCursor = MouseCursor();
 
-    // gameplay
-    GameChangeState(GAME_STATE_ACTIVE);
-
     // level
     __levelManager = LevelManager();
 
-    // debugging
-    if (DEBUG_MODE)
-        DrawDebug();
-    end
+    // gameplay
+    GameChangeState(GAME_STATE_ACTIVE);
 
     // game loop
     repeat
         GameHandleState(__currentGameState);
         frame;
     until (__currentGameState == GAME_STATE_GAME_OVER)
-    // NOTE: GameHandleState() should catch any game over related events, but this is an another
+    // NOTE: GameHandleState() should catch any game over related events, but this is another
     // place you can run end of game logic.
 end
 
@@ -481,6 +494,7 @@ begin
         case GAME_STATE_NOT_STARTED:
         end
         case GAME_STATE_ACTIVE:
+            __mouseCursor.graph = CURSOR_AIM_CIRCLE;
             // If the game just started, reset the level.
             if (__previousGameState == GAME_STATE_NOT_STARTED)
                 StartLevel();
@@ -493,6 +507,7 @@ begin
             CleanUpLevel();
         end
         case GAME_STATE_LEVEL_EDITOR:
+            __mouseCursor.graph = CURSOR_MENU;
             CleanUpLevel();
             __levelEditor = LevelEditor();
         end
@@ -538,7 +553,7 @@ begin
 end
 
 // TODO: smooth scrolling
-process GameCamera(followProcessId)
+process CameraController()
 private
     scrollBackground = 0;
     aimAngle;
@@ -547,20 +562,28 @@ private
     aimPointY;
     aimMaxDistance = 180;
     aimBoost = 2;
-    lineId;
 begin
+    initialized = false;
+
     // configuration
+    input.move.granularity = 1;
     resolution = GPR;
     ctype = c_scroll;
     graph = 301;
     z = -1000;
 
     // initialization
+    alive = true;
     start_scroll(
         scrollBackground, 
         __gfxMain, 200, 0, 
         REGION_FULL_SCREEN, 
         SCROLL_FOREGROUND_HORIZONTAL + SCROLL_FOREGROUND_VERTICAL);
+
+    // components & sub-processes
+    components.physics = Physics(id);
+    components.input = CameraInput(id);
+    physics.targetMoveSpeed = CAMERA_FREE_LOOK_MAX_SPEED;
 
     //LogValue("aimAngle", &aimAngle);
     //LogValue("aimDistance", &aimDistance);
@@ -568,35 +591,72 @@ begin
     //LogValue("aimPointY", &aimPointY);
     //LogValue("gameCamera.x", &x);
     //LogValue("gameCamera.y", &y);
+    LogValue("gameCamera.physics.velocity.x", &physics.velocity.x);
+    LogValue("gameCamera.physics.velocity.y", &physics.velocity.y);
     loop
-        if (followProcessId != NULL)
-            // basic static scroll
-            //x = followProcessId.x;
-            //y = followProcessId.y;
-            //scroll[0].x0 = (x / GPR) - HALF_SCREEN_WIDTH;
-            //scroll[0].y0 = (y / GPR) - HALF_SCREEN_HEIGHT;
+        // NOTE: Physics component is initialized here due to a race condition. We want the physics 
+        // component to apply after the above input.
+        //if (!initialized)
+        //    components.physics = Physics(id);
+        //    initialized = true;
+        //end
 
-            // elastic scroll
-            aimAngle = fget_angle(
-                HALF_SCREEN_WIDTH, 
-                HALF_SCREEN_HEIGHT, 
-                mouse.x,
-                mouse.y);
-            aimDistance = fget_dist(
-                HALF_SCREEN_WIDTH, 
-                HALF_SCREEN_HEIGHT, 
-                mouse.x,
-                mouse.y);
-            aimPointX = followProcessId.x + get_distx(aimAngle, Min(aimDistance, aimMaxDistance)) * GPR * aimBoost;
-            aimPointY = followProcessId.y + get_disty(aimAngle, Min(aimDistance, aimMaxDistance)) * GPR * aimBoost;
-            x = (followProcessId.x + aimPointX) / 2;
-            y = (followProcessId.y + aimPointY) / 2;
-            scroll[0].x0 = (x / GPR) - HALF_SCREEN_WIDTH;
-            scroll[0].y0 = (y / GPR) - HALF_SCREEN_HEIGHT;
-            //DrawScrollSpaceLine1Frame(followProcessId.x, followProcessId.y, aimPointX, aimPointY, COLOR_WHITE, 15);
-        end
+        // Set scroll position.
+        scroll[0].x0 = (x / GPR) - HALF_SCREEN_WIDTH;
+        scroll[0].y0 = (y / GPR) - HALF_SCREEN_HEIGHT;
         frame;
     end
+end
+
+process CameraInput(controllerId)
+begin
+    repeat
+        switch (__cameraMoveMode)
+            case CAMERA_MOVE_FREE_LOOK:
+                if (key(_a))
+                    controllerId.input.move.x = -controllerId.input.move.granularity;
+                else
+                    if (key(_d))
+                        controllerId.input.move.x = +controllerId.input.move.granularity;
+                    else
+                        controllerId.input.move.x = 0;
+                    end
+                end
+                if (key(_w))
+                    controllerId.input.move.y = -controllerId.input.move.granularity;
+                else
+                    if (key(_s))
+                        controllerId.input.move.y = +controllerId.input.move.granularity;
+                    else
+                        controllerId.input.move.y = 0;
+                    end
+                end
+            end
+            case CAMERA_MOVE_PLAYER_LOOK:
+                // TODO: Apply movement to input.
+                //if (__cameraTargetId != NULL)
+                //    aimAngle = fget_angle(
+                //        HALF_SCREEN_WIDTH, 
+                //        HALF_SCREEN_HEIGHT, 
+                //        mouse.x,
+                //        mouse.y);
+                //    aimDistance = fget_dist(
+                //        HALF_SCREEN_WIDTH, 
+                //        HALF_SCREEN_HEIGHT, 
+                //        mouse.x,
+                //        mouse.y);
+                //    aimPointX = __cameraTargetId.x + get_distx(aimAngle, Min(aimDistance, aimMaxDistance)) * GPR * aimBoost;
+                //    aimPointY = __cameraTargetId.y + get_disty(aimAngle, Min(aimDistance, aimMaxDistance)) * GPR * aimBoost;
+                //    x = (__cameraTargetId.x + aimPointX) / 2;
+                //    y = (__cameraTargetId.y + aimPointY) / 2;
+                //    scroll[0].x0 = (x / GPR) - HALF_SCREEN_WIDTH;
+                //    scroll[0].y0 = (y / GPR) - HALF_SCREEN_HEIGHT;
+                //    //DrawScrollSpaceLine1Frame(__cameraTargetId.x, __cameraTargetId.y, aimPointX, aimPointY, COLOR_WHITE, 15);
+                //end
+            end
+        end
+        frame;
+    until (controllerId.alive == false)
 end
 
 
@@ -620,10 +680,10 @@ end
 function StartLevel()
 begin
     // player character
-    __playerController = PlayerController(40 * GPR, 40 * GPR, &__mp40Inventory);
+    //__playerController = PlayerController(40 * GPR, 40 * GPR, &__mp40Inventory);
 
     // ai characters
-    AIController(ACTOR_GUARD_1, 480 * GPR, 360 * GPR, &__kar98kInventory);
+    //AIController(ACTOR_GUARD_1, 480 * GPR, 360 * GPR, &__kar98kInventory);
     //AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR, &__kar98kInventory);
     //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR, &__kar98kInventory);
 
@@ -631,11 +691,11 @@ begin
     //Item(200 * GPR, 200 * GPR, 0, ITEM_AMMO_9MM, 150, NULL);
 
     // managers
-    AIModelManager(FACTION_EVIL);
-    AIModelManager(FACTION_GOOD);
+    //AIModelManager(FACTION_EVIL);
+    //AIModelManager(FACTION_GOOD);
 
     // camera
-    __gameCamera = GameCamera(__playerController);
+    __gameCamera = CameraController();
 end
 
 // TODO: implement
@@ -700,6 +760,68 @@ begin
     return (NULL);
 end
 
+/*
+process DrawDebugAimLine()
+private
+    color;
+    x0, y0;
+    x1, y1;
+begin
+    LogValue("x0", &x0);
+    LogValue("y0", &y0);
+    LogValue("x1", &x1);
+    LogValue("y1", &y1);
+
+    LogValue("ix", &__lineIntersectionData.ix);
+    LogValue("iy", &__lineIntersectionData.iy);
+    loop
+        //DrawScrollSpaceLine1Frame(-100 * GPR, -100 * GPR, 100 * GPR, -100 * GPR, COLOR_RED, 15);
+        DrawScrollSpaceLine1Frame(100 * GPR, -100 * GPR, 100 * GPR, 100 * GPR, COLOR_RED, 15);
+        //DrawScrollSpaceLine1Frame(100 * GPR, 100 * GPR, -100 * GPR, 100 * GPR, COLOR_RED, 15);
+        //DrawScrollSpaceLine1Frame(-100 * GPR, 100 * GPR, -100 * GPR, -100 * GPR, COLOR_RED, 15);
+
+        // draw aim line, blue = no hit, green = hit
+        color = COLOR_BLUE;
+        x0 = __playerController.x / GPR;
+        y0 = __playerController.y / GPR;
+        x1 = (mouse.x + scroll[0].x0);
+        y1 = (mouse.y + scroll[0].y0);
+        if (LineIntersection(
+            x0, 
+            y0, 
+            x1, 
+            y1, 
+            100,
+            -100,
+            100,
+            100))
+            color = COLOR_GREEN;
+        end
+        DrawScrollSpaceLine1Frame(
+            __playerController.x, 
+            __playerController.y, 
+            (mouse.x + scroll[0].x0) * GPR, 
+            (mouse.y + scroll[0].y0) * GPR, 
+            color, 15);
+
+        // draw intersection point
+        value = 5;
+        DrawScrollSpaceLine1Frame(
+            (__lineIntersectionData.ix - value) * GPR, 
+            (__lineIntersectionData.iy - value) * GPR, 
+            (__lineIntersectionData.ix + value) * GPR, 
+            (__lineIntersectionData.iy + value) * GPR, COLOR_WHITE, 15);
+        DrawScrollSpaceLine1Frame(
+            (__lineIntersectionData.ix + value) * GPR, 
+            (__lineIntersectionData.iy - value) * GPR, 
+            (__lineIntersectionData.ix - value) * GPR, 
+            (__lineIntersectionData.iy + value) * GPR, COLOR_WHITE, 15);
+
+        frame;
+    end
+end
+*/
+
 
 
 /* -----------------------------------------------------------------------------
@@ -727,7 +849,7 @@ begin
     RecordSpawnPosition(id);
 
     // components & sub-processes
-    components.physics = Physics(id, __actorStats[ACTOR_PLAYER].walkSpeed, __actorStats[ACTOR_PLAYER].runSpeed);
+    components.physics = HumanPhysics(id, __actorStats[ACTOR_PLAYER].walkSpeed, __actorStats[ACTOR_PLAYER].runSpeed);
     components.animator = HumanAnimator(id, ACTOR_PLAYER);
     components.faction = ActorFaction(id, ACTOR_PLAYER);
     components.health = Health(id, __actorStats[ACTOR_PLAYER].startingHealth);
@@ -789,11 +911,11 @@ begin
     ai.model.targetOpponentIndex = NULL;
 
     // components & sub-processes
+    components.physics = HumanPhysics(id, __actorStats[actorType].walkSpeed, __actorStats[actorType].runSpeed);
     components.animator = HumanAnimator(id, actorType);
-    components.health = Health(id, __actorStats[actorType].startingHealth);
     components.faction = ActorFaction(id, actorType);
+    components.health = Health(id, __actorStats[actorType].startingHealth);
     components.inventory = Inventory(id, inventoryContents);
-    components.physics = Physics(id, __actorStats[actorType].walkSpeed, __actorStats[actorType].runSpeed);
 
     AIChangeState(id, AI_STATE_IDLE);
     repeat
@@ -1237,10 +1359,24 @@ begin
     controllerId.alive = false;
 end
 
-process Physics(controllerId, walkSpeed, runSpeed)
+process HumanPhysics(controllerId, walkSpeed, runSpeed)
 begin
     controllerId.physics.walkSpeed = walkSpeed;
     controllerId.physics.runSpeed = runSpeed;
+    components.physics = Physics(controllerId);
+    repeat
+        if (controllerId.input.move.walk == INPUT_WALK)
+            controllerId.physics.targetMoveSpeed = controllerId.physics.walkSpeed;
+        else
+            controllerId.physics.targetMoveSpeed = controllerId.physics.runSpeed;
+        end
+        frame;
+    until (controllerId.alive == false)
+end
+
+process Physics(controllerId)
+begin
+    controllerId.physics.targetMoveSpeed = PHYSICS_MAX_MOVE_SPEED;
     repeat
         ApplyInputToVelocity(controllerId);
         ApplyVelocity(controllerId);
@@ -1598,7 +1734,7 @@ begin
     // initialization
     resolution = GPR;
     file = __gfxMain;
-    graph = 302;
+    graph = 303;
     z = -1000;
     loop
         x = mouse.x * GPR;
@@ -1665,11 +1801,6 @@ begin
     VectorNormalize(&x, &y, GPR);
 
     // TODO: Don't hard set the velocity, instead implement acceleration.
-    if (processId.input.move.walk == INPUT_WALK)
-        processId.physics.targetMoveSpeed = processId.physics.walkSpeed;
-    else
-        processId.physics.targetMoveSpeed = processId.physics.runSpeed;
-    end
     processId.physics.velocity.x = x * processId.physics.targetMoveSpeed / GPR;
     processId.physics.velocity.y = y * processId.physics.targetMoveSpeed / GPR;
 end
@@ -2010,66 +2141,6 @@ begin
     y = processId.logCount;
     for (x = 0; x < y; ++x)
         DeleteLocalLog(processId);
-    end
-end
-
-process DrawDebug()
-private
-    color;
-    x0, y0;
-    x1, y1;
-begin
-    LogValue("x0", &x0);
-    LogValue("y0", &y0);
-    LogValue("x1", &x1);
-    LogValue("y1", &y1);
-
-    LogValue("ix", &__lineIntersectionData.ix);
-    LogValue("iy", &__lineIntersectionData.iy);
-    loop
-        //DrawScrollSpaceLine1Frame(-100 * GPR, -100 * GPR, 100 * GPR, -100 * GPR, COLOR_RED, 15);
-        DrawScrollSpaceLine1Frame(100 * GPR, -100 * GPR, 100 * GPR, 100 * GPR, COLOR_RED, 15);
-        //DrawScrollSpaceLine1Frame(100 * GPR, 100 * GPR, -100 * GPR, 100 * GPR, COLOR_RED, 15);
-        //DrawScrollSpaceLine1Frame(-100 * GPR, 100 * GPR, -100 * GPR, -100 * GPR, COLOR_RED, 15);
-
-        // draw aim line, blue = no hit, green = hit
-        color = COLOR_BLUE;
-        x0 = __playerController.x / GPR;
-        y0 = __playerController.y / GPR;
-        x1 = (mouse.x + scroll[0].x0);
-        y1 = (mouse.y + scroll[0].y0);
-        if (LineIntersection(
-            x0, 
-            y0, 
-            x1, 
-            y1, 
-            100,
-            -100,
-            100,
-            100))
-            color = COLOR_GREEN;
-        end
-        DrawScrollSpaceLine1Frame(
-            __playerController.x, 
-            __playerController.y, 
-            (mouse.x + scroll[0].x0) * GPR, 
-            (mouse.y + scroll[0].y0) * GPR, 
-            color, 15);
-
-        // draw intersection point
-        value = 5;
-        DrawScrollSpaceLine1Frame(
-            (__lineIntersectionData.ix - value) * GPR, 
-            (__lineIntersectionData.iy - value) * GPR, 
-            (__lineIntersectionData.ix + value) * GPR, 
-            (__lineIntersectionData.iy + value) * GPR, COLOR_WHITE, 15);
-        DrawScrollSpaceLine1Frame(
-            (__lineIntersectionData.ix + value) * GPR, 
-            (__lineIntersectionData.iy - value) * GPR, 
-            (__lineIntersectionData.ix - value) * GPR, 
-            (__lineIntersectionData.iy + value) * GPR, COLOR_WHITE, 15);
-
-        frame;
     end
 end
 
