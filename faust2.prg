@@ -143,6 +143,7 @@ const
 
     // level
     MAX_LEVEL_SEGMENTS = 1024;
+    MAX_LEVEL_OBJECTS  = 1024;
     MATERIAL_NONE      = 0;
     MATERIAL_CONCRETE  = 1;
     MATERIAL_WOOD      = 2;
@@ -171,7 +172,7 @@ global
     struct __itemStats[ITEMS_COUNT - 1]
         string name;
         itemType;
-        gfxOffset;
+        gfxIndex;
         maxCarry;
         magazineSize;
         timeBetweenShots;
@@ -265,6 +266,24 @@ global
     // level
     __levelManager;
     struct __levelData
+        actorSpawnCount;
+        struct actorSpawns[MAX_ACTORS - 1]
+            x, y;
+            angle;
+            actorIndex;
+            // NOTE: For whatever bullshit reason, DIV can't handle this:
+            //actorInventory[(INVENTORY_SLOTS * 3) - 1];
+            // The compiler throws an 'Unknown Name' on INVENTORY_SLOTS, despite being a previously 
+            // named and used constant.
+            // ... so instead we get to have this mess we have to update manually:
+            actorInventory[(5 * 3) - 1]; // 5 = INVENTORY_SLOTS
+        end
+        objectCount;
+        struct objects[MAX_LEVEL_OBJECTS - 1]
+            x, y;
+            angle;
+            gfxIndex;
+        end
         segmentCount;
         struct segments[MAX_LEVEL_SEGMENTS - 1]
             x0, y0;
@@ -309,7 +328,6 @@ local
     value; // A value held by a component. What this holds is determined by the individual component.
 
     // actor data
-    initialized;
     alive;
     struct spawnPosition
         x, y;
@@ -448,7 +466,7 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Gameplay
+ * Game state management
  * ---------------------------------------------------------------------------*/
 process GameManager()
 begin
@@ -552,7 +570,11 @@ begin
     // TODO: unfreeze all game processes
 end
 
-// TODO: smooth scrolling
+
+
+/* -----------------------------------------------------------------------------
+ * Camera & scrolling
+ * ---------------------------------------------------------------------------*/
 process CameraController()
 private
     scrollBackground = 0;
@@ -563,10 +585,8 @@ private
     aimMaxDistance = 180;
     aimBoost = 2;
 begin
-    initialized = false;
-
     // configuration
-    input.move.granularity = 1;
+    input.move.granularity = 10;
     resolution = GPR;
     ctype = c_scroll;
     graph = 301;
@@ -583,6 +603,9 @@ begin
     // components & sub-processes
     components.physics = Physics(id);
     components.input = CameraInput(id);
+    ScrollFollower(id);
+
+    // NOTE: Set targetMoveSpeed after initializing Physics component.
     physics.targetMoveSpeed = CAMERA_FREE_LOOK_MAX_SPEED;
 
     //LogValue("aimAngle", &aimAngle);
@@ -591,21 +614,11 @@ begin
     //LogValue("aimPointY", &aimPointY);
     //LogValue("gameCamera.x", &x);
     //LogValue("gameCamera.y", &y);
-    LogValue("gameCamera.physics.velocity.x", &physics.velocity.x);
-    LogValue("gameCamera.physics.velocity.y", &physics.velocity.y);
-    loop
-        // NOTE: Physics component is initialized here due to a race condition. We want the physics 
-        // component to apply after the above input.
-        //if (!initialized)
-        //    components.physics = Physics(id);
-        //    initialized = true;
-        //end
-
-        // Set scroll position.
-        scroll[0].x0 = (x / GPR) - HALF_SCREEN_WIDTH;
-        scroll[0].y0 = (y / GPR) - HALF_SCREEN_HEIGHT;
+    //LogValue("gameCamera.physics.velocity.x", &physics.velocity.x);
+    //LogValue("gameCamera.physics.velocity.y", &physics.velocity.y);
+    repeat
         frame;
-    end
+    until (alive == false)
 end
 
 process CameraInput(controllerId)
@@ -659,6 +672,16 @@ begin
     until (controllerId.alive == false)
 end
 
+process ScrollFollower(controllerId)
+begin
+    repeat
+        // Set scroll position.
+        scroll[0].x0 = (controllerId.x / GPR) - HALF_SCREEN_WIDTH;
+        scroll[0].y0 = (controllerId.y / GPR) - HALF_SCREEN_HEIGHT;
+        frame;
+    until (controllerId.alive == false)
+end
+
 
 
 /* -----------------------------------------------------------------------------
@@ -669,30 +692,58 @@ private
     i;
 begin
     loop
-        for (i = 0; i < MAX_LEVEL_SEGMENTS; ++i)
+        for (i = 0; i < __levelData.segmentCount - 1; ++i)
             //__levelData.segments[i]
         end
         frame;
     end
 end
 
-// TODO: implement properly
+// TODO: finish implementing
 function StartLevel()
+private
+    i;
 begin
-    // player character
-    //__playerController = PlayerController(40 * GPR, 40 * GPR, &__mp40Inventory);
+    // Read spawn points from level data and spawn correct actors.
+    if (__levelData.actorSpawnCount > 0)
+        for (i = 0; i < __levelData.actorSpawnCount - 1; ++i)
+            if (__levelData.actorSpawns[i].actorIndex != NULL)
+                switch (__levelData.actorSpawns[i].actorIndex)
+                    case ACTOR_PLAYER:
+                        __playerController = PlayerController(
+                            __levelData.actorSpawns[i].x, 
+                            __levelData.actorSpawns[i].y, 
+                            &__levelData.actorSpawns[i].actorInventory);
+                    end
+                    case ACTOR_GUARD_1,
+                         ACTOR_GUARD_2,
+                         ACTOR_GUARD_3,
+                         ACTOR_OFFICER_1,
+                         ACTOR_OFFICER_2,
+                         ACTOR_OFFICER_3,
+                         ACTOR_ALLIED_COMMANDO:
+                        AIController(
+                            __levelData.actorSpawns[i].actorIndex, 
+                            __levelData.actorSpawns[i].x, 
+                            __levelData.actorSpawns[i].y, 
+                            &__levelData.actorSpawns[i].actorInventory);
+                    end
+                end
+            end
+        end
+    end
 
-    // ai characters
-    //AIController(ACTOR_GUARD_1, 480 * GPR, 360 * GPR, &__kar98kInventory);
+    // actors
     //AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR, &__kar98kInventory);
     //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR, &__kar98kInventory);
 
+    // TODO: Read item points from level data and spawn correct items.
     // items
     //Item(200 * GPR, 200 * GPR, 0, ITEM_AMMO_9MM, 150, NULL);
 
-    // managers
-    //AIModelManager(FACTION_EVIL);
-    //AIModelManager(FACTION_GOOD);
+    // AI managers
+    AIModelManager(FACTION_EVIL);
+    AIModelManager(FACTION_GOOD);
 
     // camera
     __gameCamera = CameraController();
@@ -1448,7 +1499,7 @@ begin
             graph = 0;
             continue;
         else
-            graph = __itemStats[statsIndex].gfxOffset;
+            graph = __itemStats[statsIndex].gfxIndex;
         end
 
         // Firing logic.
@@ -1648,7 +1699,7 @@ begin
     resolution = GPR;
     ctype = c_scroll;
     file = __gfxItems;
-    graph = __itemStats[statsIndex].gfxOffset;
+    graph = __itemStats[statsIndex].gfxIndex;
     LogValueFollow(id, "count", &count);
     value = false;
     loop
