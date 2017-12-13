@@ -144,10 +144,9 @@ const
     // level
     MAX_LEVEL_SEGMENTS = 1024;
     MAX_LEVEL_OBJECTS  = 1024;
-    MATERIAL_NONE      = 0;
-    MATERIAL_CONCRETE  = 1;
-    MATERIAL_WOOD      = 2;
-    MATERIAL_METAL     = 3;
+    MATERIAL_CONCRETE = 0;
+    MATERIAL_WOOD     = 1;
+    MATERIAL_METAL    = 2;
 
     // timing
     MAX_DELAYS = 32;
@@ -218,7 +217,13 @@ global
         2 * GPR, 3 * GPR, 10000, 1, 200, FACTION_EVIL, // officer level 3
         2 * GPR, 3 * GPR, 10000, 2, 200, FACTION_GOOD; // allied commando
 
-    // starting inventories
+    // actor inventory contents
+    __emptyInventory[(INVENTORY_SLOTS * 3) - 1] =
+        NULL, NULL, NULL,
+        NULL, NULL, NULL,
+        NULL, NULL, NULL,
+        NULL, NULL, NULL,
+        NULL, NULL, NULL;
     __mp40Inventory[(INVENTORY_SLOTS * 3) - 1] =
         // statsIndex  count ammoLoaded
         ITEM_MP40,     1,    30,
@@ -227,12 +232,12 @@ global
         NULL,          NULL, NULL,
         NULL,          NULL, NULL;
     __kar98kInventory[(INVENTORY_SLOTS * 3) - 1] =
-        // statsIndex  count ammoLoaded
+        // statsIndex    count ammoLoaded
         ITEM_KAR98K,     1,    5,
         ITEM_AMMO_RIFLE, 60,   NULL,
-        NULL,          NULL, NULL,
-        NULL,          NULL, NULL,
-        NULL,          NULL, NULL;
+        NULL,            NULL, NULL,
+        NULL,            NULL, NULL,
+        NULL,            NULL, NULL;
 
     // game management
     __gameManager;
@@ -271,12 +276,9 @@ global
             x, y;
             angle;
             actorIndex;
-            // NOTE: For whatever bullshit reason, DIV can't handle this:
-            //actorInventory[(INVENTORY_SLOTS * 3) - 1];
-            // The compiler throws an 'Unknown Name' on INVENTORY_SLOTS, despite being a previously 
-            // named and used constant.
-            // ... so instead we get to have this mess we have to update manually:
-            actorInventory[(5 * 3) - 1]; // 5 = INVENTORY_SLOTS
+            // NOTE: We use a pointer to a table here because DIV doesn't properly support tables 
+            // inside structs.
+            pointer actorInventoryContents;
         end
         objectCount;
         struct objects[MAX_LEVEL_OBJECTS - 1]
@@ -688,13 +690,9 @@ end
  * Level management
  * ---------------------------------------------------------------------------*/
 process LevelManager()
-private
-    i;
 begin
+    LevelData_Initialize();
     loop
-        for (i = 0; i < __levelData.segmentCount - 1; ++i)
-            //__levelData.segments[i]
-        end
         frame;
     end
 end
@@ -704,16 +702,19 @@ function StartLevel()
 private
     i;
 begin
+    //LevelData_AddActorSpawn(0 * GPR, 0 * GPR, 0, ACTOR_PLAYER, &__mp40Inventory);
+    //LevelData_AddActorSpawn(200 * GPR, 0 * GPR, 0, ACTOR_GUARD_1, &__mp40Inventory);
+
     // Read spawn points from level data and spawn correct actors.
     if (__levelData.actorSpawnCount > 0)
-        for (i = 0; i < __levelData.actorSpawnCount - 1; ++i)
+        for (i = 0; i < __levelData.actorSpawnCount; ++i)
             if (__levelData.actorSpawns[i].actorIndex != NULL)
                 switch (__levelData.actorSpawns[i].actorIndex)
                     case ACTOR_PLAYER:
                         __playerController = PlayerController(
                             __levelData.actorSpawns[i].x, 
                             __levelData.actorSpawns[i].y, 
-                            &__levelData.actorSpawns[i].actorInventory);
+                            __levelData.actorSpawns[i].actorInventoryContents);
                     end
                     case ACTOR_GUARD_1,
                          ACTOR_GUARD_2,
@@ -726,16 +727,12 @@ begin
                             __levelData.actorSpawns[i].actorIndex, 
                             __levelData.actorSpawns[i].x, 
                             __levelData.actorSpawns[i].y, 
-                            &__levelData.actorSpawns[i].actorInventory);
+                            __levelData.actorSpawns[i].actorInventoryContents);
                     end
                 end
             end
         end
     end
-
-    // actors
-    //AIController(ACTOR_GUARD_1, 320 * GPR, 200 * GPR, &__kar98kInventory);
-    //AIController(ACTOR_ALLIED_COMMANDO, 560 * GPR, 100 * GPR, &__kar98kInventory);
 
     // TODO: Read item points from level data and spawn correct items.
     // items
@@ -772,11 +769,42 @@ begin
     // close file handle
 end
 
-function AddLevelSegment(x0, y0, x1, y1, material)
+function LevelData_Initialize()
 private
     i;
 begin
-    i = FindFreeLevelSegmentIndex();
+    __levelData.actorSpawnCount = 0;
+    for (i = 0; i < MAX_ACTORS; ++i)
+        __levelData.actorSpawns[i].x = 0;
+        __levelData.actorSpawns[i].y = 0;
+        __levelData.actorSpawns[i].angle = 0;
+        __levelData.actorSpawns[i].actorIndex = NULL;
+        __levelData.actorSpawns[i].actorInventoryContents = &__emptyInventory;
+    end
+
+    __levelData.objectCount = 0;
+    for (i = 0; i < MAX_LEVEL_OBJECTS; ++i)
+        __levelData.objects[i].x = 0;
+        __levelData.objects[i].y = 0;
+        __levelData.objects[i].angle = 0;
+        __levelData.objects[i].gfxIndex = NULL;
+    end
+
+    __levelData.segmentCount = 0;
+    for (i = 0; i < MAX_LEVEL_SEGMENTS; ++i)
+        __levelData.segments[i].x0 = 0;
+        __levelData.segments[i].y0 = 0;
+        __levelData.segments[i].x1 = 0;
+        __levelData.segments[i].y1 = 0;
+        __levelData.segments[i].material = NULL;
+    end
+end
+
+function LevelData_AddLevelSegment(x0, y0, x1, y1, material)
+private
+    i;
+begin
+    i = LevelData_FindFreeLevelSegmentIndex();
     if (i > NULL)
         __levelData.segments[i].x0 = x0;
         __levelData.segments[i].y0 = y0;
@@ -787,24 +815,54 @@ begin
     end
 end
 
-function RemoveLevelSegment(i)
+function LevelData_RemoveLevelSegment(i)
 begin
-    if (__levelData.segments[i].material != MATERIAL_NONE)
+    if (__levelData.segments[i].material > NULL)
         __levelData.segments[i].x0 = 0;
         __levelData.segments[i].y0 = 0;
         __levelData.segments[i].x1 = 0;
         __levelData.segments[i].y1 = 0;
-        __levelData.segments[i].material = MATERIAL_NONE;
+        __levelData.segments[i].material = NULL;
         __levelData.segmentCount--;
     end
 end
 
-function FindFreeLevelSegmentIndex()
+function LevelData_FindFreeLevelSegmentIndex()
 private
     i;
 begin
     for (i = 0; i < __levelData.segmentCount + 1; ++i)
-        if (__levelData.segments[i].material == MATERIAL_NONE)
+        if (__levelData.segments[i].material == NULL)
+            return (i);
+        end
+    end
+    return (NULL);
+end
+
+function LevelData_AddActorSpawn(x, y, angle, actorIndex, pointer inventoryContents)
+begin
+    value = LevelData_FindFreeActorSpawnIndex();
+    if (value != NULL)
+        ++__levelData.actorSpawnCount;
+        LevelData_SetActorSpawn(value, x, y, angle, actorIndex, inventoryContents);
+    end
+end
+
+function LevelData_SetActorSpawn(actorSpawnIndex, x, y, angle, actorIndex, pointer inventoryContents)
+begin
+    __levelData.actorSpawns[actorSpawnIndex].x = x;
+    __levelData.actorSpawns[actorSpawnIndex].y = y;
+    __levelData.actorSpawns[actorSpawnIndex].angle = angle;
+    __levelData.actorSpawns[actorSpawnIndex].actorIndex = actorIndex;
+    __levelData.actorSpawns[actorSpawnIndex].actorInventoryContents = inventoryContents;
+end
+
+function LevelData_FindFreeActorSpawnIndex()
+private
+    i;
+begin
+    for (i = 0; i < __levelData.actorSpawnCount + 1; ++i)
+        if (__levelData.actorSpawns[i].actorIndex == NULL)
             return (i);
         end
     end
@@ -1551,19 +1609,23 @@ private
     ammoIndex;
 begin
     statsIndex = actorId.inventory[actorId.selectedItemIndex].statsIndex;
+
     // Must have selected an item.
     if (statsIndex == NULL)
         return (false);
     end
+
     // Selected item must be a weapon.
     if (__itemStats[statsIndex].itemType != ITEM_TYPE_WEAPON)
         return (false);
     end
+
     // Must be holding some appropriate ammo.
     ammoIndex = GetItemInventoryIndex(actorId, __itemStats[statsIndex].ammoType);
     if (ammoIndex == NULL || actorId.inventory[ammoIndex].count <= 0)
         return (false);
     end
+
     // Must have less than full magazine loaded.
     if (actorId.inventory[actorId.selectedItemIndex].ammoLoaded >= __itemStats[statsIndex].magazineSize)
         return (false);
