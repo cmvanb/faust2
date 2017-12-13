@@ -1485,6 +1485,8 @@ end
 
 process Physics(controllerId)
 begin
+    // NOTE: This seems wrong. Target move speed should be determined by the controller, not by the 
+    // physics component, even at initilization time.
     controllerId.physics.targetMoveSpeed = PHYSICS_MAX_MOVE_SPEED;
     repeat
         ApplyInputToVelocity(controllerId);
