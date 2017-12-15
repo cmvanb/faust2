@@ -31,8 +31,10 @@ const
     DRAW_RECTANGLE_FILL = 3;
     DRAW_ELLIPSE        = 4;
     DRAW_ELLIPSE_FILL   = 5;
+    OPACITY_SOLID = 15;
 
     // color enums
+    COLOR_BLACK = 0;
     COLOR_WHITE = 15;
     COLOR_RED   = 22;
     COLOR_GREEN = 41;
@@ -49,6 +51,9 @@ const
     GAME_STATE_PAUSED       = 2;
     GAME_STATE_GAME_OVER    = 3;
     GAME_STATE_LEVEL_EDITOR = 4;
+    LEVEL_EDITOR_MODE_VIEW          = 0;
+    LEVEL_EDITOR_MODE_EDIT_OBJECT   = 1;
+    LEVEL_EDITOR_MODE_PAINT_OBJECTS = 2;
 
     // resources
     SOUND_MP40_SHOT       = 0;
@@ -57,6 +62,8 @@ const
     SOUND_SHELL_DROPPED_3 = 3;
     SOUND_KAR98K_SHOT     = 4;
     SOUNDS_COUNT = 5;
+    FONT_SYSTEM = 0;
+    FONT_MENU   = 1;
 
     // file paths
     GFX_MAIN_PATH   = "assets/graphics/main.fpg";
@@ -83,7 +90,6 @@ const
 
     // inventory & items
     INVENTORY_SLOTS = 5;
-    ITEMS_COUNT = 4;
     ITEM_MP40       = 0;
     ITEM_KAR98K     = 1;
     ITEM_AMMO_9MM   = 2;
@@ -163,12 +169,20 @@ global
     __gfxMain;
     __gfxActors;
     __gfxItems;
-    __fntSystem;
-    __fntMenu;
     __sounds[SOUNDS_COUNT - 1];
 
+    // fonts
+    struct __fonts[2]
+        handle;
+        path;
+        avgCharWidth;
+    end =
+    //  id    path           avgCharWidth
+        NULL, NULL,          5,
+        NULL, FNT_MENU_PATH, 10;
+
     // gameplay stats
-    struct __itemStats[ITEMS_COUNT - 1]
+    struct __itemStats[3]
         string name;
         itemType;
         gfxIndex;
@@ -217,21 +231,22 @@ global
         2 * GPR, 3 * GPR, 10000, 1, 200, FACTION_EVIL, // officer level 3
         2 * GPR, 3 * GPR, 10000, 2, 200, FACTION_GOOD; // allied commando
 
+    //(INVENTORY_SLOTS * 3) - 1
     // actor inventory contents
-    __emptyInventory[(INVENTORY_SLOTS * 3) - 1] =
+    __emptyInventory[] =
         NULL, NULL, NULL,
         NULL, NULL, NULL,
         NULL, NULL, NULL,
         NULL, NULL, NULL,
         NULL, NULL, NULL;
-    __mp40Inventory[(INVENTORY_SLOTS * 3) - 1] =
+    __mp40Inventory[] =
         // statsIndex  count ammoLoaded
         ITEM_MP40,     1,    30,
         ITEM_AMMO_9MM, 60,   NULL,
         NULL,          NULL, NULL,
         NULL,          NULL, NULL,
         NULL,          NULL, NULL;
-    __kar98kInventory[(INVENTORY_SLOTS * 3) - 1] =
+    __kar98kInventory[] =
         // statsIndex    count ammoLoaded
         ITEM_KAR98K,     1,    5,
         ITEM_AMMO_RIFLE, 60,   NULL,
@@ -246,6 +261,12 @@ global
 
     // level editor
     __levelEditor;
+    __previousLevelEditorMode = NULL;
+    __currentLevelEditorMode = LEVEL_EDITOR_MODE_VIEW;
+    __levelEditorModeString[] =
+        "Menu Mode", "Edit Object", "Paint Objects";
+    __levelEditorHelpString[] =
+        "Use the buttons below or their shortcuts.", "Edit Object", "Paint Objects";
 
     // ui
     __mouseCursor;
@@ -408,8 +429,10 @@ begin
     __gfxItems  = load_fpg(GFX_ITEMS_PATH);
 
     // load fonts
-    __fntSystem = 0;
-    __fntMenu   = load_fnt(FNT_MENU_PATH);
+    __fonts[FONT_SYSTEM].handle = 0;
+    __fonts[FONT_SYSTEM].avgCharWidth = 5;
+    __fonts[FONT_MENU].handle = load_fnt(__fonts[FONT_MENU].path);
+    __fonts[FONT_MENU].avgCharWidth = 10;
 
     // load sounds
     __sounds[SOUND_MP40_SHOT]       = load_sound("assets/audio/test-shot5.wav", 0);
@@ -441,8 +464,9 @@ begin
     // initialization
     clear_screen();
     put_screen(__gfxMain, 1);
+    // TODO: Use WriteText functions.
     txtTitle = write(
-        __fntMenu, 
+        __fonts[FONT_MENU].handle, 
         HALF_SCREEN_WIDTH, 
         HALF_SCREEN_HEIGHT, 
         FONT_ANCHOR_CENTERED, 
@@ -541,7 +565,7 @@ begin
         end
         case GAME_STATE_ACTIVE:
             if (DEBUG_MODE)
-                if (key(_alt) && key(_e))
+                if (key(_alt) && key(_l))
                     GameChangeState(GAME_STATE_LEVEL_EDITOR);
                     return;
                 end
@@ -553,7 +577,7 @@ begin
         end
         case GAME_STATE_LEVEL_EDITOR:
             if (DEBUG_MODE)
-                if (key(_alt) && key(_g))
+                if (key(_alt) && key(_k))
                     GameChangeState(GAME_STATE_ACTIVE);
                     return;
                 end
@@ -666,7 +690,7 @@ begin
                 //    y = (__cameraTargetId.y + aimPointY) / 2;
                 //    scroll[0].x0 = (x / GPR) - HALF_SCREEN_WIDTH;
                 //    scroll[0].y0 = (y / GPR) - HALF_SCREEN_HEIGHT;
-                //    //DrawScrollSpaceLine1Frame(__cameraTargetId.x, __cameraTargetId.y, aimPointX, aimPointY, COLOR_WHITE, 15);
+                //    //DrawScrollSpaceLine1Frame(__cameraTargetId.x, __cameraTargetId.y, aimPointX, aimPointY, COLOR_WHITE, OPACITY_SOLID);
                 //end
             end
         end
@@ -869,76 +893,149 @@ begin
     return (NULL);
 end
 
-/*
-process DrawDebugAimLine()
-private
-    color;
-    x0, y0;
-    x1, y1;
-begin
-    LogValue("x0", &x0);
-    LogValue("y0", &y0);
-    LogValue("x1", &x1);
-    LogValue("y1", &y1);
-
-    LogValue("ix", &__lineIntersectionData.ix);
-    LogValue("iy", &__lineIntersectionData.iy);
-    loop
-        //DrawScrollSpaceLine1Frame(-100 * GPR, -100 * GPR, 100 * GPR, -100 * GPR, COLOR_RED, 15);
-        DrawScrollSpaceLine1Frame(100 * GPR, -100 * GPR, 100 * GPR, 100 * GPR, COLOR_RED, 15);
-        //DrawScrollSpaceLine1Frame(100 * GPR, 100 * GPR, -100 * GPR, 100 * GPR, COLOR_RED, 15);
-        //DrawScrollSpaceLine1Frame(-100 * GPR, 100 * GPR, -100 * GPR, -100 * GPR, COLOR_RED, 15);
-
-        // draw aim line, blue = no hit, green = hit
-        color = COLOR_BLUE;
-        x0 = __playerController.x / GPR;
-        y0 = __playerController.y / GPR;
-        x1 = (mouse.x + scroll[0].x0);
-        y1 = (mouse.y + scroll[0].y0);
-        if (LineIntersection(
-            x0, 
-            y0, 
-            x1, 
-            y1, 
-            100,
-            -100,
-            100,
-            100))
-            color = COLOR_GREEN;
-        end
-        DrawScrollSpaceLine1Frame(
-            __playerController.x, 
-            __playerController.y, 
-            (mouse.x + scroll[0].x0) * GPR, 
-            (mouse.y + scroll[0].y0) * GPR, 
-            color, 15);
-
-        // draw intersection point
-        value = 5;
-        DrawScrollSpaceLine1Frame(
-            (__lineIntersectionData.ix - value) * GPR, 
-            (__lineIntersectionData.iy - value) * GPR, 
-            (__lineIntersectionData.ix + value) * GPR, 
-            (__lineIntersectionData.iy + value) * GPR, COLOR_WHITE, 15);
-        DrawScrollSpaceLine1Frame(
-            (__lineIntersectionData.ix + value) * GPR, 
-            (__lineIntersectionData.iy - value) * GPR, 
-            (__lineIntersectionData.ix - value) * GPR, 
-            (__lineIntersectionData.iy + value) * GPR, COLOR_WHITE, 15);
-
-        frame;
-    end
-end
-*/
-
 
 
 /* -----------------------------------------------------------------------------
  * Level editor
  * ---------------------------------------------------------------------------*/
-// TODO: implement
 process LevelEditor()
+private
+    uiRenderer;
 begin
+    LevelEditorChangeMode(LEVEL_EDITOR_MODE_VIEW);
+
+    uiRenderer = LevelEditorUIRenderer();
+
+    // level editor loop
+    repeat
+        LevelEditorHandleMode(__currentLevelEditorMode);
+        frame;
+    until (__currentGameState != GAME_STATE_LEVEL_EDITOR)
+    uiRenderer.alive = false;
+end
+
+function LevelEditorChangeMode(nextMode)
+begin
+    __previousLevelEditorMode = __currentLevelEditorMode;
+    switch (__previousLevelEditorMode)
+        case LEVEL_EDITOR_MODE_VIEW:
+        end
+        case LEVEL_EDITOR_MODE_EDIT_OBJECT:
+        end
+        case LEVEL_EDITOR_MODE_PAINT_OBJECTS:
+        end
+    end
+    __currentLevelEditorMode = nextMode;
+    switch (__currentLevelEditorMode)
+        case LEVEL_EDITOR_MODE_VIEW:
+        end
+        case LEVEL_EDITOR_MODE_EDIT_OBJECT:
+        end
+        case LEVEL_EDITOR_MODE_PAINT_OBJECTS:
+        end
+    end
+end
+
+function LevelEditorHandleMode(currentMode)
+begin
+    switch (currentMode)
+        case LEVEL_EDITOR_MODE_VIEW:
+        end
+        case LEVEL_EDITOR_MODE_EDIT_OBJECT:
+        end
+        case LEVEL_EDITOR_MODE_PAINT_OBJECTS:
+        end
+    end
+end
+
+process LevelEditorUIRenderer()
+private
+    x0, y0, x1, y1;
+    margin;
+    fntHeight;
+    ySplit0, ySplit1;
+    txtMode, txtHelp;
+begin
+    // initialization
+    alive = true;
+
+    // ui calculations
+    x0 = (SCREEN_WIDTH / 4) * 3;
+    y0 = 0;
+    x1 = SCREEN_WIDTH;
+    y1 = SCREEN_HEIGHT;
+    margin = (x1 - x0) / 40;
+    fntHeight = 10;
+    ySplit0 = ((x1 - x0) / 4) * 3;
+    ySplit1 = ySplit0 + (SCREEN_WIDTH / 16);
+
+    // ui text
+    txtMode = WriteText(
+        FONT_SYSTEM,
+        x0 + (margin * 2),
+        ySplit0 + margin,
+        FONT_ANCHOR_TOP_LEFT,
+        __levelEditorModeString[__currentLevelEditorMode]);
+    txtHelp = WriteWrappedText(
+        FONT_SYSTEM,
+        x0 + (margin * 2),
+        ySplit0 + margin + fntHeight,
+        FONT_ANCHOR_TOP_LEFT,
+        __levelEditorHelpString[__currentLevelEditorMode],
+        50);
+
+    repeat
+        // background
+        DrawScreenSpaceRectangle1Frame(x0, y0, x1, y1, 81, OPACITY_SOLID);
+        DrawScreenSpaceRectangle1Frame(x0 + margin, y0 + margin, x1 - margin, ySplit0 - margin, 82, OPACITY_SOLID);
+        DrawScreenSpaceRectangle1Frame(x0 + margin, ySplit0 + 1, x1 - margin, ySplit1 - margin, 82, OPACITY_SOLID);
+        DrawScreenSpaceRectangle1Frame(x0 + margin, ySplit1 + 1, x1 - margin, y1 - margin, 82, OPACITY_SOLID);
+        frame;
+    until (alive == false)
+    delete_text(txtMode);
+end
+
+function WriteText(fontIndex, x, y, anchor, text)
+begin
+    return (write(__fonts[fontIndex].handle, x, y, anchor, text));
+end
+
+function WriteWrappedText(fontIndex, x, y, anchor, text, maxWidth)
+private
+    maxCharsPerLine;
+    textChars;
+    width;
+    string chopped[];
+    chops;
+    i;
+begin
+    maxCharsPerLine = maxWidth / __fonts[fontIndex].avgCharWidth;
+    textChars = strlen(text);
+
+    repeat
+        width = CalculateTextWidth(fontIndex, text);
+        if (width > maxWidth)
+            // split
+            strcpy(text, chopped[chops]);
+            strdel(chopped[chops], 0, textChars - maxCharsPerLine);
+            ++chops;
+        end
+    until (width < maxWidth || chops == 8)
+
+    text = "";
+    for (i = 0; i < chops; ++i)
+        text += chopped[i];
+        if (i < chops - 1)
+            text += "\n";
+        end
+    end
+
+    return (write(__fonts[fontIndex].handle, x, y, anchor, text));
+end
+
+function CalculateTextWidth(fontIndex, text)
+begin
+    return (strlen(text) * __fonts[fontIndex].avgCharWidth);
 end
 
 
@@ -1858,6 +1955,69 @@ begin
     end
 end
 
+// TODO: Restore this functionality.
+/*
+process DrawDebugAimLine()
+private
+    color;
+    x0, y0;
+    x1, y1;
+begin
+    LogValue("x0", &x0);
+    LogValue("y0", &y0);
+    LogValue("x1", &x1);
+    LogValue("y1", &y1);
+
+    LogValue("ix", &__lineIntersectionData.ix);
+    LogValue("iy", &__lineIntersectionData.iy);
+    loop
+        //DrawScrollSpaceLine1Frame(-100 * GPR, -100 * GPR, 100 * GPR, -100 * GPR, COLOR_RED, OPACITY_SOLID);
+        DrawScrollSpaceLine1Frame(100 * GPR, -100 * GPR, 100 * GPR, 100 * GPR, COLOR_RED, OPACITY_SOLID);
+        //DrawScrollSpaceLine1Frame(100 * GPR, 100 * GPR, -100 * GPR, 100 * GPR, COLOR_RED, OPACITY_SOLID);
+        //DrawScrollSpaceLine1Frame(-100 * GPR, 100 * GPR, -100 * GPR, -100 * GPR, COLOR_RED, OPACITY_SOLID);
+
+        // draw aim line, blue = no hit, green = hit
+        color = COLOR_BLUE;
+        x0 = __playerController.x / GPR;
+        y0 = __playerController.y / GPR;
+        x1 = (mouse.x + scroll[0].x0);
+        y1 = (mouse.y + scroll[0].y0);
+        if (LineIntersection(
+            x0, 
+            y0, 
+            x1, 
+            y1, 
+            100,
+            -100,
+            100,
+            100))
+            color = COLOR_GREEN;
+        end
+        DrawScrollSpaceLine1Frame(
+            __playerController.x, 
+            __playerController.y, 
+            (mouse.x + scroll[0].x0) * GPR, 
+            (mouse.y + scroll[0].y0) * GPR, 
+            color, OPACITY_SOLID);
+
+        // draw intersection point
+        value = 5;
+        DrawScrollSpaceLine1Frame(
+            (__lineIntersectionData.ix - value) * GPR, 
+            (__lineIntersectionData.iy - value) * GPR, 
+            (__lineIntersectionData.ix + value) * GPR, 
+            (__lineIntersectionData.iy + value) * GPR, COLOR_WHITE, OPACITY_SOLID);
+        DrawScrollSpaceLine1Frame(
+            (__lineIntersectionData.ix + value) * GPR, 
+            (__lineIntersectionData.iy - value) * GPR, 
+            (__lineIntersectionData.ix - value) * GPR, 
+            (__lineIntersectionData.iy + value) * GPR, COLOR_WHITE, OPACITY_SOLID);
+
+        frame;
+    end
+end
+*/
+
 
 
 /* -----------------------------------------------------------------------------
@@ -1995,23 +2155,35 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Drawing functions
+ * Drawing and writing functions
  * ---------------------------------------------------------------------------*/
- function DrawScrollSpaceLine(x0, y0, x1, y1, color, opacity)
- begin
+function DrawScrollSpaceLine(x0, y0, x1, y1, color, opacity)
+begin
     x0 = (x0 / GPR) - scroll[0].x0;
     y0 = (y0 / GPR) - scroll[0].y0;
     x1 = (x1 / GPR) - scroll[0].x0;
     y1 = (y1 / GPR) - scroll[0].y0;
     return (draw(DRAW_LINE, color, opacity, REGION_FULL_SCREEN, x0, y0, x1, y1));
- end
+end
 
- process DrawScrollSpaceLine1Frame(x0, y0, x1, y1, color, opacity)
- begin
+process DrawScrollSpaceLine1Frame(x0, y0, x1, y1, color, opacity)
+begin
     value = DrawScrollSpaceLine(x0, y0, x1, y1, color, opacity);
     frame;
     delete_draw(value);
- end
+end
+
+function DrawScreenSpaceRectangle(x0, y0, x1, y1, color, opacity)
+begin
+    return (draw(DRAW_RECTANGLE_FILL, color, opacity, REGION_FULL_SCREEN, x0, y0, x1, y1));
+end
+
+process DrawScreenSpaceRectangle1Frame(x0, y0, x1, y1, color, opacity)
+begin
+    value = DrawScreenSpaceRectangle(x0, y0, x1, y1, color, opacity);
+    frame;
+    delete_draw(value);
+end
 
 
 
@@ -2190,14 +2362,15 @@ begin
     end
 
     label = label + ": ";
+    // TODO: Use WriteText functions.
     txtLabel = write(
-        __fntSystem,
+        __fonts[FONT_SYSTEM].handle,
         x,
         y,
         FONT_ANCHOR_TOP_RIGHT,
         label);
     txtVal = write_int(
-        __fntSystem,
+        __fonts[FONT_SYSTEM].handle,
         x,
         y,
         FONT_ANCHOR_TOP_LEFT,
