@@ -82,6 +82,12 @@ const
     // ui
     CURSOR_AIM_CIRCLE = 302;
     CURSOR_MENU       = 303;
+    BUTTON_LEVEL_EDITOR_OBJECTS     = 0;
+    BUTTON_LEVEL_EDITOR_ENTITIES    = 1;
+    BUTTON_LEVEL_EDITOR_EDIT_OBJECT = 2;
+    BUTTON_LEVEL_EDITOR_SAVE        = 3;
+    BUTTON_LEVEL_EDITOR_LOAD        = 4;
+    UI_MAX_HANDLES = 16;
 
     // camera
     CAMERA_MOVE_FREE_LOOK   = 0;
@@ -176,10 +182,11 @@ global
         handle;
         path;
         avgCharWidth;
+        lineHeight;
     end =
-    //  id    path           avgCharWidth
-        NULL, NULL,          5,
-        NULL, FNT_MENU_PATH, 10;
+    //  handle  path           avgCharWidth  lineHeight
+        NULL,   NULL,          7,            8,
+        NULL,   FNT_MENU_PATH, 10,           16;
 
     // gameplay stats
     struct __itemStats[3]
@@ -265,11 +272,10 @@ global
     __currentLevelEditorMode = LEVEL_EDITOR_MODE_VIEW;
     __levelEditorModeString[] =
         "Menu Mode", "Edit Object", "Paint Objects";
-    __levelEditorHelpString[] =
-        "Use the buttons below or their shortcuts.", "Edit Object", "Paint Objects";
 
     // ui
     __mouseCursor;
+    __buttonClicked = NULL;
 
     // camera
     __gameCamera;
@@ -406,6 +412,12 @@ local
             end
         end
     end
+
+    // ui
+    struct ui
+        color;
+        needsUpdate;
+    end
     
     // debugging
     logCount;
@@ -430,9 +442,7 @@ begin
 
     // load fonts
     __fonts[FONT_SYSTEM].handle = 0;
-    __fonts[FONT_SYSTEM].avgCharWidth = 5;
     __fonts[FONT_MENU].handle = load_fnt(__fonts[FONT_MENU].path);
-    __fonts[FONT_MENU].avgCharWidth = 10;
 
     // load sounds
     __sounds[SOUND_MP40_SHOT]       = load_sound("assets/audio/test-shot5.wav", 0);
@@ -902,6 +912,7 @@ process LevelEditor()
 private
     uiRenderer;
 begin
+    __levelEditor = id;
     LevelEditorChangeMode(LEVEL_EDITOR_MODE_VIEW);
 
     uiRenderer = LevelEditorUIRenderer();
@@ -909,6 +920,10 @@ begin
     // level editor loop
     repeat
         LevelEditorHandleMode(__currentLevelEditorMode);
+        if (ui.needsUpdate == true)
+            uiRenderer.ui.needsUpdate = true;
+            ui.needsUpdate = false;
+        end
         frame;
     until (__currentGameState != GAME_STATE_LEVEL_EDITOR)
     uiRenderer.alive = false;
@@ -934,12 +949,27 @@ begin
         case LEVEL_EDITOR_MODE_PAINT_OBJECTS:
         end
     end
+    __levelEditor.ui.needsUpdate = true;
 end
 
 function LevelEditorHandleMode(currentMode)
 begin
     switch (currentMode)
         case LEVEL_EDITOR_MODE_VIEW:
+            if (__buttonClicked != NULL)
+                switch (__buttonClicked)
+                    case BUTTON_LEVEL_EDITOR_SAVE:
+                        // TODO: Save level.
+                    end
+                    case BUTTON_LEVEL_EDITOR_LOAD:
+                        // TODO: Load level.
+                    end
+                    case BUTTON_LEVEL_EDITOR_EDIT_OBJECT:
+                        LevelEditorChangeMode(LEVEL_EDITOR_MODE_EDIT_OBJECT);
+                    end
+                end
+                __buttonClicked = NULL;
+            end
         end
         case LEVEL_EDITOR_MODE_EDIT_OBJECT:
         end
@@ -954,10 +984,21 @@ private
     margin;
     fntHeight;
     ySplit0, ySplit1;
-    txtMode, txtHelp;
+    panelColor, sectionColor;
+    buttonWidth, buttonHeight;
+    buttonColor0, buttonColor1;
+
+    //textMode, textHelp;
+    //drawPanel, drawSection0, drawSection1, drawSection2;
+    //buttonObjects, buttonEntities, buttonEditObject, buttonSave, buttonLoad;
+    uiCounter;
+    uiHandles[UI_MAX_HANDLES - 1];
 begin
     // initialization
     alive = true;
+    for (value = 0; value < UI_MAX_HANDLES; ++value)
+        uiHandles[value] = NULL;
+    end
 
     // ui calculations
     x0 = (SCREEN_WIDTH / 4) * 3;
@@ -968,74 +1009,262 @@ begin
     fntHeight = 10;
     ySplit0 = ((x1 - x0) / 4) * 3;
     ySplit1 = ySplit0 + (SCREEN_WIDTH / 16);
-
-    // ui text
-    txtMode = WriteText(
-        FONT_SYSTEM,
-        x0 + (margin * 2),
-        ySplit0 + margin,
-        FONT_ANCHOR_TOP_LEFT,
-        __levelEditorModeString[__currentLevelEditorMode]);
-    txtHelp = WriteWrappedText(
-        FONT_SYSTEM,
-        x0 + (margin * 2),
-        ySplit0 + margin + fntHeight,
-        FONT_ANCHOR_TOP_LEFT,
-        __levelEditorHelpString[__currentLevelEditorMode],
-        50);
+    panelColor = 81;
+    sectionColor = 82;
+    buttonWidth = 68;
+    buttonHeight = 40;
+    buttonColor0 = 54;
+    buttonColor1 = 56;
 
     repeat
-        // background
-        DrawScreenSpaceRectangle1Frame(x0, y0, x1, y1, 81, OPACITY_SOLID);
-        DrawScreenSpaceRectangle1Frame(x0 + margin, y0 + margin, x1 - margin, ySplit0 - margin, 82, OPACITY_SOLID);
-        DrawScreenSpaceRectangle1Frame(x0 + margin, ySplit0 + 1, x1 - margin, ySplit1 - margin, 82, OPACITY_SOLID);
-        DrawScreenSpaceRectangle1Frame(x0 + margin, ySplit1 + 1, x1 - margin, y1 - margin, 82, OPACITY_SOLID);
+        if (ui.needsUpdate == true)
+            // Render panel, sections & mode texts.
+            uiHandles[0] = TextRenderer(
+                FONT_SYSTEM,
+                x0 + (margin * 2),
+                ySplit0 + margin,
+                FONT_ANCHOR_TOP_LEFT,
+                __levelEditorModeString[__currentLevelEditorMode]);
+            uiHandles[1] = DrawRenderer(
+                DRAW_RECTANGLE_FILL, 
+                x0, y0, x1, y1, 
+                panelColor, OPACITY_SOLID);
+            uiHandles[2] = DrawRenderer(
+                DRAW_RECTANGLE_FILL, 
+                x0 + margin, 
+                y0 + margin, 
+                x1 - margin, 
+                ySplit0 - margin - 1, 
+                sectionColor, OPACITY_SOLID);
+            uiHandles[3] = DrawRenderer(
+                DRAW_RECTANGLE_FILL, 
+                x0 + margin, 
+                ySplit0, 
+                x1 - margin, 
+                ySplit1 - margin - 1, 
+                sectionColor, OPACITY_SOLID);
+            uiHandles[4] = DrawRenderer(
+                DRAW_RECTANGLE_FILL, 
+                x0 + margin, 
+                ySplit1, 
+                x1 - margin, 
+                y1 - margin - 1, 
+                sectionColor, OPACITY_SOLID);
+
+            // Clean up the buttons.
+            for (value = 5; value < UI_MAX_HANDLES; ++value)
+                if (uiHandles[value] != NULL)
+                    uiHandles[value].alive = false;
+                    uiHandles[value] = NULL;
+                end
+            end
+
+            // Update the mode text.
+            uiHandles[0].ui.needsUpdate = true;
+
+            switch (__currentLevelEditorMode)
+                case LEVEL_EDITOR_MODE_VIEW:
+                    uiHandles[5] = ButtonRenderer(
+                        x0 + (margin * 2),
+                        ySplit1 + margin,
+                        buttonWidth, buttonHeight,
+                        buttonColor0, OPACITY_SOLID,
+                        buttonColor1, OPACITY_SOLID,
+                        FONT_SYSTEM, "OBJECTS", BUTTON_LEVEL_EDITOR_OBJECTS);
+                    uiHandles[6] = ButtonRenderer(
+                        x0 + (margin * 2) + (buttonWidth + margin + 2),
+                        ySplit1 + margin,
+                        buttonWidth, buttonHeight,
+                        buttonColor0, OPACITY_SOLID,
+                        buttonColor1, OPACITY_SOLID,
+                        FONT_SYSTEM, "ENTITIES", BUTTON_LEVEL_EDITOR_ENTITIES);
+                    uiHandles[7] = ButtonRenderer(
+                        x0 + (margin * 2),
+                        ySplit1 + margin + (buttonHeight + margin + 2),
+                        buttonWidth, buttonHeight,
+                        buttonColor0, OPACITY_SOLID,
+                        buttonColor1, OPACITY_SOLID,
+                        FONT_SYSTEM, "EDIT OBJ", BUTTON_LEVEL_EDITOR_EDIT_OBJECT);
+                    uiHandles[8] = ButtonRenderer(
+                        x0 + (margin * 2),
+                        ySplit1 + margin + ((buttonHeight + margin + 2) * 2),
+                        buttonWidth, buttonHeight,
+                        buttonColor0, OPACITY_SOLID,
+                        buttonColor1, OPACITY_SOLID,
+                        FONT_SYSTEM, "SAVE", BUTTON_LEVEL_EDITOR_SAVE);
+                    uiHandles[9] = ButtonRenderer(
+                        x0 + (margin * 2) + (buttonWidth + margin + 2),
+                        ySplit1 + margin + ((buttonHeight + margin + 2) * 2),
+                        buttonWidth, buttonHeight,
+                        buttonColor0, OPACITY_SOLID,
+                        buttonColor1, OPACITY_SOLID,
+                        FONT_SYSTEM, "LOAD", BUTTON_LEVEL_EDITOR_LOAD);
+                end
+                case LEVEL_EDITOR_MODE_EDIT_OBJECT:
+                end
+                case LEVEL_EDITOR_MODE_PAINT_OBJECTS:
+                end
+            end
+            ui.needsUpdate = false;
+        end
         frame;
     until (alive == false)
-    delete_text(txtMode);
+
+    debug;
+    for (value = 0; value < UI_MAX_HANDLES; ++value)
+        if (uiHandles[value] != NULL)
+            uiHandles[value].alive = false;
+            uiHandles[value] = NULL;
+        end
+    end
 end
 
-function WriteText(fontIndex, x, y, anchor, text)
-begin
-    return (write(__fonts[fontIndex].handle, x, y, anchor, text));
-end
-
-function WriteWrappedText(fontIndex, x, y, anchor, text, maxWidth)
+process ButtonRenderer(x, y, width, height, color0, opacity0, color1, opacity1, fontIndex, text, buttonIndex)
 private
+    drawBackground;
+    textButton;
+    hover = false;
+begin
+    // initialization
+    alive = true;
+
+    // ui
+    drawBackground = DrawRenderer(
+        DRAW_RECTANGLE_FILL, x, y, x + width, y + height, color0, opacity0);
+    textButton = TextRenderer(
+        fontIndex, x + (width / 2), y + (height / 2), FONT_ANCHOR_CENTERED, text);
+
+    repeat
+        if (RectangleContainsPoint(x, y, x + width, y + height, mouse.x, mouse.y))
+            if (hover == false)
+                drawBackground.ui.color = color1;
+                drawBackground.ui.needsUpdate = true;
+                hover = true;
+            end
+        else
+            if (hover == true)
+                drawBackground.ui.color = color0;
+                drawBackground.ui.needsUpdate = true;
+                hover = false;
+            end
+        end
+        if (hover && mouse.left)
+            __buttonClicked = buttonIndex;
+        end
+        frame;
+    until (alive == false)
+
+    drawBackground.alive = false;
+    textButton.alive = false;
+end
+
+process DrawRenderer(drawType, x0, y0, x1, y1, color, opacity)
+private
+    drawHandle;
+begin
+    // initialization
+    alive = true;
+    ui.color = color;
+    drawHandle = draw(drawType, ui.color, opacity, REGION_FULL_SCREEN, x0, y0, x1, y1);
+
+    repeat
+        if (ui.needsUpdate == true)
+            move_draw(drawHandle, ui.color, opacity, x0, y0, x1, y1);
+            ui.needsUpdate = false;
+        end
+        frame;
+    until (alive == false)
+
+    delete_draw(drawHandle);
+end
+
+process TextRenderer(fontIndex, x, y, anchor, string text)
+private
+    textHandle;
+begin
+    // initialization
+    alive = true;
+    ui.needsUpdate = true;
+
+    repeat
+        if (ui.needsUpdate == true)
+            if (textHandle != 0)
+                delete_text(textHandle);
+            end
+            textHandle = write(__fonts[fontIndex].handle, x, y, anchor, text);
+            ui.needsUpdate = false;
+        end
+        frame;
+    until (alive == false)
+
+    delete_text(textHandle);
+end
+
+/*
+// TODO: Consider using constant instead of 8 here.
+// TODO: Split on space characters only.
+process WrappedTextRenderer(fontIndex, x, y, anchor, string text, maxWidth)
+private
+    textHandles[8];
     maxCharsPerLine;
     textChars;
     width;
-    string chopped[];
     chops;
-    i;
+    struct wrappedTexts[8]
+        string text;
+    end
+    string temp;
 begin
+    // initialization
+    alive = true;
     maxCharsPerLine = maxWidth / __fonts[fontIndex].avgCharWidth;
-    textChars = strlen(text);
+    ui.needsUpdate = true;
 
     repeat
-        width = CalculateTextWidth(fontIndex, text);
-        if (width > maxWidth)
-            // split
-            strcpy(text, chopped[chops]);
-            strdel(chopped[chops], 0, textChars - maxCharsPerLine);
-            ++chops;
-        end
-    until (width < maxWidth || chops == 8)
+        if (ui.needsUpdate == true)
+            for (value = 0; value < chops; ++value)
+                wrappedTexts[value] = "";
+                delete_text(textHandles[value]);
+            end
+            strcpy(temp, text);
+            repeat
+                width = CalculateTextWidth(fontIndex, temp);
+                textChars = strlen(temp);
 
-    text = "";
-    for (i = 0; i < chops; ++i)
-        text += chopped[i];
-        if (i < chops - 1)
-            text += "\n";
+                if (width > maxWidth)
+                    // split line at maxCharsPerLine and write() it
+                    strcpy(wrappedTexts[chops].text, temp);
+                    strdel(wrappedTexts[chops].text, 0, textChars - maxCharsPerLine);
+                    textHandles[chops] = write(__fonts[fontIndex].handle, x, y, anchor, wrappedTexts[chops].text);
+                    // remove split line from text var.
+                    strdel(temp, maxCharsPerLine, 0);
+                else
+                    strcpy(wrappedTexts[chops].text, temp);
+                    textHandles[chops] = write(__fonts[fontIndex].handle, x, y, anchor, wrappedTexts[chops].text);
+                end
+                // increase line height & chops count
+                y += __fonts[fontIndex].lineHeight;
+                ++chops;
+            until (width < maxWidth || chops == 8)
+            ui.needsUpdate = false;
         end
+        frame;
+    until (alive == false)
+
+    for (value = 0; value < chops; ++value)
+        delete_text(textHandles[value]);
     end
-
-    return (write(__fonts[fontIndex].handle, x, y, anchor, text));
 end
 
 function CalculateTextWidth(fontIndex, text)
 begin
     return (strlen(text) * __fonts[fontIndex].avgCharWidth);
+end
+*/
+
+function RectangleContainsPoint(x0, y0, x1, y1, pointX, pointY)
+begin
+    return (pointX >= x0 && pointX <= x1 && pointY >= y0 && pointY <= y1);
 end
 
 
