@@ -31,7 +31,9 @@ const
     DRAW_RECTANGLE_FILL = 3;
     DRAW_ELLIPSE        = 4;
     DRAW_ELLIPSE_FILL   = 5;
-    OPACITY_SOLID = 15;
+    OPACITY_TRANSPARENT = 0;
+    OPACITY_50_PERCENT  = 7;
+    OPACITY_SOLID       = 15;
 
     // color enums
     COLOR_BLACK = 0;
@@ -66,10 +68,12 @@ const
     FONT_MENU   = 1;
 
     // file paths
-    GFX_MAIN_PATH   = "assets/graphics/main.fpg";
-    GFX_ACTORS_PATH = "assets/graphics/actors.fpg";
-    GFX_ITEMS_PATH  = "assets/graphics/items.fpg";
-    FNT_MENU_PATH   = "assets/fonts/16x16-w-arcade.fnt";
+    GFX_MAIN_PATH     = "assets/graphics/main.fpg";
+    GFX_ACTORS_PATH   = "assets/graphics/actors.fpg";
+    GFX_ITEMS_PATH    = "assets/graphics/items.fpg";
+    GFX_OBJECTS_PATH  = "assets/graphics/objects.fpg";
+    FNT_MENU_PATH     = "assets/fonts/16x16-w-arcade.fnt";
+    DATA_OBJECTS_PATH = "assets/data/objects/";
 
     // graphics
     SCREEN_MODE        = m640x400;
@@ -87,7 +91,11 @@ const
     BUTTON_LEVEL_EDITOR_EDIT_OBJECT = 2;
     BUTTON_LEVEL_EDITOR_SAVE        = 3;
     BUTTON_LEVEL_EDITOR_LOAD        = 4;
-    UI_MAX_HANDLES = 16;
+    BUTTON_LEVEL_EDITOR_SEGMENTS    = 5;
+    BUTTON_LEVEL_EDITOR_GRAPHIC     = 6;
+    BUTTON_LEVEL_EDITOR_ASZ         = 7;
+    BUTTON_LEVEL_EDITOR_MENU        = 8;
+    UI_MAX_HANDLES = 32;
 
     // camera
     CAMERA_MOVE_FREE_LOOK   = 0;
@@ -160,6 +168,10 @@ const
     MATERIAL_WOOD     = 1;
     MATERIAL_METAL    = 2;
 
+    // objects
+    MAX_OBJECT_TYPES = 16;
+    MAX_OBJECT_SEGMENTS = 16;
+
     // timing
     MAX_DELAYS = 32;
 
@@ -175,6 +187,7 @@ global
     __gfxMain;
     __gfxActors;
     __gfxItems;
+    __gfxObjects;
     __sounds[SOUNDS_COUNT - 1];
 
     // fonts
@@ -309,15 +322,28 @@ global
         end
         objectCount;
         struct objects[MAX_LEVEL_OBJECTS - 1]
+            string fileName;
             x, y;
             angle;
-            gfxIndex;
+            size;
+            z;
         end
         segmentCount;
         struct segments[MAX_LEVEL_SEGMENTS - 1]
             x0, y0;
             x1, y1;
             material;
+        end
+    end
+
+    // object
+    struct __objectData
+        string fileName;
+        angle;
+        gfxIndex;
+        struct segments[MAX_OBJECT_SEGMENTS - 1]
+            x0, y0;
+            x1, y1;
         end
     end
 
@@ -436,13 +462,14 @@ begin
     set_fps(60, 1);
 
     // load graphics
-    __gfxMain   = load_fpg(GFX_MAIN_PATH);
-    __gfxActors = load_fpg(GFX_ACTORS_PATH);
-    __gfxItems  = load_fpg(GFX_ITEMS_PATH);
+    __gfxMain    = load_fpg(GFX_MAIN_PATH);
+    __gfxActors  = load_fpg(GFX_ACTORS_PATH);
+    __gfxItems   = load_fpg(GFX_ITEMS_PATH);
+    __gfxObjects = load_fpg(GFX_OBJECTS_PATH);
 
     // load fonts
     __fonts[FONT_SYSTEM].handle = 0;
-    __fonts[FONT_MENU].handle = load_fnt(__fonts[FONT_MENU].path);
+    __fonts[FONT_MENU].handle   = load_fnt(__fonts[FONT_MENU].path);
 
     // load sounds
     __sounds[SOUND_MP40_SHOT]       = load_sound("assets/audio/test-shot5.wav", 0);
@@ -453,8 +480,6 @@ begin
 
     // timing
     LogValue("FPS", &fps);
-    //LogValue("__goodActors[0]", &__goodActors[0]);
-    //LogValue("__evilActors[0]", &__evilActors[0]);
     DeltaTimer();
 
     // show title screen
@@ -661,6 +686,10 @@ process CameraInput(controllerId)
 begin
     repeat
         switch (__cameraMoveMode)
+            case NULL:
+                controllerId.input.move.x = 0;
+                controllerId.input.move.y = 0;
+            end
             case CAMERA_MOVE_FREE_LOOK:
                 if (key(_a))
                     controllerId.input.move.x = -controllerId.input.move.granularity;
@@ -821,7 +850,8 @@ begin
         __levelData.objects[i].x = 0;
         __levelData.objects[i].y = 0;
         __levelData.objects[i].angle = 0;
-        __levelData.objects[i].gfxIndex = NULL;
+        __levelData.objects[i].size = 0;
+        __levelData.objects[i].z = 0;
     end
 
     __levelData.segmentCount = 0;
@@ -838,6 +868,7 @@ function LevelData_AddLevelSegment(x0, y0, x1, y1, material)
 private
     i;
 begin
+    // TODO: Replace (and test) with: FindFreeTableIndex(&__levelData.segments, __levelData.segmentCount + 1)
     i = LevelData_FindFreeLevelSegmentIndex();
     if (i > NULL)
         __levelData.segments[i].x0 = x0;
@@ -875,6 +906,7 @@ end
 
 function LevelData_AddActorSpawn(x, y, angle, actorIndex, pointer inventoryContents)
 begin
+    // TODO: Replace (and test) with: FindFreeTableIndex(&__levelData.actorSpawns, __levelData.actorSpawnCount + 1)
     value = LevelData_FindFreeActorSpawnIndex();
     if (value != NULL)
         ++__levelData.actorSpawnCount;
@@ -901,6 +933,44 @@ begin
         end
     end
     return (NULL);
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Object management
+ * ---------------------------------------------------------------------------*/
+// TODO: implement
+function LoadObject(string fileName)
+private
+    fileHandle;
+    a;
+begin
+    debug;
+    // open file handle
+    fileHandle = fopen(DATA_OBJECTS_PATH + fileName, "r");
+
+    // read object data
+    fread(offset a, 1, fileHandle);
+
+    // close file handle
+    fclose(fileHandle);
+end
+
+function SaveObject(string fileName, a)
+private
+    fileHandle;
+    g = 274;
+begin
+    debug;
+    // open file handle
+    fileHandle = fopen(DATA_OBJECTS_PATH + fileName, "w");
+
+    // write object data
+    fwrite(offset g, 1, fileHandle);
+
+    // close file handle
+    fclose(fileHandle);
 end
 
 
@@ -943,10 +1013,16 @@ begin
     __currentLevelEditorMode = nextMode;
     switch (__currentLevelEditorMode)
         case LEVEL_EDITOR_MODE_VIEW:
+            __cameraMoveMode = CAMERA_MOVE_FREE_LOOK;
         end
         case LEVEL_EDITOR_MODE_EDIT_OBJECT:
+            __cameraMoveMode = NULL;
+            __objectData.fileName = "default.f2o";
+            __objectData.angle = 273;
+            __objectData.gfxIndex = 1;
         end
         case LEVEL_EDITOR_MODE_PAINT_OBJECTS:
+            __cameraMoveMode = CAMERA_MOVE_FREE_LOOK;
         end
     end
     __levelEditor.ui.needsUpdate = true;
@@ -972,6 +1048,20 @@ begin
             end
         end
         case LEVEL_EDITOR_MODE_EDIT_OBJECT:
+            if (__buttonClicked != NULL)
+                switch (__buttonClicked)
+                    case BUTTON_LEVEL_EDITOR_SAVE:
+                        SaveObject(__objectData.fileName, 273);
+                    end
+                    case BUTTON_LEVEL_EDITOR_LOAD:
+                        LoadObject(__objectData.fileName);
+                    end
+                    case BUTTON_LEVEL_EDITOR_MENU:
+                        LevelEditorChangeMode(LEVEL_EDITOR_MODE_VIEW);
+                    end
+                end
+                __buttonClicked = NULL;
+            end
         end
         case LEVEL_EDITOR_MODE_PAINT_OBJECTS:
         end
@@ -988,17 +1078,13 @@ private
     buttonWidth, buttonHeight;
     buttonColor0, buttonColor1;
 
-    //textMode, textHelp;
-    //drawPanel, drawSection0, drawSection1, drawSection2;
-    //buttonObjects, buttonEntities, buttonEditObject, buttonSave, buttonLoad;
     uiCounter;
-    uiHandles[UI_MAX_HANDLES - 1];
+    uiHandles[UI_MAX_HANDLES];
+    uiModeTextIndex;
 begin
     // initialization
     alive = true;
-    for (value = 0; value < UI_MAX_HANDLES; ++value)
-        uiHandles[value] = NULL;
-    end
+    InitializeTable(&uiHandles, UI_MAX_HANDLES, NULL);
 
     // ui calculations
     x0 = (SCREEN_WIDTH / 4) * 3;
@@ -1018,32 +1104,35 @@ begin
 
     repeat
         if (ui.needsUpdate == true)
-            // Render panel, sections & mode texts.
-            uiHandles[0] = TextRenderer(
-                FONT_SYSTEM,
-                x0 + (margin * 2),
-                ySplit0 + margin,
-                FONT_ANCHOR_TOP_LEFT,
-                __levelEditorModeString[__currentLevelEditorMode]);
-            uiHandles[1] = DrawRenderer(
+            // Clean up.
+            for (value = 0; value < UI_MAX_HANDLES - 1; ++value)
+                if (uiHandles[value] != NULL)
+                    uiHandles[value].alive = false;
+                    uiHandles[value] = NULL;
+                end
+            end
+            frame;
+
+            // Draw side panel & sections.
+            uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = DrawRenderer(
                 DRAW_RECTANGLE_FILL, 
                 x0, y0, x1, y1, 
                 panelColor, OPACITY_SOLID);
-            uiHandles[2] = DrawRenderer(
+            uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = DrawRenderer(
                 DRAW_RECTANGLE_FILL, 
                 x0 + margin, 
                 y0 + margin, 
                 x1 - margin, 
                 ySplit0 - margin - 1, 
                 sectionColor, OPACITY_SOLID);
-            uiHandles[3] = DrawRenderer(
+            uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = DrawRenderer(
                 DRAW_RECTANGLE_FILL, 
                 x0 + margin, 
                 ySplit0, 
                 x1 - margin, 
                 ySplit1 - margin - 1, 
                 sectionColor, OPACITY_SOLID);
-            uiHandles[4] = DrawRenderer(
+            uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = DrawRenderer(
                 DRAW_RECTANGLE_FILL, 
                 x0 + margin, 
                 ySplit1, 
@@ -1051,48 +1140,48 @@ begin
                 y1 - margin - 1, 
                 sectionColor, OPACITY_SOLID);
 
-            // Clean up the buttons.
-            for (value = 5; value < UI_MAX_HANDLES; ++value)
-                if (uiHandles[value] != NULL)
-                    uiHandles[value].alive = false;
-                    uiHandles[value] = NULL;
-                end
-            end
-
-            // Update the mode text.
-            uiHandles[0].ui.needsUpdate = true;
+            // Draw mode text.
+            uiModeTextIndex = FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES);
+            uiHandles[uiModeTextIndex] = TextRenderer(
+                FONT_SYSTEM,
+                x0 + (margin * 2),
+                ySplit0 + margin,
+                FONT_ANCHOR_TOP_LEFT,
+                __levelEditorModeString[__currentLevelEditorMode]);
+            uiHandles[uiModeTextIndex].ui.needsUpdate = true;
 
             switch (__currentLevelEditorMode)
                 case LEVEL_EDITOR_MODE_VIEW:
-                    uiHandles[5] = ButtonRenderer(
+                    // Draw buttons.
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2),
                         ySplit1 + margin,
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
                         FONT_SYSTEM, "OBJECTS", BUTTON_LEVEL_EDITOR_OBJECTS);
-                    uiHandles[6] = ButtonRenderer(
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2) + (buttonWidth + margin + 2),
                         ySplit1 + margin,
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
                         FONT_SYSTEM, "ENTITIES", BUTTON_LEVEL_EDITOR_ENTITIES);
-                    uiHandles[7] = ButtonRenderer(
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2),
                         ySplit1 + margin + (buttonHeight + margin + 2),
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
                         FONT_SYSTEM, "EDIT OBJ", BUTTON_LEVEL_EDITOR_EDIT_OBJECT);
-                    uiHandles[8] = ButtonRenderer(
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2),
                         ySplit1 + margin + ((buttonHeight + margin + 2) * 2),
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
                         FONT_SYSTEM, "SAVE", BUTTON_LEVEL_EDITOR_SAVE);
-                    uiHandles[9] = ButtonRenderer(
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2) + (buttonWidth + margin + 2),
                         ySplit1 + margin + ((buttonHeight + margin + 2) * 2),
                         buttonWidth, buttonHeight,
@@ -1101,6 +1190,80 @@ begin
                         FONT_SYSTEM, "LOAD", BUTTON_LEVEL_EDITOR_LOAD);
                 end
                 case LEVEL_EDITOR_MODE_EDIT_OBJECT:
+                    // Draw info.
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
+                        FONT_SYSTEM,
+                        x0 + (margin * 2),
+                        y0 + (margin * 2),
+                        FONT_ANCHOR_TOP_LEFT,
+                        __objectData.fileName);
+
+                    // Draw panel and object.
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = DrawRenderer(
+                        DRAW_RECTANGLE_FILL, 
+                        0,
+                        0,
+                        x0, 
+                        y1, 
+                        COLOR_BLACK, OPACITY_SOLID);
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ImageRenderer(
+                        __gfxObjects, 
+                        1,
+                        x0 / 2,
+                        HALF_SCREEN_HEIGHT,
+                        0,
+                        100);
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = SegmentRenderer(
+                        (x0 / 2) - 50,
+                        HALF_SCREEN_HEIGHT - 50,
+                        (x0 / 2) + 50,
+                        HALF_SCREEN_HEIGHT + 50,
+                        COLOR_WHITE, OPACITY_SOLID,
+                        COLOR_WHITE, OPACITY_SOLID, 5);
+
+                    // Draw buttons.
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
+                        x0 + (margin * 2),
+                        ySplit1 + margin,
+                        buttonWidth, buttonHeight,
+                        buttonColor0, OPACITY_SOLID,
+                        buttonColor1, OPACITY_SOLID,
+                        FONT_SYSTEM, "SEGMENTS", NULL);
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
+                        x0 + (margin * 2) + (buttonWidth + margin + 2),
+                        ySplit1 + margin,
+                        buttonWidth, buttonHeight,
+                        buttonColor0, OPACITY_SOLID,
+                        buttonColor1, OPACITY_SOLID,
+                        FONT_SYSTEM, "GRAPHIC", NULL);
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
+                        x0 + (margin * 2),
+                        ySplit1 + margin + (buttonHeight + margin + 2),
+                        buttonWidth, buttonHeight,
+                        buttonColor0, OPACITY_SOLID,
+                        buttonColor1, OPACITY_SOLID,
+                        FONT_SYSTEM, "A/S/Z", NULL);
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
+                        x0 + (margin * 2) + (buttonWidth + margin + 2),
+                        ySplit1 + margin + (buttonHeight + margin + 2),
+                        buttonWidth, buttonHeight,
+                        buttonColor0, OPACITY_SOLID,
+                        buttonColor1, OPACITY_SOLID,
+                        FONT_SYSTEM, "MENU", BUTTON_LEVEL_EDITOR_MENU);
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
+                        x0 + (margin * 2),
+                        ySplit1 + margin + ((buttonHeight + margin + 2) * 2),
+                        buttonWidth, buttonHeight,
+                        buttonColor0, OPACITY_SOLID,
+                        buttonColor1, OPACITY_SOLID,
+                        FONT_SYSTEM, "SAVE OBJ", BUTTON_LEVEL_EDITOR_SAVE);
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
+                        x0 + (margin * 2) + (buttonWidth + margin + 2),
+                        ySplit1 + margin + ((buttonHeight + margin + 2) * 2),
+                        buttonWidth, buttonHeight,
+                        buttonColor0, OPACITY_SOLID,
+                        buttonColor1, OPACITY_SOLID,
+                        FONT_SYSTEM, "LOAD OBJ", BUTTON_LEVEL_EDITOR_LOAD);
                 end
                 case LEVEL_EDITOR_MODE_PAINT_OBJECTS:
                 end
@@ -1110,7 +1273,6 @@ begin
         frame;
     until (alive == false)
 
-    debug;
     for (value = 0; value < UI_MAX_HANDLES; ++value)
         if (uiHandles[value] != NULL)
             uiHandles[value].alive = false;
@@ -1119,6 +1281,11 @@ begin
     end
 end
 
+
+
+/* -----------------------------------------------------------------------------
+ * User interface
+ * ---------------------------------------------------------------------------*/
 process ButtonRenderer(x, y, width, height, color0, opacity0, color1, opacity1, fontIndex, text, buttonIndex)
 private
     drawBackground;
@@ -1135,6 +1302,7 @@ begin
         fontIndex, x + (width / 2), y + (height / 2), FONT_ANCHOR_CENTERED, text);
 
     repeat
+        // TODO: if (ui.active == true)
         if (RectangleContainsPoint(x, y, x + width, y + height, mouse.x, mouse.y))
             if (hover == false)
                 drawBackground.ui.color = color1;
@@ -1160,7 +1328,7 @@ end
 
 process DrawRenderer(drawType, x0, y0, x1, y1, color, opacity)
 private
-    drawHandle;
+    drawHandle = NULL;
 begin
     // initialization
     alive = true;
@@ -1175,7 +1343,9 @@ begin
         frame;
     until (alive == false)
 
-    delete_draw(drawHandle);
+    if (drawHandle > 0)
+        delete_draw(drawHandle);
+    end
 end
 
 process TextRenderer(fontIndex, x, y, anchor, string text)
@@ -1197,75 +1367,138 @@ begin
         frame;
     until (alive == false)
 
-    delete_text(textHandle);
+    if (textHandle > 0)
+        delete_text(textHandle);
+    end
 end
 
-/*
-// TODO: Consider using constant instead of 8 here.
-// TODO: Split on space characters only.
-process WrappedTextRenderer(fontIndex, x, y, anchor, string text, maxWidth)
-private
-    textHandles[8];
-    maxCharsPerLine;
-    textChars;
-    width;
-    chops;
-    struct wrappedTexts[8]
-        string text;
-    end
-    string temp;
+process ImageRenderer(file, graph, x, y, angle, size)
 begin
     // initialization
     alive = true;
-    maxCharsPerLine = maxWidth / __fonts[fontIndex].avgCharWidth;
-    ui.needsUpdate = true;
+    z = draw_z - 1;
 
     repeat
         if (ui.needsUpdate == true)
-            for (value = 0; value < chops; ++value)
-                wrappedTexts[value] = "";
-                delete_text(textHandles[value]);
-            end
-            strcpy(temp, text);
-            repeat
-                width = CalculateTextWidth(fontIndex, temp);
-                textChars = strlen(temp);
+            ui.needsUpdate = false;
+        end
+        frame;
+    until (alive == false)
+end
 
-                if (width > maxWidth)
-                    // split line at maxCharsPerLine and write() it
-                    strcpy(wrappedTexts[chops].text, temp);
-                    strdel(wrappedTexts[chops].text, 0, textChars - maxCharsPerLine);
-                    textHandles[chops] = write(__fonts[fontIndex].handle, x, y, anchor, wrappedTexts[chops].text);
-                    // remove split line from text var.
-                    strdel(temp, maxCharsPerLine, 0);
-                else
-                    strcpy(wrappedTexts[chops].text, temp);
-                    textHandles[chops] = write(__fonts[fontIndex].handle, x, y, anchor, wrappedTexts[chops].text);
-                end
-                // increase line height & chops count
-                y += __fonts[fontIndex].lineHeight;
-                ++chops;
-            until (width < maxWidth || chops == 8)
+process SegmentRenderer(x0, y0, x1, y1, lineColor, lineOpacity, pointColor, pointOpacity, pointRadius)
+private
+    drawLine = NULL;
+    drawPoint0 = NULL;
+    drawPoint1 = NULL;
+begin
+    // initialization
+    alive = true;
+
+    // ui
+    drawLine = DrawRenderer(
+        DRAW_LINE, x0, y0, x1, y1, lineColor, lineOpacity);
+    drawPoint0 = DrawRenderer(
+        DRAW_ELLIPSE, x0 - pointRadius, y0 - pointRadius, x0 + pointRadius, y0 + pointRadius, pointColor, pointOpacity);
+    drawPoint1 = DrawRenderer(
+        DRAW_ELLIPSE, x1 - pointRadius, y1 - pointRadius, x1 + pointRadius, y1 + pointRadius, pointColor, pointOpacity);
+
+    repeat
+        if (ui.needsUpdate == true)
+            drawLine.ui.needsUpdate = true;
+            drawPoint0.ui.needsUpdate = true;
+            drawPoint1.ui.needsUpdate = true;
             ui.needsUpdate = false;
         end
         frame;
     until (alive == false)
 
-    for (value = 0; value < chops; ++value)
-        delete_text(textHandles[value]);
-    end
+    drawLine.alive = false;
+    drawPoint0.alive = false;
+    drawPoint1.alive = false;
 end
-
-function CalculateTextWidth(fontIndex, text)
-begin
-    return (strlen(text) * __fonts[fontIndex].avgCharWidth);
-end
-*/
 
 function RectangleContainsPoint(x0, y0, x1, y1, pointX, pointY)
 begin
     return (pointX >= x0 && pointX <= x1 && pointY >= y0 && pointY <= y1);
 end
+
+process MouseCursor()
+begin
+    // initialization
+    resolution = GPR;
+    file = __gfxMain;
+    graph = 303;
+    z = -1000;
+    loop
+        x = mouse.x * GPR;
+        y = mouse.y * GPR;
+        frame;
+    end
+end
+
+// TODO: Restore this functionality.
+/*
+process DrawDebugAimLine()
+private
+    color;
+    x0, y0;
+    x1, y1;
+begin
+    LogValue("x0", &x0);
+    LogValue("y0", &y0);
+    LogValue("x1", &x1);
+    LogValue("y1", &y1);
+
+    LogValue("ix", &__lineIntersectionData.ix);
+    LogValue("iy", &__lineIntersectionData.iy);
+    loop
+        //DrawScrollSpaceLine1Frame(-100 * GPR, -100 * GPR, 100 * GPR, -100 * GPR, COLOR_RED, OPACITY_SOLID);
+        DrawScrollSpaceLine1Frame(100 * GPR, -100 * GPR, 100 * GPR, 100 * GPR, COLOR_RED, OPACITY_SOLID);
+        //DrawScrollSpaceLine1Frame(100 * GPR, 100 * GPR, -100 * GPR, 100 * GPR, COLOR_RED, OPACITY_SOLID);
+        //DrawScrollSpaceLine1Frame(-100 * GPR, 100 * GPR, -100 * GPR, -100 * GPR, COLOR_RED, OPACITY_SOLID);
+
+        // draw aim line, blue = no hit, green = hit
+        color = COLOR_BLUE;
+        x0 = __playerController.x / GPR;
+        y0 = __playerController.y / GPR;
+        x1 = (mouse.x + scroll[0].x0);
+        y1 = (mouse.y + scroll[0].y0);
+        if (LineIntersection(
+            x0, 
+            y0, 
+            x1, 
+            y1, 
+            100,
+            -100,
+            100,
+            100))
+            color = COLOR_GREEN;
+        end
+        DrawScrollSpaceLine1Frame(
+            __playerController.x, 
+            __playerController.y, 
+            (mouse.x + scroll[0].x0) * GPR, 
+            (mouse.y + scroll[0].y0) * GPR, 
+            color, OPACITY_SOLID);
+
+        // draw intersection point
+        value = 5;
+        DrawScrollSpaceLine1Frame(
+            (__lineIntersectionData.ix - value) * GPR, 
+            (__lineIntersectionData.iy - value) * GPR, 
+            (__lineIntersectionData.ix + value) * GPR, 
+            (__lineIntersectionData.iy + value) * GPR, COLOR_WHITE, OPACITY_SOLID);
+        DrawScrollSpaceLine1Frame(
+            (__lineIntersectionData.ix + value) * GPR, 
+            (__lineIntersectionData.iy - value) * GPR, 
+            (__lineIntersectionData.ix - value) * GPR, 
+            (__lineIntersectionData.iy + value) * GPR, COLOR_WHITE, OPACITY_SOLID);
+
+        frame;
+    end
+end
+*/
 
 
 
@@ -2024,6 +2257,7 @@ begin
         end
     // If actor hasn't got this item already, find a free index.
     else
+        // TODO: Replace (and test) with: FindFreeTableIndex(&actorId.inventory, INVENTORY_SLOTS - 1)
         i = GetNextFreeInventoryIndex(actorId);
         // If there is space, add item to actor's inventory.
         if (i != NULL)
@@ -2164,88 +2398,6 @@ begin
         frame;
     end
 end
-
-
-
-/* -----------------------------------------------------------------------------
- * User interface
- * ---------------------------------------------------------------------------*/
-process MouseCursor()
-begin
-    // initialization
-    resolution = GPR;
-    file = __gfxMain;
-    graph = 303;
-    z = -1000;
-    loop
-        x = mouse.x * GPR;
-        y = mouse.y * GPR;
-        frame;
-    end
-end
-
-// TODO: Restore this functionality.
-/*
-process DrawDebugAimLine()
-private
-    color;
-    x0, y0;
-    x1, y1;
-begin
-    LogValue("x0", &x0);
-    LogValue("y0", &y0);
-    LogValue("x1", &x1);
-    LogValue("y1", &y1);
-
-    LogValue("ix", &__lineIntersectionData.ix);
-    LogValue("iy", &__lineIntersectionData.iy);
-    loop
-        //DrawScrollSpaceLine1Frame(-100 * GPR, -100 * GPR, 100 * GPR, -100 * GPR, COLOR_RED, OPACITY_SOLID);
-        DrawScrollSpaceLine1Frame(100 * GPR, -100 * GPR, 100 * GPR, 100 * GPR, COLOR_RED, OPACITY_SOLID);
-        //DrawScrollSpaceLine1Frame(100 * GPR, 100 * GPR, -100 * GPR, 100 * GPR, COLOR_RED, OPACITY_SOLID);
-        //DrawScrollSpaceLine1Frame(-100 * GPR, 100 * GPR, -100 * GPR, -100 * GPR, COLOR_RED, OPACITY_SOLID);
-
-        // draw aim line, blue = no hit, green = hit
-        color = COLOR_BLUE;
-        x0 = __playerController.x / GPR;
-        y0 = __playerController.y / GPR;
-        x1 = (mouse.x + scroll[0].x0);
-        y1 = (mouse.y + scroll[0].y0);
-        if (LineIntersection(
-            x0, 
-            y0, 
-            x1, 
-            y1, 
-            100,
-            -100,
-            100,
-            100))
-            color = COLOR_GREEN;
-        end
-        DrawScrollSpaceLine1Frame(
-            __playerController.x, 
-            __playerController.y, 
-            (mouse.x + scroll[0].x0) * GPR, 
-            (mouse.y + scroll[0].y0) * GPR, 
-            color, OPACITY_SOLID);
-
-        // draw intersection point
-        value = 5;
-        DrawScrollSpaceLine1Frame(
-            (__lineIntersectionData.ix - value) * GPR, 
-            (__lineIntersectionData.iy - value) * GPR, 
-            (__lineIntersectionData.ix + value) * GPR, 
-            (__lineIntersectionData.iy + value) * GPR, COLOR_WHITE, OPACITY_SOLID);
-        DrawScrollSpaceLine1Frame(
-            (__lineIntersectionData.ix + value) * GPR, 
-            (__lineIntersectionData.iy - value) * GPR, 
-            (__lineIntersectionData.ix - value) * GPR, 
-            (__lineIntersectionData.iy + value) * GPR, COLOR_WHITE, OPACITY_SOLID);
-
-        frame;
-    end
-end
-*/
 
 
 
@@ -2697,6 +2849,7 @@ private
 begin
     index = GetDelayIndex(processId);
     if (index == NULL)
+        // TODO: Replace (and test) with: FindFreeTableIndex(&__delays, MAX_DELAYS - 1)
         index = GetNextFreeDelayIndex();
         __delays[index].processId = processId;
         __delays[index].startTime = timer[0];
@@ -2754,6 +2907,30 @@ begin
 end
 
 
+
+/* -----------------------------------------------------------------------------
+ * Tables
+ * ---------------------------------------------------------------------------*/
+function InitializeTable(pointer tablePtr, tableSize, initialValue)
+private
+    i;
+begin
+    for (i = 0; i < tableSize; ++i)
+        tablePtr[i] = initialValue;
+    end
+end
+
+function FindFreeTableIndex(pointer tablePtr, tableSize)
+private
+    i;
+begin
+    for (i = 0; i < tableSize; ++i)
+        if (tablePtr[i] == NULL)
+            return (i);
+        end
+    end
+    return (NULL);
+end
 
 
 
