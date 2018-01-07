@@ -289,6 +289,7 @@ global
     // ui
     __mouseCursor;
     __buttonClicked = NULL;
+    __buttonHeldDown = NULL;
 
     // camera
     __gameCamera;
@@ -316,7 +317,7 @@ global
             x, y;
             angle;
             actorIndex;
-            // NOTE: We use a pointer to a table here because DIV doesn't properly support tables 
+            // NOTE: We use a pointer to a table here because DIV doesn't properly support tables
             // inside structs.
             pointer actorInventoryContents;
         end
@@ -444,7 +445,7 @@ local
         color;
         needsUpdate;
     end
-    
+
     // debugging
     logCount;
     struct logs[MAX_LOGS - 1]
@@ -501,10 +502,10 @@ begin
     put_screen(__gfxMain, 1);
     // TODO: Use WriteText functions.
     txtTitle = write(
-        __fonts[FONT_MENU].handle, 
-        HALF_SCREEN_WIDTH, 
-        HALF_SCREEN_HEIGHT, 
-        FONT_ANCHOR_CENTERED, 
+        __fonts[FONT_MENU].handle,
+        HALF_SCREEN_WIDTH,
+        HALF_SCREEN_HEIGHT,
+        FONT_ANCHOR_CENTERED,
         "PRESS ANY KEY TO PLAY");
 
     // wait for input
@@ -656,9 +657,9 @@ begin
     // initialization
     alive = true;
     start_scroll(
-        scrollBackground, 
-        __gfxMain, 200, 0, 
-        REGION_FULL_SCREEN, 
+        scrollBackground,
+        __gfxMain, 200, 0,
+        REGION_FULL_SCREEN,
         SCROLL_FOREGROUND_HORIZONTAL + SCROLL_FOREGROUND_VERTICAL);
 
     // components & sub-processes
@@ -714,13 +715,13 @@ begin
                 // TODO: Apply movement to input.
                 //if (__cameraTargetId != NULL)
                 //    aimAngle = fget_angle(
-                //        HALF_SCREEN_WIDTH, 
-                //        HALF_SCREEN_HEIGHT, 
+                //        HALF_SCREEN_WIDTH,
+                //        HALF_SCREEN_HEIGHT,
                 //        mouse.x,
                 //        mouse.y);
                 //    aimDistance = fget_dist(
-                //        HALF_SCREEN_WIDTH, 
-                //        HALF_SCREEN_HEIGHT, 
+                //        HALF_SCREEN_WIDTH,
+                //        HALF_SCREEN_HEIGHT,
                 //        mouse.x,
                 //        mouse.y);
                 //    aimPointX = __cameraTargetId.x + get_distx(aimAngle, Min(aimDistance, aimMaxDistance)) * GPR * aimBoost;
@@ -775,8 +776,8 @@ begin
                 switch (__levelData.actorSpawns[i].actorIndex)
                     case ACTOR_PLAYER:
                         __playerController = PlayerController(
-                            __levelData.actorSpawns[i].x, 
-                            __levelData.actorSpawns[i].y, 
+                            __levelData.actorSpawns[i].x,
+                            __levelData.actorSpawns[i].y,
                             __levelData.actorSpawns[i].actorInventoryContents);
                     end
                     case ACTOR_GUARD_1,
@@ -787,9 +788,9 @@ begin
                          ACTOR_OFFICER_3,
                          ACTOR_ALLIED_COMMANDO:
                         AIController(
-                            __levelData.actorSpawns[i].actorIndex, 
-                            __levelData.actorSpawns[i].x, 
-                            __levelData.actorSpawns[i].y, 
+                            __levelData.actorSpawns[i].actorIndex,
+                            __levelData.actorSpawns[i].x,
+                            __levelData.actorSpawns[i].y,
                             __levelData.actorSpawns[i].actorInventoryContents);
                     end
                 end
@@ -946,12 +947,15 @@ private
     fileHandle;
     a;
 begin
-    debug;
     // open file handle
-    fileHandle = fopen(DATA_OBJECTS_PATH + fileName, "r");
+    fileName = DATA_OBJECTS_PATH + fileName;
+    fileHandle = fopen(fileName, "r");
 
     // read object data
-    fread(offset a, 1, fileHandle);
+    fread(offset a, sizeof(a), fileHandle);
+
+    // assign object data to global struct
+    __objectData.angle = a;
 
     // close file handle
     fclose(fileHandle);
@@ -960,14 +964,13 @@ end
 function SaveObject(string fileName, a)
 private
     fileHandle;
-    g = 274;
 begin
-    debug;
     // open file handle
-    fileHandle = fopen(DATA_OBJECTS_PATH + fileName, "w");
+    fileName = DATA_OBJECTS_PATH + fileName;
+    fileHandle = fopen(fileName, "w");
 
     // write object data
-    fwrite(offset g, 1, fileHandle);
+    fwrite(offset a, sizeof(a), fileHandle);
 
     // close file handle
     fclose(fileHandle);
@@ -1017,8 +1020,8 @@ begin
         end
         case LEVEL_EDITOR_MODE_EDIT_OBJECT:
             __cameraMoveMode = NULL;
-            __objectData.fileName = "default.f2o";
-            __objectData.angle = 273;
+            __objectData.fileName = "default.dat";
+            __objectData.angle = 0;
             __objectData.gfxIndex = 1;
         end
         case LEVEL_EDITOR_MODE_PAINT_OBJECTS:
@@ -1051,13 +1054,19 @@ begin
             if (__buttonClicked != NULL)
                 switch (__buttonClicked)
                     case BUTTON_LEVEL_EDITOR_SAVE:
-                        SaveObject(__objectData.fileName, 273);
+                        SaveObject(__objectData.fileName, 273000);
                     end
                     case BUTTON_LEVEL_EDITOR_LOAD:
                         LoadObject(__objectData.fileName);
+                        __levelEditor.ui.needsUpdate = true;
                     end
                     case BUTTON_LEVEL_EDITOR_MENU:
                         LevelEditorChangeMode(LEVEL_EDITOR_MODE_VIEW);
+                    end
+                    case BUTTON_LEVEL_EDITOR_GRAPHIC:
+                        __objectData.gfxIndex++;
+                        __levelEditor.ui.needsUpdate = true;
+                        debug;
                     end
                 end
                 __buttonClicked = NULL;
@@ -1081,6 +1090,7 @@ private
     uiCounter;
     uiHandles[UI_MAX_HANDLES];
     uiModeTextIndex;
+    uiObjectImageIndex;
 begin
     // initialization
     alive = true;
@@ -1198,7 +1208,7 @@ begin
                         FONT_ANCHOR_TOP_LEFT,
                         __objectData.fileName);
 
-                    // Draw panel and object.
+                    // Draw panel.
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = DrawRenderer(
                         DRAW_RECTANGLE_FILL, 
                         0,
@@ -1206,13 +1216,20 @@ begin
                         x0, 
                         y1, 
                         COLOR_BLACK, OPACITY_SOLID);
-                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ImageRenderer(
+
+                    // Draw object being edited.
+                    uiObjectImageIndex = FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES);
+                    uiHandles[uiObjectImageIndex] = ImageRenderer(
                         __gfxObjects, 
-                        1,
+                        __objectData.gfxIndex,
                         x0 / 2,
                         HALF_SCREEN_HEIGHT,
                         0,
                         100);
+                    uiHandles[uiObjectImageIndex].angle = __objectData.angle;
+                    uiHandles[uiObjectImageIndex].graph = __objectData.gfxIndex;
+
+                    // Draw object segments.
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = SegmentRenderer(
                         (x0 / 2) - 50,
                         HALF_SCREEN_HEIGHT - 50,
@@ -1235,7 +1252,7 @@ begin
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
-                        FONT_SYSTEM, "GRAPHIC", NULL);
+                        FONT_SYSTEM, "GRAPHIC", BUTTON_LEVEL_EDITOR_GRAPHIC);
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2),
                         ySplit1 + margin + (buttonHeight + margin + 2),
@@ -1270,6 +1287,7 @@ begin
             end
             ui.needsUpdate = false;
         end
+
         frame;
     until (alive == false)
 
@@ -1316,8 +1334,22 @@ begin
                 hover = false;
             end
         end
-        if (hover && mouse.left)
-            __buttonClicked = buttonIndex;
+        if (hover)
+            if (mouse.left)
+                drawBackground.ui.color = color0;
+                drawBackground.ui.needsUpdate = true;
+                __buttonHeldDown = buttonIndex;
+            end
+            if (!mouse.left && __buttonHeldDown == buttonIndex)
+                drawBackground.ui.color = color1;
+                drawBackground.ui.needsUpdate = true;
+                __buttonHeldDown = NULL;
+                __buttonClicked = buttonIndex;
+            end
+        else
+            if (__buttonHeldDown == buttonIndex)
+                __buttonHeldDown = NULL;
+            end
         end
         frame;
     until (alive == false)
