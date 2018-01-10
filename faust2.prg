@@ -76,12 +76,16 @@ const
     DATA_OBJECTS_PATH = "assets/data/objects/";
 
     // graphics
-    SCREEN_MODE        = m640x400;
+    SCREEN_MODE = m640x400;
     SCREEN_WIDTH       = 640;
     SCREEN_HEIGHT      = 400;
     HALF_SCREEN_WIDTH  = SCREEN_WIDTH / 2;
     HALF_SCREEN_HEIGHT = SCREEN_HEIGHT / 2;
     GPR = 10;
+    GFX_OBJECTS_MAX = 2;
+
+    // level editor
+    OBJECT_EDIT_MODE_MAX = 2;
 
     // ui
     CURSOR_AIM_CIRCLE = 302;
@@ -285,6 +289,9 @@ global
     __currentLevelEditorMode = LEVEL_EDITOR_MODE_VIEW;
     __levelEditorModeString[] =
         "Menu Mode", "Edit Object", "Paint Objects";
+    __objectEditMode = 0;
+    __objectEditModeString[] = 
+        "Angle", "Size", "Z Depth";
 
     // ui
     __mouseCursor;
@@ -341,6 +348,8 @@ global
     struct __objectData
         string fileName;
         angle;
+        size;
+        z;
         gfxIndex;
         struct segments[MAX_OBJECT_SEGMENTS - 1]
             x0, y0;
@@ -945,23 +954,31 @@ end
 function LoadObject(string fileName)
 private
     fileHandle;
-    a;
+    o_a, o_s, o_z, o_g;
 begin
     // open file handle
     fileName = DATA_OBJECTS_PATH + fileName;
     fileHandle = fopen(fileName, "r");
 
     // read object data
-    fread(offset a, sizeof(a), fileHandle);
+    fread(offset o_a, sizeof(o_a), fileHandle);
+    fread(offset o_s, sizeof(o_s), fileHandle);
+    fread(offset o_z, sizeof(o_z), fileHandle);
+    fread(offset o_g, sizeof(o_g), fileHandle);
+    // TODO: read segments data
 
     // assign object data to global struct
-    __objectData.angle = a;
+    __objectData.angle    = o_a;
+    __objectData.size     = o_s;
+    __objectData.z        = o_z;
+    __objectData.gfxIndex = o_g;
+    // TODO: assign segments data
 
     // close file handle
     fclose(fileHandle);
 end
 
-function SaveObject(string fileName, a)
+function SaveObject(string fileName, o_a, o_s, o_z, o_g)
 private
     fileHandle;
 begin
@@ -970,7 +987,11 @@ begin
     fileHandle = fopen(fileName, "w");
 
     // write object data
-    fwrite(offset a, sizeof(a), fileHandle);
+    fwrite(offset o_a, sizeof(o_a), fileHandle);
+    fwrite(offset o_s, sizeof(o_s), fileHandle);
+    fwrite(offset o_z, sizeof(o_z), fileHandle);
+    fwrite(offset o_g, sizeof(o_g), fileHandle);
+    // TODO: write segments data
 
     // close file handle
     fclose(fileHandle);
@@ -1021,7 +1042,9 @@ begin
         case LEVEL_EDITOR_MODE_EDIT_OBJECT:
             __cameraMoveMode = NULL;
             __objectData.fileName = "default.dat";
-            __objectData.angle = 0;
+            __objectData.angle    = 0;
+            __objectData.size     = 100;
+            __objectData.z        = 0;
             __objectData.gfxIndex = 1;
         end
         case LEVEL_EDITOR_MODE_PAINT_OBJECTS:
@@ -1054,7 +1077,12 @@ begin
             if (__buttonClicked != NULL)
                 switch (__buttonClicked)
                     case BUTTON_LEVEL_EDITOR_SAVE:
-                        SaveObject(__objectData.fileName, 273000);
+                        SaveObject(
+                            __objectData.fileName, 
+                            __objectData.angle,
+                            __objectData.size,
+                            __objectData.z,
+                            __objectData.gfxIndex);
                     end
                     case BUTTON_LEVEL_EDITOR_LOAD:
                         LoadObject(__objectData.fileName);
@@ -1064,9 +1092,12 @@ begin
                         LevelEditorChangeMode(LEVEL_EDITOR_MODE_VIEW);
                     end
                     case BUTTON_LEVEL_EDITOR_GRAPHIC:
-                        __objectData.gfxIndex++;
+                        __objectData.gfxIndex = CycleValue(__objectData.gfxIndex, 1, GFX_OBJECTS_MAX);
                         __levelEditor.ui.needsUpdate = true;
-                        debug;
+                    end
+                    case BUTTON_LEVEL_EDITOR_ASZ:
+                        __objectEditMode = CycleValue(__objectEditMode, 0, OBJECT_EDIT_MODE_MAX);
+                        __levelEditor.ui.needsUpdate = true;
                     end
                 end
                 __buttonClicked = NULL;
@@ -1090,6 +1121,7 @@ private
     uiCounter;
     uiHandles[UI_MAX_HANDLES];
     uiModeTextIndex;
+    uiObjectEditModeTextIndex;
     uiObjectImageIndex;
 begin
     // initialization
@@ -1121,6 +1153,9 @@ begin
                     uiHandles[value] = NULL;
                 end
             end
+            // TODO: This frame call is causing flickering. Without it however there are some Z depth
+            // rendering bugs. One possible solution would be total refactor of UI rendering to a
+            // more generalized system.
             frame;
 
             // Draw side panel & sections.
@@ -1150,7 +1185,7 @@ begin
                 y1 - margin - 1, 
                 sectionColor, OPACITY_SOLID);
 
-            // Draw mode text.
+            // Draw level editor mode text.
             uiModeTextIndex = FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES);
             uiHandles[uiModeTextIndex] = TextRenderer(
                 FONT_SYSTEM,
@@ -1200,6 +1235,16 @@ begin
                         FONT_SYSTEM, "LOAD", BUTTON_LEVEL_EDITOR_LOAD);
                 end
                 case LEVEL_EDITOR_MODE_EDIT_OBJECT:
+                    // Draw object edit mode text.
+                    uiObjectEditModeTextIndex = FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES);
+                    uiHandles[uiObjectEditModeTextIndex] = TextRenderer(
+                        FONT_SYSTEM,
+                        x0 + (margin * 2),
+                        ySplit0 + (margin * 2) + fntHeight,
+                        FONT_ANCHOR_TOP_LEFT,
+                        "A/S/Z Mode: " + __objectEditModeString[__objectEditMode]);
+                    uiHandles[uiObjectEditModeTextIndex].ui.needsUpdate = true;
+
                     // Draw info.
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
                         FONT_SYSTEM,
@@ -1207,6 +1252,48 @@ begin
                         y0 + (margin * 2),
                         FONT_ANCHOR_TOP_LEFT,
                         __objectData.fileName);
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
+                        FONT_SYSTEM,
+                        x0 + (margin * 18),
+                        y0 + (margin * 3) + fntHeight,
+                        FONT_ANCHOR_TOP_RIGHT,
+                        "Angle:");
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
+                        FONT_SYSTEM,
+                        x0 + (margin * 20),
+                        y0 + (margin * 3) + fntHeight,
+                        FONT_ANCHOR_TOP_LEFT,
+                        itoa(__objectData.angle));
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
+                        FONT_SYSTEM,
+                        x0 + (margin * 18),
+                        y0 + (margin * 4) + (fntHeight * 2),
+                        FONT_ANCHOR_TOP_RIGHT,
+                        "Size:");
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
+                        FONT_SYSTEM,
+                        x0 + (margin * 20),
+                        y0 + (margin * 4) + (fntHeight * 2),
+                        FONT_ANCHOR_TOP_LEFT,
+                        itoa(__objectData.size));
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
+                        FONT_SYSTEM,
+                        x0 + (margin * 18),
+                        y0 + (margin * 5) + (fntHeight * 3),
+                        FONT_ANCHOR_TOP_RIGHT,
+                        "Z Depth:");
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
+                        FONT_SYSTEM,
+                        x0 + (margin * 20),
+                        y0 + (margin * 5) + (fntHeight * 3),
+                        FONT_ANCHOR_TOP_LEFT,
+                        itoa(__objectData.z));
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
+                        FONT_SYSTEM,
+                        x0 + (margin * 2),
+                        y0 + (margin * (3 + __objectEditMode)) + (fntHeight * (__objectEditMode + 1)),
+                        FONT_ANCHOR_TOP_LEFT,
+                        "=>");
 
                     // Draw panel.
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = DrawRenderer(
@@ -1245,7 +1332,7 @@ begin
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
-                        FONT_SYSTEM, "SEGMENTS", NULL);
+                        FONT_SYSTEM, "A/S/Z", BUTTON_LEVEL_EDITOR_ASZ);
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2) + (buttonWidth + margin + 2),
                         ySplit1 + margin,
@@ -1259,7 +1346,7 @@ begin
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
-                        FONT_SYSTEM, "A/S/Z", NULL);
+                        FONT_SYSTEM, "SEGMENTS", BUTTON_LEVEL_EDITOR_SEGMENTS);
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2) + (buttonWidth + margin + 2),
                         ySplit1 + margin + (buttonHeight + margin + 2),
@@ -1319,6 +1406,7 @@ begin
     textButton = TextRenderer(
         fontIndex, x + (width / 2), y + (height / 2), FONT_ANCHOR_CENTERED, text);
 
+    // TODO: Use opacity values, not just color values.
     repeat
         // TODO: if (ui.active == true)
         if (RectangleContainsPoint(x, y, x + width, y + height, mouse.x, mouse.y))
@@ -1336,6 +1424,7 @@ begin
         end
         if (hover)
             if (mouse.left)
+                // TODO: Pass in color2 and use that here for the pressed state.
                 drawBackground.ui.color = color0;
                 drawBackground.ui.needsUpdate = true;
                 __buttonHeldDown = buttonIndex;
@@ -1448,11 +1537,6 @@ begin
     drawLine.alive = false;
     drawPoint0.alive = false;
     drawPoint1.alive = false;
-end
-
-function RectangleContainsPoint(x0, y0, x1, y1, pointX, pointY)
-begin
-    return (pointX >= x0 && pointX <= x1 && pointY >= y0 && pointY <= y1);
 end
 
 process MouseCursor()
@@ -2603,6 +2687,13 @@ end
 /* -----------------------------------------------------------------------------
  * Math functions
  * ---------------------------------------------------------------------------*/
+function RectangleContainsPoint(x0, y0, x1, y1, pointX, pointY)
+begin
+    return (pointX >= x0 && pointX <= x1 && pointY >= y0 && pointY <= y1);
+end
+
+// TODO: Write CircleContainsPoint().
+
 function VectorNormalize(pointer vX, pointer vY, multiplier)
 private
     magnitude;
@@ -2720,6 +2811,15 @@ end
 function PerpProduct(x0, y0, x1, y1)
 begin
     return ((x0 * y1) - (y0 * x1));
+end
+
+function CycleValue(currentValue, minValue, maxValue)
+begin
+    currentValue++;
+    if (currentValue > maxValue)
+        return (minValue);
+    end
+    return (currentValue);
 end
 
 
