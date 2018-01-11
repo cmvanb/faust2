@@ -92,15 +92,16 @@ const
     CURSOR_MENU       = 303;
     BUTTON_LEVEL_EDITOR_OBJECTS     = 0;
     BUTTON_LEVEL_EDITOR_ENTITIES    = 1;
-    BUTTON_LEVEL_EDITOR_EDIT_OBJECT = 2;
-    BUTTON_LEVEL_EDITOR_SAVE        = 3;
-    BUTTON_LEVEL_EDITOR_LOAD        = 4;
-    BUTTON_LEVEL_EDITOR_SEGMENTS    = 5;
-    BUTTON_LEVEL_EDITOR_GRAPHIC     = 6;
-    BUTTON_LEVEL_EDITOR_ASZ         = 7;
-    BUTTON_LEVEL_EDITOR_MENU        = 8;
-    BUTTON_LEVEL_EDITOR_PLUS        = 9;
-    BUTTON_LEVEL_EDITOR_MINUS       = 10;
+    BUTTON_LEVEL_EDITOR_NEW_OBJECT  = 2;
+    BUTTON_LEVEL_EDITOR_EDIT_OBJECT = 3;
+    BUTTON_LEVEL_EDITOR_SAVE        = 4;
+    BUTTON_LEVEL_EDITOR_LOAD        = 5;
+    BUTTON_LEVEL_EDITOR_SEGMENTS    = 6;
+    BUTTON_LEVEL_EDITOR_GRAPHIC     = 7;
+    BUTTON_LEVEL_EDITOR_ASZ         = 8;
+    BUTTON_LEVEL_EDITOR_MENU        = 9;
+    BUTTON_LEVEL_EDITOR_PLUS        = 10;
+    BUTTON_LEVEL_EDITOR_MINUS       = 11;
     UI_MAX_HANDLES = 32;
 
     // camera
@@ -1068,8 +1069,13 @@ begin
                     case BUTTON_LEVEL_EDITOR_LOAD:
                         // TODO: Load level.
                     end
+                    case BUTTON_LEVEL_EDITOR_NEW_OBJECT:
+                        LevelEditorChangeMode(LEVEL_EDITOR_MODE_EDIT_OBJECT);
+                    end
                     case BUTTON_LEVEL_EDITOR_EDIT_OBJECT:
                         LevelEditorChangeMode(LEVEL_EDITOR_MODE_EDIT_OBJECT);
+                        LoadObject(__objectData.fileName);
+                        __levelEditor.ui.needsUpdate = true;
                     end
                 end
                 __buttonClicked = NULL;
@@ -1085,10 +1091,6 @@ begin
                             __objectData.size,
                             __objectData.z,
                             __objectData.gfxIndex);
-                    end
-                    case BUTTON_LEVEL_EDITOR_LOAD:
-                        LoadObject(__objectData.fileName);
-                        __levelEditor.ui.needsUpdate = true;
                     end
                     case BUTTON_LEVEL_EDITOR_MENU:
                         LevelEditorChangeMode(LEVEL_EDITOR_MODE_VIEW);
@@ -1264,6 +1266,14 @@ begin
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
                         buttonColor2, OPACITY_SOLID,
+                        FONT_SYSTEM, "NEW OBJ", BUTTON_LEVEL_EDITOR_NEW_OBJECT);
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
+                        x0 + (margin * 2) + (buttonWidth + margin + 2),
+                        ySplit1 + margin + (buttonHeight + margin + 2),
+                        buttonWidth, buttonHeight,
+                        buttonColor0, OPACITY_SOLID,
+                        buttonColor1, OPACITY_SOLID,
+                        buttonColor2, OPACITY_SOLID,
                         FONT_SYSTEM, "EDIT OBJ", BUTTON_LEVEL_EDITOR_EDIT_OBJECT);
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2),
@@ -1305,41 +1315,53 @@ begin
                         x0 + (margin * 18),
                         y0 + (margin * 3) + fntHeight,
                         FONT_ANCHOR_TOP_RIGHT,
-                        "Angle:");
+                        "Graphic:");
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
                         FONT_SYSTEM,
                         x0 + (margin * 20),
                         y0 + (margin * 3) + fntHeight,
                         FONT_ANCHOR_TOP_LEFT,
+                        itoa(__objectData.gfxIndex));
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
+                        FONT_SYSTEM,
+                        x0 + (margin * 18),
+                        y0 + (margin * 5) + (fntHeight * 3),
+                        FONT_ANCHOR_TOP_RIGHT,
+                        "Angle:");
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
+                        FONT_SYSTEM,
+                        x0 + (margin * 20),
+                        y0 + (margin * 5) + (fntHeight * 3),
+                        FONT_ANCHOR_TOP_LEFT,
                         itoa(__objectData.angle));
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
                         FONT_SYSTEM,
                         x0 + (margin * 18),
-                        y0 + (margin * 4) + (fntHeight * 2),
+                        y0 + (margin * 6) + (fntHeight * 4),
                         FONT_ANCHOR_TOP_RIGHT,
                         "Size:");
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
                         FONT_SYSTEM,
                         x0 + (margin * 20),
-                        y0 + (margin * 4) + (fntHeight * 2),
+                        y0 + (margin * 6) + (fntHeight * 4),
                         FONT_ANCHOR_TOP_LEFT,
                         itoa(__objectData.size));
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
                         FONT_SYSTEM,
                         x0 + (margin * 18),
-                        y0 + (margin * 5) + (fntHeight * 3),
+                        y0 + (margin * 7) + (fntHeight * 5),
                         FONT_ANCHOR_TOP_RIGHT,
                         "Z Depth:");
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
                         FONT_SYSTEM,
                         x0 + (margin * 20),
-                        y0 + (margin * 5) + (fntHeight * 3),
+                        y0 + (margin * 7) + (fntHeight * 5),
                         FONT_ANCHOR_TOP_LEFT,
                         itoa(__objectData.z));
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = TextRenderer(
                         FONT_SYSTEM,
                         x0 + (margin * 2),
-                        y0 + (margin * (3 + __objectEditMode)) + (fntHeight * (__objectEditMode + 1)),
+                        y0 + (margin * (5 + __objectEditMode)) + (fntHeight * (__objectEditMode + 3)),
                         FONT_ANCHOR_TOP_LEFT,
                         "=>");
 
@@ -1415,6 +1437,7 @@ begin
                         buttonColor1, OPACITY_SOLID,
                         buttonColor2, OPACITY_SOLID,
                         FONT_SYSTEM, "SAVE OBJ", BUTTON_LEVEL_EDITOR_SAVE);
+                    /*
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2) + (buttonWidth + margin + 2),
                         ySplit1 + margin + ((buttonHeight + margin + 2) * 2),
@@ -1423,6 +1446,7 @@ begin
                         buttonColor1, OPACITY_SOLID,
                         buttonColor2, OPACITY_SOLID,
                         FONT_SYSTEM, "LOAD OBJ", BUTTON_LEVEL_EDITOR_LOAD);
+                    */
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2),
                         ySplit1 + margin + ((buttonHeight + margin + 2) * 3),
