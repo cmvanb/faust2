@@ -99,6 +99,8 @@ const
     BUTTON_LEVEL_EDITOR_GRAPHIC     = 6;
     BUTTON_LEVEL_EDITOR_ASZ         = 7;
     BUTTON_LEVEL_EDITOR_MENU        = 8;
+    BUTTON_LEVEL_EDITOR_PLUS        = 9;
+    BUTTON_LEVEL_EDITOR_MINUS       = 10;
     UI_MAX_HANDLES = 32;
 
     // camera
@@ -1041,7 +1043,7 @@ begin
         end
         case LEVEL_EDITOR_MODE_EDIT_OBJECT:
             __cameraMoveMode = NULL;
-            __objectData.fileName = "default.dat";
+            __objectData.fileName = "default.obj";
             __objectData.angle    = 0;
             __objectData.size     = 100;
             __objectData.z        = 0;
@@ -1102,6 +1104,46 @@ begin
                 end
                 __buttonClicked = NULL;
             end
+            if (__buttonHeldDown != NULL)
+                switch (__objectEditMode)
+                    case 0:
+                        switch (__buttonHeldDown)
+                            case BUTTON_LEVEL_EDITOR_PLUS:
+                                __objectData.angle = WrapAngle360(__objectData.angle + 1000);
+                                __levelEditor.ui.needsUpdate = true;
+                            end
+                            case BUTTON_LEVEL_EDITOR_MINUS:
+                                __objectData.angle = WrapAngle360(__objectData.angle - 1000);
+                                __levelEditor.ui.needsUpdate = true;
+                            end
+                        end
+                    end
+                    case 1:
+                        switch (__buttonHeldDown)
+                            case BUTTON_LEVEL_EDITOR_PLUS:
+                                __objectData.size++;
+                                __levelEditor.ui.needsUpdate = true;
+                            end
+                            case BUTTON_LEVEL_EDITOR_MINUS:
+                                __objectData.size--;
+                                __levelEditor.ui.needsUpdate = true;
+                            end
+                        end
+                    end
+                    case 2:
+                        switch (__buttonHeldDown)
+                            case BUTTON_LEVEL_EDITOR_PLUS:
+                                __objectData.z++;
+                                __levelEditor.ui.needsUpdate = true;
+                            end
+                            case BUTTON_LEVEL_EDITOR_MINUS:
+                                __objectData.z--;
+                                __levelEditor.ui.needsUpdate = true;
+                            end
+                        end
+                    end
+                end
+            end
         end
         case LEVEL_EDITOR_MODE_PAINT_OBJECTS:
         end
@@ -1116,7 +1158,7 @@ private
     ySplit0, ySplit1;
     panelColor, sectionColor;
     buttonWidth, buttonHeight;
-    buttonColor0, buttonColor1;
+    buttonColor0, buttonColor1, buttonColor2;
 
     uiCounter;
     uiHandles[UI_MAX_HANDLES];
@@ -1143,6 +1185,7 @@ begin
     buttonHeight = 40;
     buttonColor0 = 54;
     buttonColor1 = 56;
+    buttonColor2 = 53;
 
     repeat
         if (ui.needsUpdate == true)
@@ -1204,6 +1247,7 @@ begin
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
+                        buttonColor2, OPACITY_SOLID,
                         FONT_SYSTEM, "OBJECTS", BUTTON_LEVEL_EDITOR_OBJECTS);
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2) + (buttonWidth + margin + 2),
@@ -1211,6 +1255,7 @@ begin
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
+                        buttonColor2, OPACITY_SOLID,
                         FONT_SYSTEM, "ENTITIES", BUTTON_LEVEL_EDITOR_ENTITIES);
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2),
@@ -1218,6 +1263,7 @@ begin
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
+                        buttonColor2, OPACITY_SOLID,
                         FONT_SYSTEM, "EDIT OBJ", BUTTON_LEVEL_EDITOR_EDIT_OBJECT);
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2),
@@ -1225,6 +1271,7 @@ begin
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
+                        buttonColor2, OPACITY_SOLID,
                         FONT_SYSTEM, "SAVE", BUTTON_LEVEL_EDITOR_SAVE);
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2) + (buttonWidth + margin + 2),
@@ -1232,6 +1279,7 @@ begin
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
+                        buttonColor2, OPACITY_SOLID,
                         FONT_SYSTEM, "LOAD", BUTTON_LEVEL_EDITOR_LOAD);
                 end
                 case LEVEL_EDITOR_MODE_EDIT_OBJECT:
@@ -1314,6 +1362,7 @@ begin
                         0,
                         100);
                     uiHandles[uiObjectImageIndex].angle = __objectData.angle;
+                    uiHandles[uiObjectImageIndex].size  = __objectData.size;
                     uiHandles[uiObjectImageIndex].graph = __objectData.gfxIndex;
 
                     // Draw object segments.
@@ -1332,6 +1381,7 @@ begin
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
+                        buttonColor2, OPACITY_SOLID,
                         FONT_SYSTEM, "A/S/Z", BUTTON_LEVEL_EDITOR_ASZ);
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2) + (buttonWidth + margin + 2),
@@ -1339,6 +1389,7 @@ begin
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
+                        buttonColor2, OPACITY_SOLID,
                         FONT_SYSTEM, "GRAPHIC", BUTTON_LEVEL_EDITOR_GRAPHIC);
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2),
@@ -1346,6 +1397,7 @@ begin
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
+                        buttonColor2, OPACITY_SOLID,
                         FONT_SYSTEM, "SEGMENTS", BUTTON_LEVEL_EDITOR_SEGMENTS);
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2) + (buttonWidth + margin + 2),
@@ -1353,6 +1405,7 @@ begin
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
+                        buttonColor2, OPACITY_SOLID,
                         FONT_SYSTEM, "MENU", BUTTON_LEVEL_EDITOR_MENU);
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2),
@@ -1360,6 +1413,7 @@ begin
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
+                        buttonColor2, OPACITY_SOLID,
                         FONT_SYSTEM, "SAVE OBJ", BUTTON_LEVEL_EDITOR_SAVE);
                     uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
                         x0 + (margin * 2) + (buttonWidth + margin + 2),
@@ -1367,7 +1421,24 @@ begin
                         buttonWidth, buttonHeight,
                         buttonColor0, OPACITY_SOLID,
                         buttonColor1, OPACITY_SOLID,
+                        buttonColor2, OPACITY_SOLID,
                         FONT_SYSTEM, "LOAD OBJ", BUTTON_LEVEL_EDITOR_LOAD);
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
+                        x0 + (margin * 2),
+                        ySplit1 + margin + ((buttonHeight + margin + 2) * 3),
+                        buttonWidth, buttonHeight,
+                        buttonColor0, OPACITY_SOLID,
+                        buttonColor1, OPACITY_SOLID,
+                        buttonColor2, OPACITY_SOLID,
+                        FONT_SYSTEM, "+", BUTTON_LEVEL_EDITOR_PLUS);
+                    uiHandles[FindFreeTableIndex(&uiHandles, UI_MAX_HANDLES)] = ButtonRenderer(
+                        x0 + (margin * 2) + (buttonWidth + margin + 2),
+                        ySplit1 + margin + ((buttonHeight + margin + 2) * 3),
+                        buttonWidth, buttonHeight,
+                        buttonColor0, OPACITY_SOLID,
+                        buttonColor1, OPACITY_SOLID,
+                        buttonColor2, OPACITY_SOLID,
+                        FONT_SYSTEM, "-", BUTTON_LEVEL_EDITOR_MINUS);
                 end
                 case LEVEL_EDITOR_MODE_PAINT_OBJECTS:
                 end
@@ -1391,7 +1462,8 @@ end
 /* -----------------------------------------------------------------------------
  * User interface
  * ---------------------------------------------------------------------------*/
-process ButtonRenderer(x, y, width, height, color0, opacity0, color1, opacity1, fontIndex, text, buttonIndex)
+process ButtonRenderer(x, y, width, height, color0, opacity0, color1, opacity1, color2, opacity2, 
+    fontIndex, text, buttonIndex)
 private
     drawBackground;
     textButton;
@@ -1425,7 +1497,7 @@ begin
         if (hover)
             if (mouse.left)
                 // TODO: Pass in color2 and use that here for the pressed state.
-                drawBackground.ui.color = color0;
+                drawBackground.ui.color = color2;
                 drawBackground.ui.needsUpdate = true;
                 __buttonHeldDown = buttonIndex;
             end
@@ -2820,6 +2892,11 @@ begin
         return (minValue);
     end
     return (currentValue);
+end
+
+function WrapValue(val, min, max)
+begin
+    return (Max(Min(val, min), max));
 end
 
 
