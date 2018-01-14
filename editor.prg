@@ -105,7 +105,7 @@ global
         string path;
         count;
     end =
-    //  handle  path                      count
+    //  handle  path                           count
         NULL,   "assets/graphics/main.fpg",    NULL,
         NULL,   "assets/graphics/actors.fpg",  NULL,
         NULL,   "assets/graphics/items.fpg",   NULL,
@@ -117,8 +117,8 @@ global
         avgCharWidth;
         lineHeight;
     end =
-    //  handle  path                              avgCharWidth  lineHeight
-        NULL,   NULL,                             7,            8,
+    //  handle  path                               avgCharWidth  lineHeight
+        NULL,   NULL,                              7,            8,
         NULL,   "assets/fonts/16x16-w-arcade.fnt", 10,           16;
 
     struct __sounds[SOUND_COUNT - 1]
@@ -202,6 +202,12 @@ local
         active;
     end
 
+
+
+                              /***************\
+                              |* UNIQUE CODE *|
+                              \***************/
+
 /* -----------------------------------------------------------------------------
  * Main program
  * ---------------------------------------------------------------------------*/
@@ -223,6 +229,7 @@ end
  * ---------------------------------------------------------------------------*/
 function ShowMenu(menuIndex)
 begin
+    // TODO: Create buttons for each menu option.
     repeat
         frame;
     until (scan_code != 0)
@@ -258,7 +265,7 @@ begin
     end
 
     for (i = 0; i < SOUND_COUNT; ++i)
-        __sounds[i].handle = load_sound(__sounds[i].path, SOUND_PLAYBACK_ONCE);
+        __sounds[i].handle = load_sound(__sounds[i].path, __sounds[i].playback);
     end
 end
 
