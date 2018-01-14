@@ -1,5 +1,5 @@
 /* =============================================================================
- * faust2.PRG by Casper
+ * Faust 2 by Casper
  * (c) 2017 altsrc
  * ========================================================================== */
 
@@ -1070,6 +1070,7 @@ begin
                         // TODO: Load level.
                     end
                     case BUTTON_LEVEL_EDITOR_NEW_OBJECT:
+                        // TODO: Prompt for string.
                         LevelEditorChangeMode(LEVEL_EDITOR_MODE_EDIT_OBJECT);
                     end
                     case BUTTON_LEVEL_EDITOR_EDIT_OBJECT:
