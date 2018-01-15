@@ -86,13 +86,17 @@ const
     // debug mode
     DEBUG_MODE = true;
 
-// **** UNIQUE ****
     // ui
-    MAX_MENU_OPTIONS = 5;
-    
-    // menu indices
-    MENU_MAIN = 0;
+    UI_OPTION_COUNT = 2;
+    MAX_UI_GROUPS = 8;
+    MAX_UI_GROUP_BUTTONS  = 32;
+    MAX_UI_GROUP_DRAWINGS = 32;
+    MAX_UI_GROUP_TEXTS    = 32;
+    MAX_UI_GROUP_IMAGES   = 32;
+    MAX_UI_GROUP_SEGMENTS = 32;
 
+// **** UNIQUE ****
+// ...
 
 /* -----------------------------------------------------------------------------
  * Global variables
@@ -136,8 +140,8 @@ global
         NULL,   "assets/audio/test-shot7.wav",     128,    256,       SOUND_PLAYBACK_ONCE;
 
     // math
-    // TODO: Consider turning into table.
     struct __physics
+        // TODO: Consider turning into table.
         struct lineIntersectionData
             ix, iy;
         end
@@ -166,17 +170,52 @@ global
         end
     end
 
-// **** UNIQUE ****
     // ui
-    struct __menus[0]
-        struct options[MAX_MENU_OPTIONS - 1]
-            string label;
-            index;
+    struct __ui
+        buttonHeldDown;
+        buttonClicked;
+    end
+
+    struct __uiGroups[MAX_UI_GROUPS - 1]
+        processId;
+        struct buttons[MAX_UI_GROUP_BUTTONS - 1]
+            x, y, width, height;
+            colorNormal, colorHover, colorPressed;
+            opacityNormal, opacityHover, opacityPressed;
+            fontIndex, option;
         end
+        struct drawings[MAX_UI_GROUP_DRAWINGS - 1]
+           x0, y0, x1, y1;
+           drawType, color, opacity;
+        end
+        struct texts[MAX_UI_GROUP_TEXTS - 1]
+            x, y;
+            anchor, fontIndex;
+            string text;
+        end
+        struct images[MAX_UI_GROUP_IMAGES - 1]
+            x, y;
+            file, graph, angle, size;
+        end
+        struct segments[MAX_UI_GROUP_SEGMENTS - 1]
+            x0, y0, x1, y1;
+            lineColor, lineOpacity;
+            pointColor, pointOpacity, pointRadius;
+        end
+    end
+
+    struct __uiOptions[UI_OPTION_COUNT - 1]
+        string label;
+        index;
     end =
-    //  MENU_MAIN
-    "NEW LEVEL",  0,
-    "LOAD LEVEL", 1;
+    //  label         index
+        "NEW LEVEL",  0,
+        "LOAD LEVEL", 1;
+
+// **** UNIQUE ****
+// ...
+
+
 
 /* -----------------------------------------------------------------------------
  * Local variables (every process gets these)
@@ -187,6 +226,7 @@ local
     alive;
     i;
     
+    // logging
     struct logging
         logCount;
         struct logs[MAX_LOGS - 1]
@@ -196,11 +236,15 @@ local
         end
     end
 
-// **** UNIQUE ****
     // ui
     struct ui
         active;
+        color;
+        needsUpdate;
     end
+
+// **** UNIQUE ****
+// ...
 
 
 
@@ -218,8 +262,11 @@ begin
     // load resources
     LoadResources();
 
-    // show menu
-    ShowMenu(MENU_MAIN);
+    // configure ui
+    ConfigureUI();
+
+    // show main menu
+    ShowUIGroup(0);
 end
 
 
@@ -227,12 +274,13 @@ end
 /* -----------------------------------------------------------------------------
  * UI
  * ---------------------------------------------------------------------------*/
-function ShowMenu(menuIndex)
+function ConfigureUI()
 begin
-    // TODO: Create buttons for each menu option.
-    repeat
-        frame;
-    until (scan_code != 0)
+    i = GetNextFreeUIGroupIndex();
+
+    if (i != NULL)
+        // TODO: Configure main menu group.
+    end
 end
 
 
@@ -240,6 +288,175 @@ end
                               /***************\
                               |* COMMON CODE *|
                               \***************/
+
+/* -----------------------------------------------------------------------------
+ * UI
+ * ---------------------------------------------------------------------------*/
+function GetNextFreeUIGroupIndex()
+begin
+    for (i = 0; i < MAX_UI_GROUPS; i++)
+        if (__uiGroups.processId <= 0)
+            return (i);
+        end
+    end
+    return (NULL);
+end
+
+function ShowUIGroup(index)
+begin
+    // TODO: Implement.
+end
+
+process ButtonRenderer(x, y, width, height, color0, opacity0, color1, opacity1, color2, opacity2, 
+    fontIndex, text, buttonIndex)
+private
+    drawBackground;
+    textButton;
+    hover = false;
+begin
+    // initialization
+    alive = true;
+
+    // ui
+    drawBackground = DrawRenderer(
+        DRAW_RECTANGLE_FILL, x, y, x + width, y + height, color0, opacity0);
+    textButton = TextRenderer(
+        fontIndex, x + (width / 2), y + (height / 2), FONT_ANCHOR_CENTERED, text);
+
+    // TODO: Use opacity values, not just color values.
+    repeat
+        // TODO: if (ui.active == true)
+        if (RectangleContainsPoint(x, y, x + width, y + height, mouse.x, mouse.y))
+            if (hover == false)
+                drawBackground.ui.color = color1;
+                drawBackground.ui.needsUpdate = true;
+                hover = true;
+            end
+        else
+            if (hover == true)
+                drawBackground.ui.color = color0;
+                drawBackground.ui.needsUpdate = true;
+                hover = false;
+            end
+        end
+        if (hover)
+            if (mouse.left)
+                // TODO: Pass in color2 and use that here for the pressed state.
+                drawBackground.ui.color = color2;
+                drawBackground.ui.needsUpdate = true;
+                __ui.buttonHeldDown = buttonIndex;
+            end
+            if (!mouse.left && __ui.buttonHeldDown == buttonIndex)
+                drawBackground.ui.color = color1;
+                drawBackground.ui.needsUpdate = true;
+                __ui.buttonHeldDown = NULL;
+                __ui.buttonClicked = buttonIndex;
+            end
+        else
+            if (__ui.buttonHeldDown == buttonIndex)
+                __ui.buttonHeldDown = NULL;
+            end
+        end
+        frame;
+    until (alive == false)
+
+    drawBackground.alive = false;
+    textButton.alive = false;
+end
+
+process DrawRenderer(drawType, x0, y0, x1, y1, color, opacity)
+private
+    drawHandle = NULL;
+begin
+    // initialization
+    alive = true;
+    ui.color = color;
+    drawHandle = draw(drawType, ui.color, opacity, REGION_FULL_SCREEN, x0, y0, x1, y1);
+
+    repeat
+        if (ui.needsUpdate == true)
+            move_draw(drawHandle, ui.color, opacity, x0, y0, x1, y1);
+            ui.needsUpdate = false;
+        end
+        frame;
+    until (alive == false)
+
+    if (drawHandle > 0)
+        delete_draw(drawHandle);
+    end
+end
+
+process TextRenderer(fontIndex, x, y, anchor, string text)
+private
+    textHandle;
+begin
+    // initialization
+    alive = true;
+    ui.needsUpdate = true;
+
+    repeat
+        if (ui.needsUpdate == true)
+            if (textHandle != 0)
+                delete_text(textHandle);
+            end
+            textHandle = write(__fonts[fontIndex].handle, x, y, anchor, text);
+            ui.needsUpdate = false;
+        end
+        frame;
+    until (alive == false)
+
+    if (textHandle > 0)
+        delete_text(textHandle);
+    end
+end
+
+process ImageRenderer(file, graph, x, y, angle, size)
+begin
+    // initialization
+    alive = true;
+    z = draw_z - 1;
+
+    repeat
+        if (ui.needsUpdate == true)
+            ui.needsUpdate = false;
+        end
+        frame;
+    until (alive == false)
+end
+
+process SegmentRenderer(x0, y0, x1, y1, lineColor, lineOpacity, pointColor, pointOpacity, pointRadius)
+private
+    drawLine = NULL;
+    drawPoint0 = NULL;
+    drawPoint1 = NULL;
+begin
+    // initialization
+    alive = true;
+
+    // ui
+    drawLine = DrawRenderer(
+        DRAW_LINE, x0, y0, x1, y1, lineColor, lineOpacity);
+    drawPoint0 = DrawRenderer(
+        DRAW_ELLIPSE, x0 - pointRadius, y0 - pointRadius, x0 + pointRadius, y0 + pointRadius, pointColor, pointOpacity);
+    drawPoint1 = DrawRenderer(
+        DRAW_ELLIPSE, x1 - pointRadius, y1 - pointRadius, x1 + pointRadius, y1 + pointRadius, pointColor, pointOpacity);
+
+    repeat
+        if (ui.needsUpdate == true)
+            drawLine.ui.needsUpdate = true;
+            drawPoint0.ui.needsUpdate = true;
+            drawPoint1.ui.needsUpdate = true;
+            ui.needsUpdate = false;
+        end
+        frame;
+    until (alive == false)
+
+    drawLine.alive = false;
+    drawPoint0.alive = false;
+    drawPoint1.alive = false;
+end
+
+
 
 /* -----------------------------------------------------------------------------
  * Initialization
@@ -400,13 +617,13 @@ begin
     return ((x0 * y1) - (y0 * x1));
 end
 
-function CycleValue(currentValue, minValue, maxValue)
+function CycleValue(val, min, max)
 begin
-    currentValue++;
-    if (currentValue > maxValue)
-        return (minValue);
+    val++;
+    if (val > max)
+        return (min);
     end
-    return (currentValue);
+    return (val);
 end
 
 function WrapValue(val, min, max)
@@ -458,7 +675,6 @@ begin
     else
         x = __logging.x;
         y = __logging.y + (__logging.logCount * __logging.yOffset);
-        //i = GetNextGlobalLogIndex();
         i = GetNextGlobalLogIndex();
         __logging.logs[i].logId = id;
         __logging.logCount++;
@@ -528,7 +744,6 @@ end
 
 function CleanUpLocalLogs(processId)
 begin
-    //y = processId.logging.logCount;
     for (i = 0; i < processId.logging.logCount; ++i)
         DeleteLocalLog(processId);
     end
@@ -587,9 +802,9 @@ end
 function GetDelayIndex(processId)
 begin
     // TODO: This might be a performance problem... need a hash map.
-    for (x = 0; x < MAX_DELAYS; x++)
-        if (__timing.delays[x].processId == processId)
-            return (x);
+    for (i = 0; i < MAX_DELAYS; i++)
+        if (__timing.delays[i].processId == processId)
+            return (i);
         end
     end
     return (NULL);
@@ -597,9 +812,9 @@ end
 
 function GetNextFreeDelayIndex()
 begin
-    for (x = 0; x < MAX_DELAYS; x++)
-        if (__timing.delays[x].processId <= 0)
-            return (x);
+    for (i = 0; i < MAX_DELAYS; i++)
+        if (__timing.delays[i].processId <= 0)
+            return (i);
         end
     end
     return (NULL);
