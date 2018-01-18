@@ -12,7 +12,14 @@ set "DIV_STDOUT_FILE=%DIV_SYSTEM_DIR%stdout.txt"
 set "PRG_DIR=%~dp0"
 
 :: Set the file to be compiled.
-set "PRG_FILE=%PRG_DIR%faust2.prg"
+::set "PRG_FILE=%PRG_DIR%faust2.prg"
+set "PRG_FILE=%PRG_DIR%%1"
+
+type %PRG_FILE% > nul
+if errorlevel 1 (
+    echo Did you forget to pass the .prg parameter?
+    goto nocompile
+)
 
 :: exec.path contains the program directory, it is needed by the DIV debugger.
 set "PRG_EXECPATH_FILE=%PRG_DIR%exec.path"
