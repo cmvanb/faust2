@@ -73,7 +73,7 @@ const
     SCREEN_HEIGHT      = 400;
     HALF_SCREEN_WIDTH  = SCREEN_WIDTH / 2;
     HALF_SCREEN_HEIGHT = SCREEN_HEIGHT / 2;
-    
+
     // game process resolution
     GPR = 10;
 
@@ -87,7 +87,6 @@ const
     DEBUG_MODE = true;
 
     // ui
-    UI_OPTION_COUNT = 2;
     MAX_UI_GROUPS = 8;
     MAX_UI_GROUP_BUTTONS  = 32;
     MAX_UI_GROUP_DRAWINGS = 32;
@@ -97,8 +96,19 @@ const
 
 // **** UNIQUE ****
     // ui options
-    OPT_NEW_LEVEL = 0;
-    OPT_LOAD_LEVEL = 1;
+    OPT_NEW_LEVEL           = 0;
+    OPT_LOAD_LEVEL          = 1;
+    OPT_MAIN_MENU           = 2;
+    OPT_EXIT                = 3;
+    OPT_NEW_LEVEL_FILE_NAME = 4;
+    OPT_SAVE_LEVEL          = 5;
+    UI_OPTION_COUNT = 6;
+
+    // ui groups
+    GROUP_MAIN_BG              = 0;
+    GROUP_MAIN_MENU            = 1;
+    GROUP_STRING_PROMPT_DIALOG = 2;
+    GROUP_EDITOR_BG            = 3;
 
 /* -----------------------------------------------------------------------------
  * Global variables
@@ -202,6 +212,12 @@ global
             fontIndex, anchor;
             string text;
         end
+        textFieldsCount;
+        struct textFields[MAX_UI_GROUP_TEXTS - 1]
+            x, y;
+            fontIndex, anchor, option;
+            string text;
+        end
         imagesCount;
         struct images[MAX_UI_GROUP_IMAGES - 1]
             x, y, z;
@@ -220,8 +236,12 @@ global
         index;
     end =
     //  label         index
-        "NEW LEVEL",  0,
-        "LOAD LEVEL", 1;
+        "NEW LEVEL",  OPT_NEW_LEVEL,
+        "LOAD LEVEL", OPT_LOAD_LEVEL,
+        "CANCEL",     OPT_MAIN_MENU,
+        "EXIT",       OPT_EXIT,
+        "SUBMIT",     OPT_NEW_LEVEL_FILE_NAME,
+        "SAVE LEVEL", OPT_SAVE_LEVEL;
 
 // **** UNIQUE ****
 // ...
@@ -236,7 +256,7 @@ local
     // general purpose
     alive;
     i;
-    
+
     // logging
     struct logging
         logCount;
@@ -245,13 +265,6 @@ local
             txtLabel;
             txtVal;
         end
-    end
-
-    // ui
-    struct ui
-        active;
-        color;
-        needsUpdate;
     end
 
 // **** UNIQUE ****
@@ -267,17 +280,21 @@ local
  * Main program
  * ---------------------------------------------------------------------------*/
 begin
-    // set graphics mode
+    // setup
     InitGraphics();
-   
-    // load resources
     LoadResources();
 
-    // ui
+    // ui config
     ConfigureUI();
-    ShowUIGroup(0);
+
+    // ui processes
+    ButtonHandler();
     UIRenderer();
     MouseCursor();
+
+    // ui main menu
+    ShowUIGroup(GROUP_MAIN_BG);
+    ShowUIGroup(GROUP_MAIN_MENU);
 end
 
 
@@ -286,30 +303,109 @@ end
  * UI
  * ---------------------------------------------------------------------------*/
 function ConfigureUI()
+private
+    margin = 5;
+    w, h;
 begin
-    // MAIN MENU
+    // MAIN BG
     AddImageToUIGroup(i,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT, 0,
-        GFX_MAIN, 1, 0, 100);
+        GFX_MAIN, 2, 0, 100);
+    ++i;
+
+    // MAIN MENU
     AddTextToUIGroup(i,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT - 20,
         FONT_MENU, FONT_ANCHOR_CENTERED, "LEVEL EDITOR");
     AddButtonToUIGroup(i,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 20, 200, 40,
-        COLOR_BLUE, COLOR_BLUE + 4, COLOR_BLUE + 2,
+        COLOR_BLUE, COLOR_BLUE + 3, COLOR_BLUE - 1,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_MENU, OPT_NEW_LEVEL);
     AddButtonToUIGroup(i,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
-        COLOR_BLUE, COLOR_BLUE + 4, COLOR_BLUE + 2,
+        COLOR_BLUE, COLOR_BLUE + 3, COLOR_BLUE - 1,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_MENU, OPT_LOAD_LEVEL);
+    AddButtonToUIGroup(i,
+        HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
+        COLOR_BLUE, COLOR_BLUE + 3, COLOR_BLUE - 1,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_MENU, OPT_EXIT);
+    ++i;
+
+    // STRING PROMPT DIALOG
+    AddTextToUIGroup(i,
+        HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT,
+        FONT_MENU, FONT_ANCHOR_CENTERED, "Enter file name:");
+    AddDrawingToUIGroup(i,
+        HALF_SCREEN_WIDTH - 150, HALF_SCREEN_HEIGHT + 20, HALF_SCREEN_WIDTH + 150, HALF_SCREEN_HEIGHT + 50, 
+        DRAW_RECTANGLE_FILL, COLOR_BLACK, OPACITY_SOLID);
+    AddDrawingToUIGroup(i,
+        HALF_SCREEN_WIDTH - 150, HALF_SCREEN_HEIGHT + 20, HALF_SCREEN_WIDTH + 150, HALF_SCREEN_HEIGHT + 50, 
+        DRAW_RECTANGLE, COLOR_WHITE, OPACITY_SOLID);
+    AddTextFieldToUIGroup(i,
+        HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT + 35,
+        FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_NEW_LEVEL_FILE_NAME);
+    AddButtonToUIGroup(i,
+        HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
+        COLOR_BLUE, COLOR_BLUE + 3, COLOR_BLUE - 1,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_MENU, OPT_NEW_LEVEL_FILE_NAME);
+    AddButtonToUIGroup(i,
+        HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
+        COLOR_BLUE, COLOR_BLUE + 3, COLOR_BLUE - 1,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_MENU, OPT_MAIN_MENU);
+    ++i;
+
+    // EDITOR BG
+    w = 180;
+    AddDrawingToUIGroup(i,
+        SCREEN_WIDTH - w, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 
+        DRAW_RECTANGLE_FILL, 82, OPACITY_SOLID);
+    AddButtonToUIGroup(i,
+        SCREEN_WIDTH - w + margin, 0 + margin, w - (margin * 2), 40,
+        COLOR_BLUE, COLOR_BLUE + 3, COLOR_BLUE - 1,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_SYSTEM, OPT_SAVE_LEVEL);
     ++i;
 
     // TODO: Implement another ui group.
     //++i;
 
     __uiGroupsCount = i;
+end
+
+process ButtonHandler()
+begin
+    alive = true;
+    __ui.buttonClicked = NULL;
+    __ui.buttonHeldDown = NULL;
+    repeat
+        if (__ui.buttonClicked != NULL)
+            switch (__ui.buttonClicked)
+                case OPT_NEW_LEVEL:
+                    HideUIGroup(GROUP_MAIN_MENU);
+                    ShowUIGroup(GROUP_STRING_PROMPT_DIALOG);
+                end
+                case OPT_MAIN_MENU:
+                    HideUIGroup(GROUP_STRING_PROMPT_DIALOG);
+                    ShowUIGroup(GROUP_MAIN_MENU);
+                end
+                case OPT_EXIT:
+                    exit("", 0);
+                end
+                case OPT_NEW_LEVEL_FILE_NAME:
+                    // TODO:
+                    HideAllUIGroups();
+                    ShowUIGroup(GROUP_EDITOR_BG);
+                end
+            end
+            __ui.buttonClicked = NULL;
+        end
+        frame;
+    until (alive == false)
 end
 
 
@@ -327,6 +423,7 @@ begin
     repeat
         RenderUIDrawings();
         RenderUITexts();
+        RenderUITextFields();
         RenderUIImages();
         RenderUIButtons();
         frame;
@@ -375,6 +472,54 @@ begin
                 __uiGroups[i].texts[t].text);
         end
     end
+end
+
+function RenderUITextFields()
+private
+    t;
+begin
+    for (i = 0; i < __uiGroupsCount; ++i)
+        if (!__uiGroups[i].visible)
+            continue;
+        end
+        for (t = 0; t < __uiGroups[i].textFieldsCount; ++t)
+            __uiGroups[i].textFields[t].text = UpdateTextField(__uiGroups[i].textFields[t].text);
+            if (__uiGroups[i].textFields[t].text == "")
+                write(
+                    __fonts[__uiGroups[i].textFields[t].fontIndex].handle,
+                    __uiGroups[i].textFields[t].x,
+                    __uiGroups[i].textFields[t].y,
+                    __uiGroups[i].textFields[t].anchor,
+                    "...");
+            else
+                write(
+                    __fonts[__uiGroups[i].textFields[t].fontIndex].handle,
+                    __uiGroups[i].textFields[t].x,
+                    __uiGroups[i].textFields[t].y,
+                    __uiGroups[i].textFields[t].anchor,
+                    __uiGroups[i].textFields[t].text);
+                if (scan_code == _enter)
+                    __ui.buttonClicked = __uiGroups[i].textFields[t].option;
+                end
+            end
+        end
+    end
+end
+
+function UpdateTextField(string text)
+private
+    code;
+begin
+    code = ValidateAsciiCode(ascii);    
+    if (code != 0)
+        strcat(text, ascii);
+    end
+    if (text != "")
+        if (scan_code == _backspace)
+            strdel(text, 0, 1);
+        end
+    end
+    return (text);
 end
 
 function RenderUIImages()
@@ -497,6 +642,18 @@ begin
     __uiGroups[ui].textsCount++;
 end
 
+function AddTextFieldToUIGroup(ui, x, y, fontIndex, anchor, text, option)
+begin
+    i = __uiGroups[ui].textFieldsCount;
+    __uiGroups[ui].textFields[i].x = x;
+    __uiGroups[ui].textFields[i].y = y;
+    __uiGroups[ui].textFields[i].fontIndex = fontIndex;
+    __uiGroups[ui].textFields[i].anchor = anchor;
+    __uiGroups[ui].textFields[i].text = text;
+    __uiGroups[ui].textFields[i].option = option;
+    __uiGroups[ui].textFieldsCount++;
+end
+
 function AddImageToUIGroup(ui, x, y, z, fileIndex, gfxIndex, angle, size)
 begin
     i = __uiGroups[ui].imagesCount;
@@ -534,6 +691,22 @@ end
 function ShowUIGroup(uiGroupIndex)
 begin
     __uiGroups[uiGroupIndex].visible = true;
+end
+
+function HideUIGroup(uiGroupIndex)
+begin
+    // reset text fields
+    for (i = 0; i < __uiGroups[uiGroupIndex].textFieldsCount; ++i)
+        __uiGroups[uiGroupIndex].textFields[i].text = "";
+    end
+    __uiGroups[uiGroupIndex].visible = false;
+end
+
+function HideAllUIGroups()
+begin
+    for (i = 0; i < __uiGroupsCount; ++i)
+        HideUIGroup(i);
+    end
 end
 
 function GetNextFreeUIGroupIndex()
@@ -1009,5 +1182,30 @@ begin
     return (NULL);
 end
 
+
+
+/* -----------------------------------------------------------------------------
+ * Strings and text
+ * ---------------------------------------------------------------------------*/
+function ValidateAsciiCode(code)
+begin
+    // 0-9
+    if (code >= 48 && code <= 57)
+        return (code);
+    end
+    // A-Z
+    if (code >= 65 && code <= 90)
+        return (code);
+    end
+    // a-z
+    if (code >= 97 && code <= 122)
+        return (code);
+    end
+    // -._
+    if (code == 45 || code == 46 || code == 95)
+        return (code);
+    end
+    return (0);
+end
 
 
