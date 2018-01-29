@@ -322,114 +322,123 @@ private
     unit = 4;
     w = SCREEN_WIDTH / 4;
     h = SCREEN_HEIGHT / 3;
+    pbsize = 64; // palette box size
+    uiGroupIndex = 0;
 begin
     // MAIN BG
-    AddImageToUIGroup(i,
+    AddImageToUIGroup(uiGroupIndex,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT, 0,
         GFX_MAIN, 2, 0, 100);
-    ++i;
 
-        //COLOR_BLUE, COLOR_BLUE + 3, COLOR_BLUE - 1,
     // MAIN MENU
-    AddTextToUIGroup(i,
+    ++uiGroupIndex;
+    AddTextToUIGroup(uiGroupIndex,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT - 20,
         FONT_MENU, FONT_ANCHOR_CENTERED, "LEVEL EDITOR");
-    AddButtonToUIGroup(i,
+    AddButtonToUIGroup(uiGroupIndex,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 20, 200, 40,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_MENU, OPT_NEW_LEVEL);
-    AddButtonToUIGroup(i,
+    AddButtonToUIGroup(uiGroupIndex,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_MENU, OPT_LOAD_LEVEL);
-    AddButtonToUIGroup(i,
+    AddButtonToUIGroup(uiGroupIndex,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_MENU, OPT_EXIT);
-    ++i;
 
     // STRING PROMPT DIALOG
-    AddTextToUIGroup(i,
+    ++uiGroupIndex;
+    AddTextToUIGroup(uiGroupIndex,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT,
         FONT_MENU, FONT_ANCHOR_CENTERED, "Enter file name:");
-    AddDrawingToUIGroup(i,
+    AddDrawingToUIGroup(uiGroupIndex,
         HALF_SCREEN_WIDTH - 150, HALF_SCREEN_HEIGHT + 20, HALF_SCREEN_WIDTH + 150, HALF_SCREEN_HEIGHT + 50, 
         DRAW_RECTANGLE_FILL, COLOR_BLACK, OPACITY_SOLID);
-    AddDrawingToUIGroup(i,
+    AddDrawingToUIGroup(uiGroupIndex,
         HALF_SCREEN_WIDTH - 150, HALF_SCREEN_HEIGHT + 20, HALF_SCREEN_WIDTH + 150, HALF_SCREEN_HEIGHT + 50, 
         DRAW_RECTANGLE, COLOR_WHITE, OPACITY_SOLID);
-    AddTextFieldToUIGroup(i,
+    AddTextFieldToUIGroup(uiGroupIndex,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT + 35,
         FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_NEW_LEVEL_FILE_NAME);
-    AddButtonToUIGroup(i,
+    AddButtonToUIGroup(uiGroupIndex,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_MENU, OPT_NEW_LEVEL_FILE_NAME);
-    AddButtonToUIGroup(i,
+    AddButtonToUIGroup(uiGroupIndex,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_MENU, OPT_MAIN_MENU);
-    ++i;
 
     // EDITOR BG
-    // TOP BAR
-    AddDrawingToUIGroup(i,
+    ++uiGroupIndex;
+    AddDrawingToUIGroup(uiGroupIndex,
         0, 0, SCREEN_WIDTH - w - 1, unit * 5,
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
-    AddButtonToUIGroup(i,
+    AddDrawingToUIGroup(uiGroupIndex,
+        SCREEN_WIDTH - w - 1, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 
+        DRAW_RECTANGLE_FILL, COLOR_BLUE - 4, OPACITY_SOLID);
+
+    // TOP BAR
+    AddButtonToUIGroup(uiGroupIndex,
         unit / 2, unit / 2, (unit * 16), unit * 4,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_SAVE_LEVEL);
-    AddButtonToUIGroup(i,
+    AddButtonToUIGroup(uiGroupIndex,
         (unit * 17), unit / 2, (unit * 16), unit * 4,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_LOAD_LEVEL);
-    AddButtonToUIGroup(i,
+    AddButtonToUIGroup(uiGroupIndex,
         (unit / 2) + (unit * 33), unit / 2, (unit * 16), unit * 4,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_PALETTE_OBJECTS);
-    AddButtonToUIGroup(i,
+    AddButtonToUIGroup(uiGroupIndex,
         (unit * 50), unit / 2, (unit * 16), unit * 4,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_PALETTE_ENTITIES);
+
     // SIDE PANEL
-    AddDrawingToUIGroup(i,
-        SCREEN_WIDTH - w - 1, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 
-        DRAW_RECTANGLE_FILL, COLOR_BLUE - 4, OPACITY_SOLID);
-    AddDrawingToUIGroup(i,
-        SCREEN_WIDTH - w - 1 + (unit / 2), (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, h + (unit / 2), 
+    AddDrawingToUIGroup(uiGroupIndex,
+        SCREEN_WIDTH - (w) - 1 + (unit / 2), (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, h + (unit / 2), 
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
-    AddDrawingToUIGroup(i,
-        SCREEN_WIDTH - w - 1 + (unit / 2), h + (unit) + (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, SCREEN_HEIGHT - (unit / 2) - 1,
+    AddDrawingToUIGroup(uiGroupIndex,
+        SCREEN_WIDTH - (w) - 1 + (unit / 2), h + (unit) + (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, SCREEN_HEIGHT - (unit / 2) - 1,
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
-    AddDrawingToUIGroup(i,
+    // PALETTE
+    AddDrawingToUIGroup(uiGroupIndex,
+        SCREEN_WIDTH - (w / 2) - (unit * 2) + 1, h + (unit) + (unit / 2), SCREEN_WIDTH - (w / 2) - (unit * 2) + 1, SCREEN_HEIGHT - (unit / 2) - 1,
+        DRAW_LINE, COLOR_BLUE - 6, OPACITY_SOLID);
+    for (i = 1; i <= 3; ++i)
+        AddDrawingToUIGroup(uiGroupIndex,
+            SCREEN_WIDTH - (w) - 1 + (unit / 2), h + (unit) + (unit / 2) + (pbsize * i), SCREEN_WIDTH - (unit / 2) - 1, h + (unit) + (unit / 2) + (pbsize * i),
+            DRAW_LINE, COLOR_BLUE - 6, OPACITY_SOLID);
+    end
+    // SCROLL BAR
+    AddDrawingToUIGroup(uiGroupIndex,
         SCREEN_WIDTH - (unit * 4) - (unit / 2) - 1, h + (unit) + (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, SCREEN_HEIGHT - (unit / 2) - 1,
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 6, OPACITY_SOLID);
-    AddButtonToUIGroup(i,
+    AddButtonToUIGroup(uiGroupIndex,
         SCREEN_WIDTH - (unit * 4) - (unit / 2) - 1, h + (unit) + (unit / 2), (unit * 4), (unit * 4),
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_SCROLL_UP);
-    AddButtonToUIGroup(i,
+    AddButtonToUIGroup(uiGroupIndex,
         SCREEN_WIDTH - (unit * 4) - (unit / 2) - 1, SCREEN_HEIGHT - (unit * 4) - (unit / 2) - 1, (unit * 4), (unit * 4),
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_SCROLL_DOWN);
-    ++i;
 
-    // TODO: Implement another ui group.
-    //++i;
-
-    __uiGroupsCount = i;
+    __uiGroupsCount = uiGroupIndex + 1;
 end
 
 process ButtonHandler()
