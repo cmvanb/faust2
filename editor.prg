@@ -38,6 +38,7 @@ const
     OPACITY_50_PERCENT  = 7;
     OPACITY_SOLID       = 15;
     COLOR_BLACK = 0;
+    COLOR_GREY  = 7;
     COLOR_WHITE = 15;
     COLOR_RED   = 22;
     COLOR_GREEN = 41;
@@ -95,6 +96,12 @@ const
     MAX_UI_GROUP_SEGMENTS = 32;
 
 // **** UNIQUE ****
+    // ui colors
+    COLOR_B_NORMAL = COLOR_BLUE;
+    COLOR_B_HOVER = COLOR_BLUE + 3;
+    COLOR_B_PRESSED = COLOR_BLUE - 1;
+    COLOR_B_DISABLED = COLOR_GREY;
+
     // ui options
     OPT_NEW_LEVEL           = 0;
     OPT_LOAD_LEVEL          = 1;
@@ -102,7 +109,11 @@ const
     OPT_EXIT                = 3;
     OPT_NEW_LEVEL_FILE_NAME = 4;
     OPT_SAVE_LEVEL          = 5;
-    UI_OPTION_COUNT = 6;
+    OPT_PALETTE_OBJECTS     = 6;
+    OPT_PALETTE_ENTITIES    = 7;
+    OPT_SCROLL_UP           = 8;
+    OPT_SCROLL_DOWN         = 9;
+    UI_OPTION_COUNT = 10;
 
     // ui groups
     GROUP_MAIN_BG              = 0;
@@ -196,8 +207,8 @@ global
         buttonsCount;
         struct buttons[MAX_UI_GROUP_BUTTONS - 1]
             x, y, width, height;
-            colorNormal, colorHover, colorPressed;
-            opacityNormal, opacityHover, opacityPressed;
+            colorNormal, colorHover, colorPressed, colorDisabled;
+            opacityNormal, opacityHover, opacityPressed, opacityDisabled;
             fontIndex, option;
             string text;
         end
@@ -241,7 +252,11 @@ global
         "CANCEL",     OPT_MAIN_MENU,
         "EXIT",       OPT_EXIT,
         "SUBMIT",     OPT_NEW_LEVEL_FILE_NAME,
-        "SAVE LEVEL", OPT_SAVE_LEVEL;
+        "SAVE LEVEL", OPT_SAVE_LEVEL,
+        "OBJECTS",    OPT_PALETTE_OBJECTS,
+        "ENTITIES",   OPT_PALETTE_ENTITIES,
+        "^",          OPT_SCROLL_UP,
+        "v",          OPT_SCROLL_DOWN;
 
 // **** UNIQUE ****
 // ...
@@ -304,8 +319,9 @@ end
  * ---------------------------------------------------------------------------*/
 function ConfigureUI()
 private
-    margin = 5;
-    w, h;
+    unit = 4;
+    w = SCREEN_WIDTH / 4;
+    h = SCREEN_HEIGHT / 3;
 begin
     // MAIN BG
     AddImageToUIGroup(i,
@@ -313,24 +329,25 @@ begin
         GFX_MAIN, 2, 0, 100);
     ++i;
 
+        //COLOR_BLUE, COLOR_BLUE + 3, COLOR_BLUE - 1,
     // MAIN MENU
     AddTextToUIGroup(i,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT - 20,
         FONT_MENU, FONT_ANCHOR_CENTERED, "LEVEL EDITOR");
     AddButtonToUIGroup(i,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 20, 200, 40,
-        COLOR_BLUE, COLOR_BLUE + 3, COLOR_BLUE - 1,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_MENU, OPT_NEW_LEVEL);
     AddButtonToUIGroup(i,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
-        COLOR_BLUE, COLOR_BLUE + 3, COLOR_BLUE - 1,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_MENU, OPT_LOAD_LEVEL);
     AddButtonToUIGroup(i,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
-        COLOR_BLUE, COLOR_BLUE + 3, COLOR_BLUE - 1,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_MENU, OPT_EXIT);
     ++i;
 
@@ -349,26 +366,64 @@ begin
         FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_NEW_LEVEL_FILE_NAME);
     AddButtonToUIGroup(i,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
-        COLOR_BLUE, COLOR_BLUE + 3, COLOR_BLUE - 1,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_MENU, OPT_NEW_LEVEL_FILE_NAME);
     AddButtonToUIGroup(i,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
-        COLOR_BLUE, COLOR_BLUE + 3, COLOR_BLUE - 1,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_MENU, OPT_MAIN_MENU);
     ++i;
 
     // EDITOR BG
-    w = 180;
+    // TOP BAR
     AddDrawingToUIGroup(i,
-        SCREEN_WIDTH - w, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 
-        DRAW_RECTANGLE_FILL, 82, OPACITY_SOLID);
+        0, 0, SCREEN_WIDTH - w - 1, unit * 5,
+        DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
     AddButtonToUIGroup(i,
-        SCREEN_WIDTH - w + margin, 0 + margin, w - (margin * 2), 40,
-        COLOR_BLUE, COLOR_BLUE + 3, COLOR_BLUE - 1,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        unit / 2, unit / 2, (unit * 16), unit * 4,
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_SAVE_LEVEL);
+    AddButtonToUIGroup(i,
+        (unit * 17), unit / 2, (unit * 16), unit * 4,
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_SYSTEM, OPT_LOAD_LEVEL);
+    AddButtonToUIGroup(i,
+        (unit / 2) + (unit * 33), unit / 2, (unit * 16), unit * 4,
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_SYSTEM, OPT_PALETTE_OBJECTS);
+    AddButtonToUIGroup(i,
+        (unit * 50), unit / 2, (unit * 16), unit * 4,
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_SYSTEM, OPT_PALETTE_ENTITIES);
+    // SIDE PANEL
+    AddDrawingToUIGroup(i,
+        SCREEN_WIDTH - w - 1, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 
+        DRAW_RECTANGLE_FILL, COLOR_BLUE - 4, OPACITY_SOLID);
+    AddDrawingToUIGroup(i,
+        SCREEN_WIDTH - w - 1 + (unit / 2), (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, h + (unit / 2), 
+        DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
+    AddDrawingToUIGroup(i,
+        SCREEN_WIDTH - w - 1 + (unit / 2), h + (unit) + (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, SCREEN_HEIGHT - (unit / 2) - 1,
+        DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
+    AddDrawingToUIGroup(i,
+        SCREEN_WIDTH - (unit * 4) - (unit / 2) - 1, h + (unit) + (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, SCREEN_HEIGHT - (unit / 2) - 1,
+        DRAW_RECTANGLE_FILL, COLOR_BLUE - 6, OPACITY_SOLID);
+    AddButtonToUIGroup(i,
+        SCREEN_WIDTH - (unit * 4) - (unit / 2) - 1, h + (unit) + (unit / 2), (unit * 4), (unit * 4),
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_SYSTEM, OPT_SCROLL_UP);
+    AddButtonToUIGroup(i,
+        SCREEN_WIDTH - (unit * 4) - (unit / 2) - 1, SCREEN_HEIGHT - (unit * 4) - (unit / 2) - 1, (unit * 4), (unit * 4),
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_SYSTEM, OPT_SCROLL_DOWN);
     ++i;
 
     // TODO: Implement another ui group.
@@ -668,8 +723,8 @@ begin
 end
 
 function AddButtonToUIGroup(ui, x, y, width, height,
-    colorNormal, colorHover, colorPressed,
-    opacityNormal, opacityHover, opacityPressed,
+    colorNormal, colorHover, colorPressed, colorDisabled,
+    opacityNormal, opacityHover, opacityPressed, opacityDisabled,
     fontIndex, option)
 begin
     i = __uiGroups[ui].buttonsCount;
@@ -680,9 +735,11 @@ begin
     __uiGroups[ui].buttons[i].colorNormal = colorNormal;
     __uiGroups[ui].buttons[i].colorHover = colorHover;
     __uiGroups[ui].buttons[i].colorPressed = colorPressed;
+    __uiGroups[ui].buttons[i].colorDisabled = colorDisabled;
     __uiGroups[ui].buttons[i].opacityNormal = opacityNormal;
     __uiGroups[ui].buttons[i].opacityHover = opacityHover;
     __uiGroups[ui].buttons[i].opacityPressed = opacityPressed;
+    __uiGroups[ui].buttons[i].opacityDisabled = opacityDisabled;
     __uiGroups[ui].buttons[i].fontIndex = fontIndex;
     __uiGroups[ui].buttons[i].option = option;
     __uiGroups[ui].buttonsCount++;
