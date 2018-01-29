@@ -82,7 +82,8 @@ const
     MAX_DELAYS = 32;
 
     // logging
-    MAX_LOGS = 32;
+    MAX_GLOBAL_LOGS = 32;
+    MAX_LOCAL_LOGS = 8;
 
     // debug mode
     DEBUG_MODE = true;
@@ -186,7 +187,7 @@ global
         x, y;
         yOffset;
         logCount;
-        struct logs[MAX_LOGS - 1]
+        struct logs[MAX_GLOBAL_LOGS - 1]
             logId;
             txtLabel;
             txtVal;
@@ -275,7 +276,7 @@ local
     // logging
     struct logging
         logCount;
-        struct logs[MAX_LOGS - 1]
+        struct logs[MAX_LOCAL_LOGS - 1]
             logId;
             txtLabel;
             txtVal;
@@ -1112,7 +1113,7 @@ end
 
 function GetNextGlobalLogIndex()
 begin
-    for (i = 0; i < MAX_LOGS; i++)
+    for (i = 0; i < MAX_GLOBAL_LOGS; i++)
         if (__logging.logs[i].logId <= 0)
             return (i);
         end
@@ -1122,7 +1123,7 @@ end
 
 function GetNextLocalLogIndex(processId)
 begin
-    for (i = 0; i < MAX_LOGS; i++)
+    for (i = 0; i < MAX_LOCAL_LOGS; i++)
         if (processId.logging.logs[i].logId <= 0)
             return (i);
         end
