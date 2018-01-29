@@ -327,12 +327,13 @@ private
     uiGroupIndex = 0;
 begin
     // MAIN BG
+    uiGroupIndex = GROUP_MAIN_BG;
     AddImageToUIGroup(uiGroupIndex,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT, 0,
         GFX_MAIN, 2, 0, 100);
 
     // MAIN MENU
-    ++uiGroupIndex;
+    uiGroupIndex = GROUP_MAIN_MENU;
     AddTextToUIGroup(uiGroupIndex,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT - 20,
         FONT_MENU, FONT_ANCHOR_CENTERED, "LEVEL EDITOR");
@@ -353,7 +354,7 @@ begin
         FONT_MENU, OPT_EXIT);
 
     // STRING PROMPT DIALOG
-    ++uiGroupIndex;
+    uiGroupIndex = GROUP_STRING_PROMPT_DIALOG;
     AddTextToUIGroup(uiGroupIndex,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT,
         FONT_MENU, FONT_ANCHOR_CENTERED, "Enter file name:");
@@ -378,14 +379,13 @@ begin
         FONT_MENU, OPT_MAIN_MENU);
 
     // EDITOR BG
-    ++uiGroupIndex;
+    uiGroupIndex = GROUP_EDITOR_BG;
     AddDrawingToUIGroup(uiGroupIndex,
         0, 0, SCREEN_WIDTH - w - 1, unit * 5,
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
     AddDrawingToUIGroup(uiGroupIndex,
         SCREEN_WIDTH - w - 1, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 4, OPACITY_SOLID);
-
     // TOP BAR
     AddButtonToUIGroup(uiGroupIndex,
         unit / 2, unit / 2, (unit * 16), unit * 4,
@@ -407,7 +407,6 @@ begin
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_PALETTE_ENTITIES);
-
     // SIDE PANEL
     AddDrawingToUIGroup(uiGroupIndex,
         SCREEN_WIDTH - (w) - 1 + (unit / 2), (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, h + (unit / 2), 
@@ -438,6 +437,7 @@ begin
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_SCROLL_DOWN);
+    // TODO: Split these out into their own UI groups.
 
     __uiGroupsCount = uiGroupIndex + 1;
 end
