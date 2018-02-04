@@ -354,9 +354,8 @@ global
         size;
         z;
         gfxIndex;
-        struct segments[MAX_OBJECT_SEGMENTS - 1]
-            x0, y0;
-            x1, y1;
+        struct points[MAX_OBJECT_SEGMENTS - 1]
+            x, y;
         end
     end
 

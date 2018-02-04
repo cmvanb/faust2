@@ -67,6 +67,7 @@ const
 
     // file paths
     DATA_OBJECTS_PATH = "assets/data/objects/";
+    MAX_OBJECT_DATA = 256;
 
     // graphics settings
     SCREEN_MODE        = m640x400;
@@ -95,6 +96,16 @@ const
     MAX_UI_GROUP_TEXTS    = 32;
     MAX_UI_GROUP_IMAGES   = 32;
     MAX_UI_GROUP_SEGMENTS = 32;
+
+    // level
+    MAX_LEVEL_SEGMENTS = 1000;
+    MAX_LEVEL_OBJECTS  = 100;
+    MATERIAL_CONCRETE = 0;
+    MATERIAL_WOOD     = 1;
+    MATERIAL_METAL    = 2;
+
+    // objects
+    MAX_OBJECT_SEGMENTS = MAX_LEVEL_SEGMENTS / MAX_LEVEL_OBJECTS;
 
 // **** UNIQUE ****
     // ui colors
@@ -191,6 +202,21 @@ global
             logId;
             txtLabel;
             txtVal;
+        end
+    end
+
+    // object
+    __objectDataCount;
+    struct __objectData[MAX_OBJECT_DATA - 1]
+        string fileName; // TODO: check if this field is necessary.
+        angle;
+        size;
+        z;
+        gfxIndex;
+        material;
+        collidable;
+        struct points[MAX_OBJECT_SEGMENTS - 1]
+            x, y;
         end
     end
 
@@ -299,6 +325,7 @@ begin
     // setup
     InitGraphics();
     LoadResources();
+    LoadData();
 
     // ui config
     ConfigureUI();
@@ -311,6 +338,77 @@ begin
     // ui main menu
     ShowUIGroup(GROUP_MAIN_BG);
     ShowUIGroup(GROUP_MAIN_MENU);
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Initialization
+ * ---------------------------------------------------------------------------*/
+function LoadData()
+begin
+    // TODO: FIX THIS PATH HACK :( 
+    // NOTE: DIV appears to have no way of retrieving the relative project path...
+    chdir("C:\Projects\DIV\faust2\" + DATA_OBJECTS_PATH);
+
+    // get list of object files in dirinfo struct
+    get_dirinfo("*.*", _normal);
+
+    __objectDataCount = dirinfo.files;
+
+    for (i = 0; i < __objectDataCount; ++i)
+        LoadObject(i, dirinfo.name[i]);
+    end
+end
+
+function LoadObject(objectIndex, string fileName)
+private
+    fileHandle;
+    obj_angle, obj_size, obj_z, obj_gfxIndex, obj_material, obj_collidable;
+begin
+    // open file handle
+    fileHandle = fopen(DATA_OBJECTS_PATH + fileName, "r");
+
+    // read object data
+    fread(offset obj_angle,      sizeof(obj_angle),      fileHandle);
+    fread(offset obj_size,       sizeof(obj_size),       fileHandle);
+    fread(offset obj_z,          sizeof(obj_z),          fileHandle);
+    fread(offset obj_gfxIndex,   sizeof(obj_gfxIndex),   fileHandle);
+    //fread(offset obj_material,   sizeof(obj_material),   fileHandle);
+    //fread(offset obj_collidable, sizeof(obj_collidable), fileHandle);
+    // TODO: assign points data from graphic
+
+    // pass data to global struct
+    __objectData[objectIndex].fileName   = fileName;
+    __objectData[objectIndex].angle      = obj_angle;
+    __objectData[objectIndex].size       = obj_size;
+    __objectData[objectIndex].z          = obj_z;
+    __objectData[objectIndex].gfxIndex   = obj_gfxIndex;
+    __objectData[objectIndex].material   = obj_material;
+    __objectData[objectIndex].collidable = obj_collidable;
+
+    // close file handle
+    fclose(fileHandle);
+end
+
+function SaveObject(string fileName, obj_angle, obj_size, obj_z, obj_gfxIndex, obj_material, obj_collidable)
+private
+    fileHandle;
+begin
+    // open file handle
+    fileName = DATA_OBJECTS_PATH + fileName;
+    fileHandle = fopen(fileName, "w");
+
+    // write object data
+    fwrite(offset obj_angle,      sizeof(obj_angle),      fileHandle);
+    fwrite(offset obj_size,       sizeof(obj_size),       fileHandle);
+    fwrite(offset obj_z,          sizeof(obj_z),          fileHandle);
+    fwrite(offset obj_gfxIndex,   sizeof(obj_gfxIndex),   fileHandle);
+    fwrite(offset obj_material,   sizeof(obj_material),   fileHandle);
+    fwrite(offset obj_collidable, sizeof(obj_collidable), fileHandle);
+
+    // close file handle
+    fclose(fileHandle);
 end
 
 
