@@ -95,6 +95,8 @@ const
     MAX_UI_GROUP_TEXTS    = 32;
     MAX_UI_GROUP_IMAGES   = 32;
     MAX_UI_GROUP_SEGMENTS = 32;
+    UI_Z_ABOVE = -512;
+    UI_Z_UNDER = 0;
 
     // level
     MAX_LEVEL_SEGMENTS = 1000;
@@ -127,7 +129,15 @@ const
     OPT_PALETTE_ENTITIES    = 7;
     OPT_SCROLL_UP           = 8;
     OPT_SCROLL_DOWN         = 9;
-    UI_OPTION_COUNT = 10;
+    OPT_PALETTE_BOX_0       = 10;
+    OPT_PALETTE_BOX_1       = 11;
+    OPT_PALETTE_BOX_2       = 12;
+    OPT_PALETTE_BOX_3       = 13;
+    OPT_PALETTE_BOX_4       = 14;
+    OPT_PALETTE_BOX_5       = 15;
+    OPT_PALETTE_BOX_6       = 16;
+    OPT_PALETTE_BOX_7       = 17;
+    UI_OPTION_COUNT = 18;
 
     // ui groups
     GROUP_MAIN_BG              = 0;
@@ -250,6 +260,7 @@ global
             x, y;
             fontIndex, anchor;
             string text;
+            isInteger;
         end
         textFieldsCount;
         struct textFields[MAX_UI_GROUP_TEXTS - 1]
@@ -289,7 +300,15 @@ global
         "OBJECTS",    OPT_PALETTE_OBJECTS,
         "ENTITIES",   OPT_PALETTE_ENTITIES,
         "^",          OPT_SCROLL_UP,
-        "v",          OPT_SCROLL_DOWN;
+        "v",          OPT_SCROLL_DOWN,
+        "",           OPT_PALETTE_BOX_0,
+        "",           OPT_PALETTE_BOX_1,
+        "",           OPT_PALETTE_BOX_2,
+        "",           OPT_PALETTE_BOX_3,
+        "",           OPT_PALETTE_BOX_4,
+        "",           OPT_PALETTE_BOX_5,
+        "",           OPT_PALETTE_BOX_6,
+        "",           OPT_PALETTE_BOX_7;
 
 
 
@@ -430,7 +449,7 @@ private
     ui = GROUP_MAIN_BG;
 begin
     AddImageToUIGroup(ui,
-        HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT, 0,
+        HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT, UI_Z_UNDER,
         GFX_MAIN, 2, 0, 100);
 end
 
@@ -440,7 +459,7 @@ private
 begin
     AddTextToUIGroup(ui,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT - 20,
-        FONT_MENU, FONT_ANCHOR_CENTERED, "LEVEL EDITOR");
+        FONT_MENU, FONT_ANCHOR_CENTERED, "LEVEL EDITOR", false);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 20, 200, 40,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
@@ -464,7 +483,7 @@ private
 begin
     AddTextToUIGroup(ui,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT,
-        FONT_MENU, FONT_ANCHOR_CENTERED, "Enter file name:");
+        FONT_MENU, FONT_ANCHOR_CENTERED, "Enter file name:", false);
     AddDrawingToUIGroup(ui,
         HALF_SCREEN_WIDTH - 150, HALF_SCREEN_HEIGHT + 20, HALF_SCREEN_WIDTH + 150, HALF_SCREEN_HEIGHT + 50, 
         DRAW_RECTANGLE_FILL, COLOR_BLACK, OPACITY_SOLID);
@@ -527,25 +546,26 @@ function ConfigureUI_EditorSidePanel()
 private
     ui = GROUP_EDITOR_SIDE_PANEL;
     unit = 4;
-    w = SCREEN_WIDTH / 4;
-    h = SCREEN_HEIGHT / 3;
+    w, h;
+    pw = SCREEN_WIDTH / 4; // palette width
+    ph = SCREEN_HEIGHT / 3; // palette height
     pbsize = 64; // palette box size
     objectDataIndex;
 begin
     AddDrawingToUIGroup(ui,
-        SCREEN_WIDTH - (w) - 1 + (unit / 2), (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, h + (unit / 2), 
+        SCREEN_WIDTH - (pw) - 1 + (unit / 2), (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, h + (unit / 2), 
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
     AddDrawingToUIGroup(ui,
-        SCREEN_WIDTH - (w) - 1 + (unit / 2), h + (unit) + (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, SCREEN_HEIGHT - (unit / 2) - 1,
+        SCREEN_WIDTH - (pw) - 1 + (unit / 2), ph + (unit) + (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, SCREEN_HEIGHT - (unit / 2) - 1,
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
     // PALETTE
     AddDrawingToUIGroup(ui,
-        SCREEN_WIDTH - (w) - 1 + (unit * 2) + pbsize, h + (unit) + (unit / 2), 
-        SCREEN_WIDTH - (w) - 1 + (unit * 2) + pbsize, SCREEN_HEIGHT - (unit / 2) - 1,
+        SCREEN_WIDTH - (pw) - 1 + (unit * 2) + pbsize, ph + (unit) + (unit / 2), 
+        SCREEN_WIDTH - (pw) - 1 + (unit * 2) + pbsize, SCREEN_HEIGHT - (unit / 2) - 1,
         DRAW_LINE, COLOR_BLUE - 6, OPACITY_SOLID);
     for (i = 1; i <= 3; ++i)
         AddDrawingToUIGroup(ui,
-            SCREEN_WIDTH - (w) - 1 + (unit / 2), h + (unit) + (unit / 2) + (pbsize * i), SCREEN_WIDTH - (unit / 2) - 1, h + (unit) + (unit / 2) + (pbsize * i),
+            SCREEN_WIDTH - (pw) - 1 + (unit / 2), ph + (unit) + (unit / 2) + (pbsize * i), SCREEN_WIDTH - (unit / 2) - 1, ph + (unit) + (unit / 2) + (pbsize * i),
             DRAW_LINE, COLOR_BLUE - 6, OPACITY_SOLID);
     end
     for (i = 0; i < UI_EDITOR_PALETTE_SIZE; ++i)
@@ -553,22 +573,30 @@ begin
         if (objectDataIndex >= __objectDataCount)
             break;
         end
-        x = (SCREEN_WIDTH - (w) - 1 + (unit / 2)) + ((i % 2) * (pbsize + (unit * 2)));
-        y = (h + (unit) + (unit / 2)            ) + ((i / 2) * pbsize);
+        x = (SCREEN_WIDTH - (pw) - 1 + (unit / 2)) + ((i % 2) * (pbsize + (unit * 2)));
+        y = (ph + (unit) + (unit / 2)            ) + ((i / 2) * pbsize);
+        w = (pbsize) - (unit * 3);
+        h = (pbsize) - (unit * 6);
         AddTextToUIGroup(ui,
-            x + (pbsize / 2) + (unit), y + (unit * 2), FONT_SYSTEM, FONT_ANCHOR_CENTERED, __objectData[objectDataIndex].name);
+            x + (pbsize / 2) + (unit), y + (unit * 2), 
+            FONT_SYSTEM, FONT_ANCHOR_CENTERED, 
+            __objectData[objectDataIndex].name, false);
         AddButtonToUIGroup(ui,
-            x + (unit * 2), y + (unit * 4), (pbsize) - (unit * 3), (pbsize) - (unit * 6),
+            x + (unit * 2), y + (unit * 4), w, h,
             COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
             OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-            FONT_SYSTEM, NULL);
+            FONT_SYSTEM, OPT_PALETTE_BOX_0 + i);
+        size = CalculateFittedSize(GFX_OBJECTS, __objectData[objectDataIndex].gfxIndex, w, h);
+        AddImageToUIGroup(ui,
+            x + (pbsize / 2) - (unit * 1), y + (unit * 4), UI_Z_ABOVE,
+            GFX_OBJECTS, __objectData[objectDataIndex].gfxIndex, 0, size);
     end
     // SCROLL BAR
     AddDrawingToUIGroup(ui,
-        SCREEN_WIDTH - (unit * 4) - (unit / 2) - 1, h + (unit) + (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, SCREEN_HEIGHT - (unit / 2) - 1,
+        SCREEN_WIDTH - (unit * 4) - (unit / 2) - 1, ph + (unit) + (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, SCREEN_HEIGHT - (unit / 2) - 1,
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 6, OPACITY_SOLID);
     AddButtonToUIGroup(ui,
-        SCREEN_WIDTH - (unit * 4) - (unit / 2) - 1, h + (unit) + (unit / 2), (unit * 4), (unit * 4),
+        SCREEN_WIDTH - (unit * 4) - (unit / 2) - 1, ph + (unit) + (unit / 2), (unit * 4), (unit * 4),
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_SCROLL_UP);
@@ -619,6 +647,8 @@ begin
                     ClearUIGroup(GROUP_EDITOR_SIDE_PANEL);
                     ConfigureUI_EditorSidePanel();
                     ShowUIGroup(GROUP_EDITOR_SIDE_PANEL);
+                end
+                case OPT_PALETTE_BOX_0..(OPT_PALETTE_BOX_0 + UI_EDITOR_PALETTE_SIZE):
                 end
             end
             __ui.buttonClicked = NULL;
@@ -749,12 +779,21 @@ begin
             continue;
         end
         for (t = 0; t < __uiGroups[i].textsCount; ++t)
-            write(
-                __fonts[__uiGroups[i].texts[t].fontIndex].handle,
-                __uiGroups[i].texts[t].x,
-                __uiGroups[i].texts[t].y,
-                __uiGroups[i].texts[t].anchor,
-                __uiGroups[i].texts[t].text);
+            if (__uiGroups[i].texts[t].isInteger)
+                write_int(
+                    __fonts[__uiGroups[i].texts[t].fontIndex].handle,
+                    __uiGroups[i].texts[t].x,
+                    __uiGroups[i].texts[t].y,
+                    __uiGroups[i].texts[t].anchor,
+                    __uiGroups[i].texts[t].text);
+            else
+                write(
+                    __fonts[__uiGroups[i].texts[t].fontIndex].handle,
+                    __uiGroups[i].texts[t].x,
+                    __uiGroups[i].texts[t].y,
+                    __uiGroups[i].texts[t].anchor,
+                    __uiGroups[i].texts[t].text);
+            end
         end
     end
 end
@@ -831,6 +870,8 @@ end
 process RenderImageOneFrame(x, y, z, fileIndex, gfxIndex, angle, size)
 begin
     SetGraphic(fileIndex, gfxIndex);
+    //file = __graphics[fileIndex].handle;
+    //graph = gfxIndex;
     frame;
 end
 
@@ -887,7 +928,7 @@ begin
     __uiGroups[ui].drawingsCount++;
 end
 
-function AddTextToUIGroup(ui, x, y, fontIndex, anchor, text)
+function AddTextToUIGroup(ui, x, y, fontIndex, anchor, text, isInteger)
 begin
     i = __uiGroups[ui].textsCount;
     __uiGroups[ui].texts[i].x = x;
@@ -895,6 +936,7 @@ begin
     __uiGroups[ui].texts[i].fontIndex = fontIndex;
     __uiGroups[ui].texts[i].anchor = anchor;
     __uiGroups[ui].texts[i].text = text;
+    __uiGroups[ui].texts[i].isInteger = isInteger;
     __uiGroups[ui].textsCount++;
 end
 
@@ -988,6 +1030,7 @@ begin
         __uiGroups[ui].texts[i].fontIndex = 0;
         __uiGroups[ui].texts[i].anchor    = 0;
         __uiGroups[ui].texts[i].text      = "";
+        __uiGroups[ui].texts[i].isInteger = false;
     end
 
     __uiGroups[ui].textFieldsCount = 0;
@@ -1106,8 +1149,31 @@ end
  * ---------------------------------------------------------------------------*/
 function SetGraphic(fileIndex, gfxIndex)
 begin
-    father.file = __graphics[GFX_MAIN].handle;
+    father.file = __graphics[fileIndex].handle;
     father.graph = gfxIndex;
+end
+
+function CalculateFittedSize(fileIndex, gfxIndex, maxWidth, maxHeight)
+private
+    w, h;
+    wf, hf;
+begin
+    w = graphic_info(fileIndex, gfxIndex, g_wide);
+    h = graphic_info(fileIndex, gfxIndex, g_height);
+    if (w > maxWidth)
+        wf = w / maxWidth;
+    else
+        wf = w;
+    end
+    if (h > maxHeight)
+        hf = h / maxHeight;
+    else
+        hf = h;
+    end
+    if (wf >= hf)
+        return (100 / wf);
+    end
+    return (100 / hf);
 end
 
 
