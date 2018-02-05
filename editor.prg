@@ -1253,9 +1253,9 @@ begin
         hf = GPR;
     end
     if (wf >= hf)
-        return (1000 / wf);
+        return ((100 * GPR) / wf);
     end
-    return (1000 / hf);
+    return ((100 * GPR) / hf);
 end
 
 
