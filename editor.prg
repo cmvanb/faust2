@@ -952,8 +952,6 @@ end
 process RenderImageOneFrame(x, y, z, fileIndex, gfxIndex, angle, size)
 begin
     SetGraphic(fileIndex, gfxIndex);
-    //file = __graphics[fileIndex].handle;
-    //graph = gfxIndex;
     frame;
 end
 
