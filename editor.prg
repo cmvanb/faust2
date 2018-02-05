@@ -137,7 +137,8 @@ const
     OPT_PALETTE_BOX_5       = 15;
     OPT_PALETTE_BOX_6       = 16;
     OPT_PALETTE_BOX_7       = 17;
-    UI_OPTION_COUNT = 18;
+    OPT_EDIT_OBJECT         = 18;
+    UI_OPTION_COUNT = 19;
 
     // ui groups
     GROUP_MAIN_BG              = 0;
@@ -145,6 +146,7 @@ const
     GROUP_STRING_PROMPT_DIALOG = 2;
     GROUP_EDITOR_BG            = 3;
     GROUP_EDITOR_SIDE_PANEL    = 4;
+    GROUP_EDITOR_INFO          = 5;
 
 /* -----------------------------------------------------------------------------
  * Global variables
@@ -284,6 +286,7 @@ global
     // EDITOR SPECIFIC ---------------------------------------------------------
     struct __uiEditor
         palettePage;
+        objectBrushSelected;
     end
 
     struct __uiOptions[UI_OPTION_COUNT - 1]
@@ -308,7 +311,8 @@ global
         "",           OPT_PALETTE_BOX_4,
         "",           OPT_PALETTE_BOX_5,
         "",           OPT_PALETTE_BOX_6,
-        "",           OPT_PALETTE_BOX_7;
+        "",           OPT_PALETTE_BOX_7,
+        "EDIT",       OPT_EDIT_OBJECT;
 
 
 
@@ -362,7 +366,8 @@ end
 function LoadData()
 begin
     // TODO: FIX THIS PATH HACK :( 
-    // NOTE: DIV appears to have no way of retrieving the relative project path...
+    // NOTE: DIV appears to have no way of retrieving the relative project path... see forum post:
+    // http://div-arena.co.uk/forum2/viewthread.php?tid=288
     chdir("C:\Projects\DIV\faust2\" + DATA_OBJECTS_PATH);
 
     // get list of object files in dirinfo struct
@@ -397,9 +402,9 @@ begin
 
     // pass data to global struct
     __objectData[objectIndex].name       = fileName;
-    __objectData[objectIndex].angle      = obj_angle;
-    __objectData[objectIndex].size       = obj_size;
-    __objectData[objectIndex].z          = obj_z;
+    __objectData[objectIndex].angle     = obj_angle;
+    __objectData[objectIndex].size      = obj_size;
+    __objectData[objectIndex].z         = obj_z;
     __objectData[objectIndex].gfxIndex   = obj_gfxIndex;
     __objectData[objectIndex].material   = obj_material;
     __objectData[objectIndex].collidable = obj_collidable;
@@ -435,13 +440,19 @@ end
  * ---------------------------------------------------------------------------*/
 function ConfigureUI()
 begin
+    // ui vars
+    __uiEditor.palettePage = 0;
+    __uiEditor.objectBrushSelected = NULL;
+
+    // construct ui groups
     ConfigureUI_MainBg();
     ConfigureUI_MainMenu();
     ConfigureUI_StringPromptDialog();
     ConfigureUI_EditorBg();
     ConfigureUI_EditorSidePanel();
+    ConfigureUI_EditorInfo();
 
-    __uiGroupsCount = 5;
+    __uiGroupsCount = 6;
 end
 
 function ConfigureUI_MainBg()
@@ -509,16 +520,16 @@ function ConfigureUI_EditorBg()
 private
     ui = GROUP_EDITOR_BG;
     unit = 4;
-    w = SCREEN_WIDTH / 4;
+    pw = SCREEN_WIDTH / 4; // panel width
 begin
     // SIDE PANEL BG
     AddDrawingToUIGroup(ui,
-        SCREEN_WIDTH - w - 1, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 
+        SCREEN_WIDTH - pw - 1, 0, SCREEN_WIDTH, SCREEN_HEIGHT, 
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 4, OPACITY_SOLID);
 
     // TOP BAR
     AddDrawingToUIGroup(ui,
-        0, 0, SCREEN_WIDTH - w - 1, unit * 5,
+        0, 0, SCREEN_WIDTH - pw - 1, unit * 5,
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
     AddButtonToUIGroup(ui,
         unit / 2, unit / 2, (unit * 16), unit * 4,
@@ -547,8 +558,8 @@ private
     ui = GROUP_EDITOR_SIDE_PANEL;
     unit = 4;
     w, h;
-    pw = SCREEN_WIDTH / 4; // palette width
-    ph = SCREEN_HEIGHT / 3; // palette height
+    pw = SCREEN_WIDTH / 4; // panel width
+    ph = SCREEN_HEIGHT / 3; // panel height
     pbsize = 64; // palette box size
     objectDataIndex;
 begin
@@ -588,8 +599,8 @@ begin
             FONT_SYSTEM, OPT_PALETTE_BOX_0 + i);
         size = CalculateFittedSize(GFX_OBJECTS, __objectData[objectDataIndex].gfxIndex, w, h);
         AddImageToUIGroup(ui,
-            x + (pbsize / 2) - (unit * 1), y + (unit * 4), UI_Z_ABOVE,
-            GFX_OBJECTS, __objectData[objectDataIndex].gfxIndex, 0, size);
+            x + (pbsize / 2), y + (pbsize / 2) + (unit), UI_Z_ABOVE,
+            GFX_OBJECTS, __objectData[objectDataIndex].gfxIndex, __objectData[objectDataIndex].angle, size);
     end
     // SCROLL BAR
     AddDrawingToUIGroup(ui,
@@ -605,6 +616,71 @@ begin
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_SCROLL_DOWN);
+end
+
+function ConfigureUI_EditorInfo()
+private
+    ui = GROUP_EDITOR_INFO;
+    pw = SCREEN_WIDTH / 4; // panel width
+    ph = SCREEN_HEIGHT / 3; // panel height
+    unit = 4;
+    w, h;
+    bx, by; // box x, box y
+    bw, bh; // box width, box height
+begin
+    i = __uiEditor.objectBrushSelected;
+    if (i > NULL)
+        // INFO
+        x = SCREEN_WIDTH - (pw) - 1 + (unit);
+        y = (unit);
+        w = pw - (unit) - (unit / 2);
+        h = ph - (unit * 2);
+        AddTextToUIGroup(ui,
+            x, y, 
+            FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
+            __objectData[i].name, false);
+        AddButtonToUIGroup(ui,
+            x + w - (unit * 16) - (unit / 2), y, (unit * 16), (unit * 4),
+            COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+            OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+            FONT_SYSTEM, OPT_EDIT_OBJECT);
+        AddTextToUIGroup(ui,
+            x, y + (unit * 5), 
+            FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
+            "A:", false);
+        AddTextToUIGroup(ui,
+            x + (unit * 4), y + (unit * 5), 
+            FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
+            &__objectData[i].angle, true);
+        AddTextToUIGroup(ui,
+            x, y + (unit * 8), 
+            FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
+            "S:", false);
+        AddTextToUIGroup(ui,
+            x + (unit * 4), y + (unit * 8), 
+            FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
+            &__objectData[i].size, true);
+        AddTextToUIGroup(ui,
+            x, y + (unit * 11), 
+            FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
+            "Z:", false);
+        AddTextToUIGroup(ui,
+            x + (unit * 4), y + (unit * 11), 
+            FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
+            &__objectData[i].z, true);
+        // PREVIEW BOX
+        bw = (unit * 22);
+        bh = bw;
+        bx = (x + w) - bw - (unit / 2);
+        by = y + (unit * 5);
+        AddDrawingToUIGroup(ui,
+            bx, by, bx + bw, by + bh,
+            DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
+        size = CalculateFittedSize(GFX_OBJECTS, __objectData[i].gfxIndex, bw, bh);
+        AddImageToUIGroup(ui,
+            bx + (bw / 2), by + (bh / 2), UI_Z_ABOVE,
+            GFX_OBJECTS, __objectData[i].gfxIndex, __objectData[i].angle, size);
+    end
 end
 
 process ButtonHandler()
@@ -648,7 +724,13 @@ begin
                     ConfigureUI_EditorSidePanel();
                     ShowUIGroup(GROUP_EDITOR_SIDE_PANEL);
                 end
-                case OPT_PALETTE_BOX_0..(OPT_PALETTE_BOX_0 + UI_EDITOR_PALETTE_SIZE):
+                case OPT_PALETTE_BOX_0..(OPT_PALETTE_BOX_0 + UI_EDITOR_PALETTE_SIZE - 1):
+                    __uiEditor.objectBrushSelected = 
+                        (__uiEditor.palettePage * UI_EDITOR_PALETTE_SIZE) 
+                        + (__ui.buttonClicked - OPT_PALETTE_BOX_0);
+                    ClearUIGroup(GROUP_EDITOR_INFO);
+                    ConfigureUI_EditorInfo();
+                    ShowUIGroup(GROUP_EDITOR_INFO);
                 end
             end
             __ui.buttonClicked = NULL;
@@ -1161,19 +1243,19 @@ begin
     w = graphic_info(fileIndex, gfxIndex, g_wide);
     h = graphic_info(fileIndex, gfxIndex, g_height);
     if (w > maxWidth)
-        wf = w / maxWidth;
+        wf = (w * GPR) / maxWidth;
     else
-        wf = w;
+        wf = GPR;
     end
     if (h > maxHeight)
-        hf = h / maxHeight;
+        hf = (h * GPR) / maxHeight;
     else
-        hf = h;
+        hf = GPR;
     end
     if (wf >= hf)
-        return (100 / wf);
+        return (1000 / wf);
     end
-    return (100 / hf);
+    return (1000 / hf);
 end
 
 
