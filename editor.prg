@@ -13,6 +13,7 @@ program Faust2LevelEditor;
 const
     // DIV command enums
     REGION_FULL_SCREEN = 0;
+    REGION_EDITOR_VIEWPORT = 1;
     SCROLL_FOREGROUND_HORIZONTAL = 1;
     SCROLL_FOREGROUND_VERTICAL   = 2;
     SCROLL_BACKGROUND_HORIZONTAL = 4;
@@ -362,77 +363,48 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Initialization
+ * Camera & scrolling
  * ---------------------------------------------------------------------------*/
-function LoadData()
+process CameraController()
 begin
-    // TODO: FIX THIS PATH HACK :( 
-    // NOTE: DIV appears to have no way of retrieving the relative project path... see forum post:
-    // http://div-arena.co.uk/forum2/viewthread.php?tid=288
-    chdir("C:\Projects\DIV\faust2\" + DATA_OBJECTS_PATH);
+    // configuration
+    //input.move.granularity = 10;
+    resolution = GPR;
+    ctype = c_scroll;
+    region = REGION_EDITOR_VIEWPORT;
+    graph = 301;
+    z = -1000;
 
-    // get list of object files in dirinfo struct
-    get_dirinfo("*.*", _normal);
+    // initialization
+    alive = true;
+    start_scroll(
+        0,
+        __graphics[GFX_MAIN].handle, 200, 0,
+        REGION_EDITOR_VIEWPORT,
+        SCROLL_FOREGROUND_HORIZONTAL + SCROLL_FOREGROUND_VERTICAL);
 
-    __objectDataCount = dirinfo.files;
+    // components & sub-processes
+    //components.physics = Physics(id);
+    //components.input = CameraInput(id);
+    ScrollFollower(id);
 
-    for (i = 0; i < __objectDataCount; ++i)
-        LoadObject(i, dirinfo.name[i]);
-    end
+    // NOTE: Set targetMoveSpeed after initializing Physics component.
+    //physics.targetMoveSpeed = CAMERA_FREE_LOOK_MAX_SPEED;
+    repeat
+        frame;
+    until (alive == false)
 end
 
-function LoadObject(objectIndex, string fileName)
-private
-    fileHandle;
-    obj_angle, obj_size, obj_z, obj_gfxIndex, obj_material, obj_collidable;
+process ScrollFollower(controllerId)
 begin
-    // open file handle
-    fileHandle = fopen(DATA_OBJECTS_PATH + fileName, "r");
-
-    // read object data
-    fread(offset obj_angle,      sizeof(obj_angle),      fileHandle);
-    fread(offset obj_size,       sizeof(obj_size),       fileHandle);
-    fread(offset obj_z,          sizeof(obj_z),          fileHandle);
-    fread(offset obj_gfxIndex,   sizeof(obj_gfxIndex),   fileHandle);
-    //fread(offset obj_material,   sizeof(obj_material),   fileHandle);
-    //fread(offset obj_collidable, sizeof(obj_collidable), fileHandle);
-    // TODO: assign points data from graphic
-
-    // cut off file extension
-    strdel(fileName, 0, 4);
-
-    // pass data to global struct
-    __objectData[objectIndex].name       = fileName;
-    __objectData[objectIndex].angle      = obj_angle;
-    __objectData[objectIndex].size       = obj_size;
-    __objectData[objectIndex].z          = obj_z;
-    __objectData[objectIndex].gfxIndex   = obj_gfxIndex;
-    __objectData[objectIndex].material   = obj_material;
-    __objectData[objectIndex].collidable = obj_collidable;
-
-    // close file handle
-    fclose(fileHandle);
+    repeat
+        // Set scroll position.
+        scroll[0].x0 = (controllerId.x / GPR) - HALF_SCREEN_WIDTH;
+        scroll[0].y0 = (controllerId.y / GPR) - HALF_SCREEN_HEIGHT;
+        frame;
+    until (controllerId.alive == false)
 end
 
-function SaveObject(string fileName, obj_angle, obj_size, obj_z, obj_gfxIndex, obj_material, obj_collidable)
-private
-    fileHandle;
-begin
-    // open file handle
-    fileName = DATA_OBJECTS_PATH + fileName;
-    fileHandle = fopen(fileName, "w");
-
-    // write object data
-    fwrite(offset obj_angle,      sizeof(obj_angle),      fileHandle);
-    fwrite(offset obj_size,       sizeof(obj_size),       fileHandle);
-    fwrite(offset obj_z,          sizeof(obj_z),          fileHandle);
-    fwrite(offset obj_gfxIndex,   sizeof(obj_gfxIndex),   fileHandle);
-    fwrite(offset obj_material,   sizeof(obj_material),   fileHandle);
-    fwrite(offset obj_collidable, sizeof(obj_collidable), fileHandle);
-
-    // close file handle
-    fclose(fileHandle);
-end
 
 
     // EDITOR SPECIFIC ---------------------------------------------------------
@@ -1226,12 +1198,13 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Initialization
+ * Initialization & Resources
  * ---------------------------------------------------------------------------*/
 function InitGraphics()
 begin
     set_mode(SCREEN_MODE);
     set_fps(60, 1);
+    define_region(REGION_EDITOR_VIEWPORT, 0, 20, (SCREEN_WIDTH * 3 / 4) - 1, 380);
 end
 
 function LoadResources()
@@ -1251,6 +1224,76 @@ begin
     for (i = 0; i < SOUND_COUNT; ++i)
         __sounds[i].handle = load_sound(__sounds[i].path, __sounds[i].playback);
     end
+end
+
+function LoadData()
+begin
+    // TODO: FIX THIS PATH HACK :( 
+    // NOTE: DIV appears to have no way of retrieving the relative project path... see forum post:
+    // http://div-arena.co.uk/forum2/viewthread.php?tid=288
+    chdir("C:\Projects\DIV\faust2\" + DATA_OBJECTS_PATH);
+
+    // get list of object files in dirinfo struct
+    get_dirinfo("*.*", _normal);
+
+    __objectDataCount = dirinfo.files;
+
+    for (i = 0; i < __objectDataCount; ++i)
+        LoadObject(i, dirinfo.name[i]);
+    end
+end
+
+function LoadObject(objectIndex, string fileName)
+private
+    fileHandle;
+    obj_angle, obj_size, obj_z, obj_gfxIndex, obj_material, obj_collidable;
+begin
+    // open file handle
+    fileHandle = fopen(DATA_OBJECTS_PATH + fileName, "r");
+
+    // read object data
+    fread(offset obj_angle,      sizeof(obj_angle),      fileHandle);
+    fread(offset obj_size,       sizeof(obj_size),       fileHandle);
+    fread(offset obj_z,          sizeof(obj_z),          fileHandle);
+    fread(offset obj_gfxIndex,   sizeof(obj_gfxIndex),   fileHandle);
+    //fread(offset obj_material,   sizeof(obj_material),   fileHandle);
+    //fread(offset obj_collidable, sizeof(obj_collidable), fileHandle);
+    // TODO: assign points data from graphic
+
+    // cut off file extension
+    strdel(fileName, 0, 4);
+
+    // pass data to global struct
+    __objectData[objectIndex].name       = fileName;
+    __objectData[objectIndex].angle      = obj_angle;
+    __objectData[objectIndex].size       = obj_size;
+    __objectData[objectIndex].z          = obj_z;
+    __objectData[objectIndex].gfxIndex   = obj_gfxIndex;
+    __objectData[objectIndex].material   = obj_material;
+    __objectData[objectIndex].collidable = obj_collidable;
+
+    // close file handle
+    fclose(fileHandle);
+end
+
+function SaveObject(string fileName, obj_angle, obj_size, obj_z, obj_gfxIndex, obj_material, obj_collidable)
+private
+    fileHandle;
+begin
+    // open file handle
+    fileName = DATA_OBJECTS_PATH + fileName;
+    fileHandle = fopen(fileName, "w");
+
+    // write object data
+    fwrite(offset obj_angle,      sizeof(obj_angle),      fileHandle);
+    fwrite(offset obj_size,       sizeof(obj_size),       fileHandle);
+    fwrite(offset obj_z,          sizeof(obj_z),          fileHandle);
+    fwrite(offset obj_gfxIndex,   sizeof(obj_gfxIndex),   fileHandle);
+    fwrite(offset obj_material,   sizeof(obj_material),   fileHandle);
+    fwrite(offset obj_collidable, sizeof(obj_collidable), fileHandle);
+
+    // close file handle
+    fclose(fileHandle);
 end
 
 
