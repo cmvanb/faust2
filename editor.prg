@@ -51,6 +51,7 @@ const
     GFX_ACTORS  = 1;
     GFX_ITEMS   = 2;
     GFX_OBJECTS = 3;
+    GFX_UI      = 4;
     FONT_SYSTEM = 0;
     FONT_MENU   = 1;
     SOUND_MP40_SHOT       = 0;
@@ -60,7 +61,7 @@ const
     SOUND_KAR98K_SHOT     = 4;
 
     // resource counts
-    GFX_COUNT   = 4;
+    GFX_COUNT   = 5;
     FONT_COUNT  = 2;
     SOUND_COUNT = 5;
 
@@ -156,13 +157,13 @@ global
     struct __graphics[GFX_COUNT - 1]
         handle;
         string path;
-        count;
     end =
-    //  handle  path                           count
-        NULL,   "assets/graphics/main.fpg",    NULL,
-        NULL,   "assets/graphics/actors.fpg",  NULL,
-        NULL,   "assets/graphics/items.fpg",   NULL,
-        NULL,   "assets/graphics/objects.fpg", NULL;
+    //  handle  path
+        NULL,   "assets/graphics/main.fpg",
+        NULL,   "assets/graphics/actors.fpg",
+        NULL,   "assets/graphics/items.fpg",
+        NULL,   "assets/graphics/objects.fpg",
+        NULL,   "assets/graphics/ui.fpg";
 
     struct __fonts[FONT_COUNT - 1]
         handle;
@@ -560,8 +561,11 @@ private
     w, h;
     pw = SCREEN_WIDTH / 4; // panel width
     ph = SCREEN_HEIGHT / 3; // panel height
-    pbsize = 64; // palette box size
     objectDataIndex;
+    pbSize = 64; // palette box size
+    string pbText;
+    pbFileIndex;
+    pbGfxIndex;
 begin
     AddDrawingToUIGroup(ui,
         SCREEN_WIDTH - (pw) - 1 + (unit / 2), (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, h + (unit / 2), 
@@ -571,36 +575,47 @@ begin
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
     // PALETTE
     AddDrawingToUIGroup(ui,
-        SCREEN_WIDTH - (pw) - 1 + (unit * 2) + pbsize, ph + (unit) + (unit / 2), 
-        SCREEN_WIDTH - (pw) - 1 + (unit * 2) + pbsize, SCREEN_HEIGHT - (unit / 2) - 1,
+        SCREEN_WIDTH - (pw) - 1 + (unit * 2) + pbSize, ph + (unit) + (unit / 2), 
+        SCREEN_WIDTH - (pw) - 1 + (unit * 2) + pbSize, SCREEN_HEIGHT - (unit / 2) - 1,
         DRAW_LINE, COLOR_BLUE - 6, OPACITY_SOLID);
     for (i = 1; i <= 3; ++i)
         AddDrawingToUIGroup(ui,
-            SCREEN_WIDTH - (pw) - 1 + (unit / 2), ph + (unit) + (unit / 2) + (pbsize * i), SCREEN_WIDTH - (unit / 2) - 1, ph + (unit) + (unit / 2) + (pbsize * i),
+            SCREEN_WIDTH - (pw) - 1 + (unit / 2), ph + (unit) + (unit / 2) + (pbSize * i), SCREEN_WIDTH - (unit / 2) - 1, ph + (unit) + (unit / 2) + (pbSize * i),
             DRAW_LINE, COLOR_BLUE - 6, OPACITY_SOLID);
     end
     for (i = 0; i < UI_EDITOR_PALETTE_SIZE; ++i)
         objectDataIndex = (__uiEditor.palettePage * UI_EDITOR_PALETTE_SIZE) + i;
-        if (objectDataIndex >= __objectDataCount)
+        if (objectDataIndex > __objectDataCount)
             break;
         end
-        x = (SCREEN_WIDTH - (pw) - 1 + (unit / 2)) + ((i % 2) * (pbsize + (unit * 2)));
-        y = (ph + (unit) + (unit / 2)            ) + ((i / 2) * pbsize);
-        w = (pbsize) - (unit * 3);
-        h = (pbsize) - (unit * 6);
+        if (objectDataIndex < __objectDataCount)
+            pbText = __objectData[objectDataIndex].name;
+            pbFileIndex = GFX_OBJECTS;
+            pbGfxIndex = __objectData[objectDataIndex].gfxIndex;
+        end
+        // After all objects are displayed, display a 'new object' button.
+        if (objectDataIndex == __objectDataCount)
+            pbText = "NEW";
+            pbFileIndex = GFX_UI;
+            pbGfxIndex = 1;
+        end
+        x = (SCREEN_WIDTH - (pw) - 1 + (unit / 2)) + ((i % 2) * (pbSize + (unit * 2)));
+        y = (ph + (unit) + (unit / 2)            ) + ((i / 2) * pbSize);
+        w = (pbSize) - (unit * 3);
+        h = (pbSize) - (unit * 6);
         AddTextToUIGroup(ui,
-            x + (pbsize / 2) + (unit), y + (unit * 2), 
+            x + (pbSize / 2) + (unit), y + (unit * 2), 
             FONT_SYSTEM, FONT_ANCHOR_CENTERED, 
-            __objectData[objectDataIndex].name, false);
+            pbText, false);
         AddButtonToUIGroup(ui,
             x + (unit * 2), y + (unit * 4), w, h,
             COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
             OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
             FONT_SYSTEM, OPT_PALETTE_BOX_0 + i);
-        size = CalculateFittedSize(GFX_OBJECTS, __objectData[objectDataIndex].gfxIndex, w, h);
+            size = CalculateFittedSize(pbFileIndex, pbGfxIndex, w, h);
         AddImageToUIGroup(ui,
-            x + (pbsize / 2), y + (pbsize / 2) + (unit), UI_Z_ABOVE,
-            GFX_OBJECTS, __objectData[objectDataIndex].gfxIndex, __objectData[objectDataIndex].angle, size);
+            x + (pbSize / 2) + (unit / 2), y + (pbSize / 2) + (unit), UI_Z_ABOVE,
+            pbFileIndex, pbGfxIndex, __objectData[objectDataIndex].angle, size);
     end
     // SCROLL BAR
     AddDrawingToUIGroup(ui,
@@ -725,18 +740,21 @@ begin
                     ShowUIGroup(GROUP_EDITOR_SIDE_PANEL);
                 end
                 case OPT_PALETTE_BOX_0..(OPT_PALETTE_BOX_0 + UI_EDITOR_PALETTE_SIZE - 1):
-                    i =
-                        (__uiEditor.palettePage * UI_EDITOR_PALETTE_SIZE) 
+                    i = (__uiEditor.palettePage * UI_EDITOR_PALETTE_SIZE) 
                         + (__ui.buttonClicked - OPT_PALETTE_BOX_0);
-
-                    if (__uiEditor.objectBrushSelected == i)
-                        __uiEditor.objectBrushSelected = NULL;
+                    if (i == __objectDataCount)
+                        // TODO: Implement new object function.
+                        debug;
                     else
-                        __uiEditor.objectBrushSelected = i;
+                        if (__uiEditor.objectBrushSelected == i)
+                            __uiEditor.objectBrushSelected = NULL;
+                        else
+                            __uiEditor.objectBrushSelected = i;
+                        end
+                        ClearUIGroup(GROUP_EDITOR_INFO);
+                        ConfigureUI_EditorInfo();
+                        ShowUIGroup(GROUP_EDITOR_INFO);
                     end
-                    ClearUIGroup(GROUP_EDITOR_INFO);
-                    ConfigureUI_EditorInfo();
-                    ShowUIGroup(GROUP_EDITOR_INFO);
                 end
             end
             __ui.buttonClicked = NULL;
