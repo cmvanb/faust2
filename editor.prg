@@ -741,6 +741,13 @@ begin
             end
             __ui.buttonClicked = NULL;
         end
+        // RMB: deselect
+        if (mouse.right && __uiEditor.objectBrushSelected > NULL)
+            __uiEditor.objectBrushSelected = NULL;
+            ClearUIGroup(GROUP_EDITOR_INFO);
+            ConfigureUI_EditorInfo();
+            ShowUIGroup(GROUP_EDITOR_INFO);
+        end
         frame;
     until (alive == false)
 end
