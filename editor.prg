@@ -725,9 +725,15 @@ begin
                     ShowUIGroup(GROUP_EDITOR_SIDE_PANEL);
                 end
                 case OPT_PALETTE_BOX_0..(OPT_PALETTE_BOX_0 + UI_EDITOR_PALETTE_SIZE - 1):
-                    __uiEditor.objectBrushSelected = 
+                    i =
                         (__uiEditor.palettePage * UI_EDITOR_PALETTE_SIZE) 
                         + (__ui.buttonClicked - OPT_PALETTE_BOX_0);
+
+                    if (__uiEditor.objectBrushSelected == i)
+                        __uiEditor.objectBrushSelected = NULL;
+                    else
+                        __uiEditor.objectBrushSelected = i;
+                    end
                     ClearUIGroup(GROUP_EDITOR_INFO);
                     ConfigureUI_EditorInfo();
                     ShowUIGroup(GROUP_EDITOR_INFO);
