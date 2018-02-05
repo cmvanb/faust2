@@ -402,9 +402,9 @@ begin
 
     // pass data to global struct
     __objectData[objectIndex].name       = fileName;
-    __objectData[objectIndex].angle     = obj_angle;
-    __objectData[objectIndex].size      = obj_size;
-    __objectData[objectIndex].z         = obj_z;
+    __objectData[objectIndex].angle      = obj_angle;
+    __objectData[objectIndex].size       = obj_size;
+    __objectData[objectIndex].z          = obj_z;
     __objectData[objectIndex].gfxIndex   = obj_gfxIndex;
     __objectData[objectIndex].material   = obj_material;
     __objectData[objectIndex].collidable = obj_collidable;
