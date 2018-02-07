@@ -286,6 +286,7 @@ global
     __previousGameState = NULL;
     __currentGameState = GAME_STATE_NOT_STARTED;
 
+// TODO: remove
     // level editor
     __levelEditor;
     __previousLevelEditorMode = NULL;
@@ -302,7 +303,7 @@ global
     __buttonHeldDown = NULL;
 
     // camera
-    __gameCamera;
+    __camera;
     __cameraTargetId = NULL;
     __cameraMoveMode = CAMERA_MOVE_FREE_LOOK;
 
@@ -685,10 +686,10 @@ begin
     //LogValue("aimDistance", &aimDistance);
     //LogValue("aimPointX", &aimPointX);
     //LogValue("aimPointY", &aimPointY);
-    //LogValue("gameCamera.x", &x);
-    //LogValue("gameCamera.y", &y);
-    //LogValue("gameCamera.physics.velocity.x", &physics.velocity.x);
-    //LogValue("gameCamera.physics.velocity.y", &physics.velocity.y);
+    //LogValue("camera.x", &x);
+    //LogValue("camera.y", &y);
+    //LogValue("camera.physics.velocity.x", &physics.velocity.x);
+    //LogValue("camera.physics.velocity.y", &physics.velocity.y);
     repeat
         frame;
     until (alive == false)
@@ -818,7 +819,7 @@ begin
     AIModelManager(FACTION_GOOD);
 
     // camera
-    __gameCamera = CameraController();
+    __camera = CameraController();
 end
 
 // TODO: implement

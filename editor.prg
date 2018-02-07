@@ -12,8 +12,6 @@ program Faust2LevelEditor;
  * ---------------------------------------------------------------------------*/
 const
     // DIV command enums
-    REGION_FULL_SCREEN = 0;
-    REGION_EDITOR_VIEWPORT = 1;
     SCROLL_FOREGROUND_HORIZONTAL = 1;
     SCROLL_FOREGROUND_VERTICAL   = 2;
     SCROLL_BACKGROUND_HORIZONTAL = 4;
@@ -80,6 +78,19 @@ const
     // game process resolution
     GPR = 10;
 
+    // regions
+    REGION_FULL_SCREEN = 0;
+    REGION_EDITOR_VIEWPORT = 1;
+    REGION_COUNT = 2;
+
+    // camera
+    CAMERA_MOVE_FREE_LOOK   = 0;
+    CAMERA_MOVE_PLAYER_LOOK = 1;
+    CAMERA_FREE_LOOK_MAX_SPEED = 5 * GPR;
+
+    // physics
+    PHYSICS_MAX_MOVE_SPEED = 10 * GPR;
+
     // timing
     MAX_DELAYS = 32;
 
@@ -114,7 +125,7 @@ const
     COLOR_B_NORMAL = COLOR_BLUE;
     COLOR_B_HOVER = COLOR_BLUE + 3;
     COLOR_B_PRESSED = COLOR_BLUE - 1;
-    COLOR_B_DISABLED = COLOR_GREY;
+    COLOR_B_DISABLED = COLOR_GREY - 5;
 
     // EDITOR SPECIFIC ---------------------------------------------------------
     // editor ui
@@ -129,18 +140,20 @@ const
     OPT_SAVE_LEVEL          = 5;
     OPT_PALETTE_OBJECTS     = 6;
     OPT_PALETTE_ENTITIES    = 7;
-    OPT_SCROLL_UP           = 8;
-    OPT_SCROLL_DOWN         = 9;
-    OPT_PALETTE_BOX_0       = 10;
-    OPT_PALETTE_BOX_1       = 11;
-    OPT_PALETTE_BOX_2       = 12;
-    OPT_PALETTE_BOX_3       = 13;
-    OPT_PALETTE_BOX_4       = 14;
-    OPT_PALETTE_BOX_5       = 15;
-    OPT_PALETTE_BOX_6       = 16;
-    OPT_PALETTE_BOX_7       = 17;
-    OPT_EDIT_OBJECT         = 18;
-    UI_OPTION_COUNT = 19;
+    OPT_PALETTE_TERRAIN     = 8;
+    OPT_SCROLL_UP           = 9;
+    OPT_SCROLL_DOWN         = 10;
+    OPT_PALETTE_BOX_0       = 11;
+    OPT_PALETTE_BOX_1       = 12;
+    OPT_PALETTE_BOX_2       = 13;
+    OPT_PALETTE_BOX_3       = 14;
+    OPT_PALETTE_BOX_4       = 15;
+    OPT_PALETTE_BOX_5       = 16;
+    OPT_PALETTE_BOX_6       = 17;
+    OPT_PALETTE_BOX_7       = 18;
+    OPT_PALETTE_SEARCH      = 19;
+    OPT_EDIT_OBJECT         = 20;
+    UI_OPTION_COUNT = 21;
 
     // ui groups
     GROUP_MAIN_BG              = 0;
@@ -154,6 +167,14 @@ const
  * Global variables
  * ---------------------------------------------------------------------------*/
 global
+    // graphics
+    struct __regions[REGION_COUNT - 1]
+        x, y, width, height;
+    end =
+    //  x  y   width         height
+        0, 0,  SCREEN_WIDTH, SCREEN_HEIGHT,
+        0, 20, 480,          380;
+
     // resources
     struct __graphics[GFX_COUNT - 1]
         handle;
@@ -189,6 +210,15 @@ global
         NULL,   "assets/audio/shell-dropped2.wav", 128,    256,       SOUND_PLAYBACK_ONCE,
         NULL,   "assets/audio/shell-dropped3.wav", 128,    256,       SOUND_PLAYBACK_ONCE,
         NULL,   "assets/audio/test-shot7.wav",     128,    256,       SOUND_PLAYBACK_ONCE;
+
+    // camera
+    struct __camera
+        processId;
+        targetId;
+        moveMode;
+    end =
+    //  processId  targetId  moveMode
+        NULL,      NULL,     CAMERA_MOVE_FREE_LOOK;
 
     // math
     struct __physics
@@ -245,9 +275,9 @@ global
     __uiGroupsCount;
     struct __uiGroups[MAX_UI_GROUPS - 1]
         visible;
-        active; // TODO: use this var
         buttonsCount;
         struct buttons[MAX_UI_GROUP_BUTTONS - 1]
+            enabled;
             x, y, width, height;
             colorNormal, colorHover, colorPressed, colorDisabled;
             opacityNormal, opacityHover, opacityPressed, opacityDisabled;
@@ -268,6 +298,7 @@ global
         end
         textFieldsCount;
         struct textFields[MAX_UI_GROUP_TEXTS - 1]
+            active;
             x, y;
             fontIndex, anchor, option;
             string text;
@@ -304,6 +335,7 @@ global
         "SAVE LEVEL", OPT_SAVE_LEVEL,
         "OBJECTS",    OPT_PALETTE_OBJECTS,
         "ENTITIES",   OPT_PALETTE_ENTITIES,
+        "TERRAIN",    OPT_PALETTE_TERRAIN,
         "^",          OPT_SCROLL_UP,
         "v",          OPT_SCROLL_DOWN,
         "",           OPT_PALETTE_BOX_0,
@@ -314,6 +346,7 @@ global
         "",           OPT_PALETTE_BOX_5,
         "",           OPT_PALETTE_BOX_6,
         "",           OPT_PALETTE_BOX_7,
+        "SEARCH",     OPT_PALETTE_SEARCH,
         "EDIT",       OPT_EDIT_OBJECT;
 
 
@@ -325,6 +358,42 @@ local
     // general purpose
     alive;
     i;
+
+    // component references
+    struct components
+        animator;
+        faction;
+        health;
+        input;
+        inventory;
+        physics;
+    end
+    value; // A value held by a component. What this holds is determined by the individual component.
+
+    // actor input component
+    struct input
+        attackingPreviousFrame;
+        attacking;
+        reloading;
+        struct move
+            x, y;
+            granularity;
+            walk;
+        end
+        struct lookAt
+            x, y;
+        end
+    end
+
+    // actor physics component
+    struct physics
+        walkSpeed;
+        runSpeed;
+        targetMoveSpeed;
+        struct velocity
+            x, y;
+        end
+    end
 
     // logging
     struct logging
@@ -358,51 +427,6 @@ begin
     // ui main menu
     ShowUIGroup(GROUP_MAIN_BG);
     ShowUIGroup(GROUP_MAIN_MENU);
-end
-
-
-
-/* -----------------------------------------------------------------------------
- * Camera & scrolling
- * ---------------------------------------------------------------------------*/
-process CameraController()
-begin
-    // configuration
-    //input.move.granularity = 10;
-    resolution = GPR;
-    ctype = c_scroll;
-    region = REGION_EDITOR_VIEWPORT;
-    graph = 301;
-    z = -1000;
-
-    // initialization
-    alive = true;
-    start_scroll(
-        0,
-        __graphics[GFX_MAIN].handle, 200, 0,
-        REGION_EDITOR_VIEWPORT,
-        SCROLL_FOREGROUND_HORIZONTAL + SCROLL_FOREGROUND_VERTICAL);
-
-    // components & sub-processes
-    //components.physics = Physics(id);
-    //components.input = CameraInput(id);
-    ScrollFollower(id);
-
-    // NOTE: Set targetMoveSpeed after initializing Physics component.
-    //physics.targetMoveSpeed = CAMERA_FREE_LOOK_MAX_SPEED;
-    repeat
-        frame;
-    until (alive == false)
-end
-
-process ScrollFollower(controllerId)
-begin
-    repeat
-        // Set scroll position.
-        scroll[0].x0 = (controllerId.x / GPR) - HALF_SCREEN_WIDTH;
-        scroll[0].y0 = (controllerId.y / GPR) - HALF_SCREEN_HEIGHT;
-        frame;
-    until (controllerId.alive == false)
 end
 
 
@@ -448,17 +472,17 @@ begin
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 20, 200, 40,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_MENU, OPT_NEW_LEVEL);
+        FONT_MENU, OPT_NEW_LEVEL, true);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_MENU, OPT_LOAD_LEVEL);
+        FONT_MENU, OPT_LOAD_LEVEL, true);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_MENU, OPT_EXIT);
+        FONT_MENU, OPT_EXIT, true);
 end
 
 function ConfigureUI_StringPromptDialog()
@@ -476,17 +500,17 @@ begin
         DRAW_RECTANGLE, COLOR_WHITE, OPACITY_SOLID);
     AddTextFieldToUIGroup(ui,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT + 35,
-        FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_NEW_LEVEL_FILE_NAME);
+        FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_NEW_LEVEL_FILE_NAME, true);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_MENU, OPT_NEW_LEVEL_FILE_NAME);
+        FONT_MENU, OPT_NEW_LEVEL_FILE_NAME, true);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_MENU, OPT_MAIN_MENU);
+        FONT_MENU, OPT_MAIN_MENU, true);
 end
 
 function ConfigureUI_EditorBg()
@@ -503,27 +527,32 @@ begin
     // TOP BAR
     AddDrawingToUIGroup(ui,
         0, 0, SCREEN_WIDTH - pw - 1, unit * 5,
-        DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
+        DRAW_RECTANGLE_FILL, COLOR_BLUE - 4, OPACITY_SOLID);
     AddButtonToUIGroup(ui,
         unit / 2, unit / 2, (unit * 16), unit * 4,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_SAVE_LEVEL);
+        FONT_SYSTEM, OPT_SAVE_LEVEL, true);
     AddButtonToUIGroup(ui,
         (unit * 17), unit / 2, (unit * 16), unit * 4,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_LOAD_LEVEL);
+        FONT_SYSTEM, OPT_LOAD_LEVEL, true);
     AddButtonToUIGroup(ui,
         (unit / 2) + (unit * 33), unit / 2, (unit * 16), unit * 4,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_PALETTE_OBJECTS);
+        FONT_SYSTEM, OPT_PALETTE_OBJECTS, true);
     AddButtonToUIGroup(ui,
         (unit * 50), unit / 2, (unit * 16), unit * 4,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_PALETTE_ENTITIES);
+        FONT_SYSTEM, OPT_PALETTE_ENTITIES, true);
+    AddButtonToUIGroup(ui,
+        (unit * 50), unit / 2, (unit * 16), unit * 4,
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_SYSTEM, OPT_PALETTE_TERRAIN, false);
 end
 
 function ConfigureUI_EditorSidePanel()
@@ -534,18 +563,30 @@ private
     pw = SCREEN_WIDTH / 4; // panel width
     ph = SCREEN_HEIGHT / 3; // panel height
     objectDataIndex;
-    pbSize = 64; // palette box size
+    pbSize = 64;
     string pbText;
     pbFileIndex;
     pbGfxIndex;
 begin
+    // SEARCH BAR
+    w = (pw) - (unit * 1) - (unit / 2);
+    h = (unit * 4) + (unit / 2);
+    x = SCREEN_WIDTH - (pw) + (unit / 2);
+    y = (ph) - (h) + (unit / 2);
     AddDrawingToUIGroup(ui,
-        SCREEN_WIDTH - (pw) - 1 + (unit / 2), (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, h + (unit / 2), 
-        DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
+        x, y, x + w, y + h,
+        DRAW_RECTANGLE_FILL, COLOR_BLACK, OPACITY_SOLID);
+    AddDrawingToUIGroup(ui,
+        x, y, x + w, y + h,
+        DRAW_RECTANGLE, COLOR_WHITE, OPACITY_SOLID);
+    AddTextFieldToUIGroup(ui,
+        x + (w / 2), y + (h / 2),
+        FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_PALETTE_SEARCH, false);
+    // PALETTE BG
     AddDrawingToUIGroup(ui,
         SCREEN_WIDTH - (pw) - 1 + (unit / 2), ph + (unit) + (unit / 2), SCREEN_WIDTH - (unit / 2) - 1, SCREEN_HEIGHT - (unit / 2) - 1,
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
-    // PALETTE
+    // PALETTE LINES
     AddDrawingToUIGroup(ui,
         SCREEN_WIDTH - (pw) - 1 + (unit * 2) + pbSize, ph + (unit) + (unit / 2), 
         SCREEN_WIDTH - (pw) - 1 + (unit * 2) + pbSize, SCREEN_HEIGHT - (unit / 2) - 1,
@@ -555,6 +596,7 @@ begin
             SCREEN_WIDTH - (pw) - 1 + (unit / 2), ph + (unit) + (unit / 2) + (pbSize * i), SCREEN_WIDTH - (unit / 2) - 1, ph + (unit) + (unit / 2) + (pbSize * i),
             DRAW_LINE, COLOR_BLUE - 6, OPACITY_SOLID);
     end
+    // PALETTE BOXES
     for (i = 0; i < UI_EDITOR_PALETTE_SIZE; ++i)
         objectDataIndex = (__uiEditor.palettePage * UI_EDITOR_PALETTE_SIZE) + i;
         if (objectDataIndex > __objectDataCount)
@@ -583,7 +625,7 @@ begin
             x + (unit * 2), y + (unit * 4), w, h,
             COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
             OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-            FONT_SYSTEM, OPT_PALETTE_BOX_0 + i);
+            FONT_SYSTEM, OPT_PALETTE_BOX_0 + i, true);
             size = CalculateFittedSize(pbFileIndex, pbGfxIndex, w, h);
         AddImageToUIGroup(ui,
             x + (pbSize / 2) + (unit / 2), y + (pbSize / 2) + (unit), UI_Z_ABOVE,
@@ -597,12 +639,12 @@ begin
         SCREEN_WIDTH - (unit * 4) - (unit / 2) - 1, ph + (unit) + (unit / 2), (unit * 4), (unit * 4),
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_SCROLL_UP);
+        FONT_SYSTEM, OPT_SCROLL_UP, true);
     AddButtonToUIGroup(ui,
         SCREEN_WIDTH - (unit * 4) - (unit / 2) - 1, SCREEN_HEIGHT - (unit * 4) - (unit / 2) - 1, (unit * 4), (unit * 4),
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_SCROLL_DOWN);
+        FONT_SYSTEM, OPT_SCROLL_DOWN, true);
 end
 
 function ConfigureUI_EditorInfo()
@@ -630,7 +672,7 @@ begin
             x + w - (unit * 16) - (unit / 2), y, (unit * 16), (unit * 4),
             COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
             OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-            FONT_SYSTEM, OPT_EDIT_OBJECT);
+            FONT_SYSTEM, OPT_EDIT_OBJECT, true);
         AddTextToUIGroup(ui,
             x, y + (unit * 5), 
             FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
@@ -690,7 +732,7 @@ begin
                     exit("", 0);
                 end
                 case OPT_NEW_LEVEL_FILE_NAME:
-                    // TODO:
+                    CameraController(REGION_EDITOR_VIEWPORT);
                     HideAllUIGroups();
                     ShowUIGroup(GROUP_EDITOR_BG);
                     ShowUIGroup(GROUP_EDITOR_SIDE_PANEL);
@@ -731,16 +773,25 @@ begin
             end
             __ui.buttonClicked = NULL;
         end
-        // RMB: deselect
-        if (mouse.right && __uiEditor.objectBrushSelected > NULL)
-            __uiEditor.objectBrushSelected = NULL;
-            ClearUIGroup(GROUP_EDITOR_INFO);
-            ConfigureUI_EditorInfo();
-            ShowUIGroup(GROUP_EDITOR_INFO);
+        if (__uiEditor.objectBrushSelected > NULL)
+            // LMB: place brush
+            if (mouse.left 
+                && RegionContainsPoint(REGION_EDITOR_VIEWPORT, mouse.x, mouse.y))
+                debug;
+            end
+
+            // RMB: deselect
+            if (mouse.right)
+                __uiEditor.objectBrushSelected = NULL;
+                ClearUIGroup(GROUP_EDITOR_INFO);
+                ConfigureUI_EditorInfo();
+                ShowUIGroup(GROUP_EDITOR_INFO);
+            end
         end
         frame;
     until (alive == false)
 end
+
 
 
 
@@ -783,36 +834,41 @@ begin
             c = __uiGroups[i].buttons[b].colorNormal;
             o = __uiGroups[i].buttons[b].opacityNormal;
 
-            if (RectangleContainsPoint(x, y, x + w, y + h, mouse.x, mouse.y))
-                if (hover == false)
-                    c = __uiGroups[i].buttons[b].colorHover;
-                    o = __uiGroups[i].buttons[b].opacityHover;
-                    hover = true;
+            if (__uiGroups[i].buttons[b].enabled)
+                if (RectangleContainsPoint(x, y, x + w, y + h, mouse.x, mouse.y))
+                    if (hover == false)
+                        c = __uiGroups[i].buttons[b].colorHover;
+                        o = __uiGroups[i].buttons[b].opacityHover;
+                        hover = true;
+                    end
+                else
+                    if (hover == true)
+                        c = __uiGroups[i].buttons[b].colorNormal;
+                        o = __uiGroups[i].buttons[b].opacityNormal;
+                        hover = false;
+                    end
                 end
-            else
-                if (hover == true)
-                    c = __uiGroups[i].buttons[b].colorNormal;
-                    o = __uiGroups[i].buttons[b].opacityNormal;
-                    hover = false;
-                end
-            end
 
-            if (hover)
-                if (mouse.left)
-                    c = __uiGroups[i].buttons[b].colorPressed;
-                    o = __uiGroups[i].buttons[b].opacityPressed;
-                    __ui.buttonHeldDown = __uiGroups[i].buttons[b].option;
-                end
-                if (!mouse.left && __ui.buttonHeldDown == __uiGroups[i].buttons[b].option)
-                    c = __uiGroups[i].buttons[b].colorHover;
-                    o = __uiGroups[i].buttons[b].opacityHover;
-                    __ui.buttonHeldDown = NULL;
-                    __ui.buttonClicked = __uiGroups[i].buttons[b].option;
+                if (hover)
+                    if (mouse.left)
+                        c = __uiGroups[i].buttons[b].colorPressed;
+                        o = __uiGroups[i].buttons[b].opacityPressed;
+                        __ui.buttonHeldDown = __uiGroups[i].buttons[b].option;
+                    end
+                    if (!mouse.left && __ui.buttonHeldDown == __uiGroups[i].buttons[b].option)
+                        c = __uiGroups[i].buttons[b].colorHover;
+                        o = __uiGroups[i].buttons[b].opacityHover;
+                        __ui.buttonHeldDown = NULL;
+                        __ui.buttonClicked = __uiGroups[i].buttons[b].option;
+                    end
+                else
+                    if (__ui.buttonHeldDown == __uiGroups[i].buttons[b].option)
+                        __ui.buttonHeldDown = NULL;
+                    end
                 end
             else
-                if (__ui.buttonHeldDown == __uiGroups[i].buttons[b].option)
-                    __ui.buttonHeldDown = NULL;
-                end
+                c = __uiGroups[i].buttons[b].colorDisabled;
+                o = __uiGroups[i].buttons[b].opacityDisabled;
             end
 
             draw(DRAW_RECTANGLE_FILL, c, o, REGION_FULL_SCREEN, x, y, x + w, y + h);
@@ -892,7 +948,11 @@ begin
             continue;
         end
         for (t = 0; t < __uiGroups[i].textFieldsCount; ++t)
-            __uiGroups[i].textFields[t].text = UpdateTextField(__uiGroups[i].textFields[t].text);
+            if (__uiGroups[i].textFields[t].active)
+                __uiGroups[i].textFields[t].text = UpdateTextField(__uiGroups[i].textFields[t].text);
+            else
+                // TODO: implement click to activate text field
+            end
             if (__uiGroups[i].textFields[t].text == "")
                 write(
                     __fonts[__uiGroups[i].textFields[t].fontIndex].handle,
@@ -907,7 +967,7 @@ begin
                     __uiGroups[i].textFields[t].y,
                     __uiGroups[i].textFields[t].anchor,
                     __uiGroups[i].textFields[t].text);
-                if (scan_code == _enter)
+                if (__uiGroups[i].textFields[t].active && scan_code == _enter)
                     __ui.buttonClicked = __uiGroups[i].textFields[t].option;
                 end
             end
@@ -1023,7 +1083,7 @@ begin
     __uiGroups[ui].textsCount++;
 end
 
-function AddTextFieldToUIGroup(ui, x, y, fontIndex, anchor, text, option)
+function AddTextFieldToUIGroup(ui, x, y, fontIndex, anchor, text, option, active)
 begin
     i = __uiGroups[ui].textFieldsCount;
     __uiGroups[ui].textFields[i].x = x;
@@ -1032,6 +1092,7 @@ begin
     __uiGroups[ui].textFields[i].anchor = anchor;
     __uiGroups[ui].textFields[i].text = text;
     __uiGroups[ui].textFields[i].option = option;
+    __uiGroups[ui].textFields[i].active = active;
     __uiGroups[ui].textFieldsCount++;
 end
 
@@ -1051,7 +1112,7 @@ end
 function AddButtonToUIGroup(ui, x, y, width, height,
     colorNormal, colorHover, colorPressed, colorDisabled,
     opacityNormal, opacityHover, opacityPressed, opacityDisabled,
-    fontIndex, option)
+    fontIndex, option, enabled)
 begin
     i = __uiGroups[ui].buttonsCount;
     __uiGroups[ui].buttons[i].x = x;
@@ -1068,13 +1129,13 @@ begin
     __uiGroups[ui].buttons[i].opacityDisabled = opacityDisabled;
     __uiGroups[ui].buttons[i].fontIndex = fontIndex;
     __uiGroups[ui].buttons[i].option = option;
+    __uiGroups[ui].buttons[i].enabled = enabled;
     __uiGroups[ui].buttonsCount++;
 end
 
 function ClearUIGroup(ui)
 begin
     __uiGroups[ui].visible = false;
-    __uiGroups[ui].active = false;
 
     __uiGroups[ui].buttonsCount = 0;
     for (i = 0; i < MAX_UI_GROUP_BUTTONS - 1; ++i)
@@ -1204,7 +1265,15 @@ function InitGraphics()
 begin
     set_mode(SCREEN_MODE);
     set_fps(60, 1);
-    define_region(REGION_EDITOR_VIEWPORT, 0, 20, (SCREEN_WIDTH * 3 / 4) - 1, 380);
+
+    DefineRegions();
+end
+
+function DefineRegions()
+begin
+    for (i = 1; i < REGION_COUNT; ++i)
+        define_region(i, __regions[i].x, __regions[i].y, __regions[i].width, __regions[i].height);
+    end
 end
 
 function LoadResources()
@@ -1231,6 +1300,7 @@ begin
     // TODO: FIX THIS PATH HACK :( 
     // NOTE: DIV appears to have no way of retrieving the relative project path... see forum post:
     // http://div-arena.co.uk/forum2/viewthread.php?tid=288
+    // NOTE: If this is still a problem at build/release time, use a table of hardcoded paths.
     chdir("C:\Projects\DIV\faust2\" + DATA_OBJECTS_PATH);
 
     // get list of object files in dirinfo struct
@@ -1299,6 +1369,122 @@ end
 
 
 /* -----------------------------------------------------------------------------
+ * Camera & scrolling
+ * ---------------------------------------------------------------------------*/
+process CameraController(region)
+begin
+    // configuration
+    input.move.granularity = 10;
+    resolution = GPR;
+    ctype = c_scroll;
+    z = -1000;
+
+    // initialization
+    __camera.processId = id;
+    alive = true;
+    start_scroll(
+        0,
+        __graphics[GFX_MAIN].handle, 200, 0,
+        region,
+        SCROLL_FOREGROUND_HORIZONTAL + SCROLL_FOREGROUND_VERTICAL);
+
+    // components & sub-processes
+    components.physics = Physics(id);
+    components.input = CameraInput(id);
+    ScrollFollower(id, region);
+
+    // NOTE: Set targetMoveSpeed after initializing Physics component.
+    physics.targetMoveSpeed = CAMERA_FREE_LOOK_MAX_SPEED;
+    repeat
+        frame;
+    until (alive == false)
+end
+
+process CameraInput(controllerId)
+begin
+    repeat
+        switch (__camera.moveMode)
+            case NULL:
+                controllerId.input.move.x = 0;
+                controllerId.input.move.y = 0;
+            end
+            case CAMERA_MOVE_FREE_LOOK:
+                if (key(_a))
+                    controllerId.input.move.x = -controllerId.input.move.granularity;
+                else
+                    if (key(_d))
+                        controllerId.input.move.x = +controllerId.input.move.granularity;
+                    else
+                        controllerId.input.move.x = 0;
+                    end
+                end
+                if (key(_w))
+                    controllerId.input.move.y = -controllerId.input.move.granularity;
+                else
+                    if (key(_s))
+                        controllerId.input.move.y = +controllerId.input.move.granularity;
+                    else
+                        controllerId.input.move.y = 0;
+                    end
+                end
+            end
+            case CAMERA_MOVE_PLAYER_LOOK:
+                // TODO: Apply movement to input.
+                //if (__camera.targetId != NULL)
+                //    aimAngle = fget_angle(
+                //        HALF_SCREEN_WIDTH,
+                //        HALF_SCREEN_HEIGHT,
+                //        mouse.x,
+                //        mouse.y);
+                //    aimDistance = fget_dist(
+                //        HALF_SCREEN_WIDTH,
+                //        HALF_SCREEN_HEIGHT,
+                //        mouse.x,
+                //        mouse.y);
+                //    aimPointX = __cameraTargetId.x + get_distx(aimAngle, Min(aimDistance, aimMaxDistance)) * GPR * aimBoost;
+                //    aimPointY = __cameraTargetId.y + get_disty(aimAngle, Min(aimDistance, aimMaxDistance)) * GPR * aimBoost;
+                //    x = (__camera.targetId.x + aimPointX) / 2;
+                //    y = (__camera.targetId.y + aimPointY) / 2;
+                //    scroll[0].x0 = (x / GPR) - HALF_SCREEN_WIDTH;
+                //    scroll[0].y0 = (y / GPR) - HALF_SCREEN_HEIGHT;
+                //    //DrawScrollSpaceLine1Frame(__camera.targetId.x, __camera.targetId.y, aimPointX, aimPointY, COLOR_WHITE, OPACITY_SOLID);
+                //end
+            end
+        end
+        frame;
+    until (controllerId.alive == false)
+end
+
+process ScrollFollower(controllerId, region)
+begin
+    repeat
+        // Set scroll position.
+        scroll[0].x0 = (controllerId.x / GPR) - (__regions[region].width / 2);
+        scroll[0].y0 = (controllerId.y / GPR) - (__regions[region].height / 2);
+        frame;
+    until (controllerId.alive == false)
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Actor components
+ * ---------------------------------------------------------------------------*/
+process Physics(controllerId)
+begin
+    // NOTE: This seems wrong. Target move speed should be determined by the controller, not by the 
+    // physics component, even at initilization time.
+    controllerId.physics.targetMoveSpeed = PHYSICS_MAX_MOVE_SPEED;
+    repeat
+        ApplyInputToVelocity(controllerId);
+        ApplyVelocity(controllerId);
+        frame;
+    until (controllerId.alive == false)
+end
+
+
+
+/* -----------------------------------------------------------------------------
  * Process functions
  * ---------------------------------------------------------------------------*/
 function SetGraphic(fileIndex, gfxIndex)
@@ -1333,11 +1519,68 @@ end
 
 
 /* -----------------------------------------------------------------------------
+ * Physics & Input functions
+ * ---------------------------------------------------------------------------*/
+function ApplyInputToVelocity(processId)
+begin
+    x = processId.input.move.x * processId.input.move.granularity;
+    y = processId.input.move.y * processId.input.move.granularity;
+    VectorNormalize(&x, &y, GPR);
+
+    // TODO: Don't hard set the velocity, instead implement acceleration.
+    processId.physics.velocity.x = x * processId.physics.targetMoveSpeed / GPR;
+    processId.physics.velocity.y = y * processId.physics.targetMoveSpeed / GPR;
+end
+
+function ApplyVelocity(processId)
+begin
+    processId.x += processId.physics.velocity.x;
+    processId.y += processId.physics.velocity.y;
+end
+
+/*
+function InputMoveTowards(processId, x, y, walk)
+begin
+    x = x - processId.x;
+    y = y - processId.y;
+    VectorNormalize(&x, &y, 10);
+    processId.input.move.x = x;
+    processId.input.move.y = y;
+    processId.input.move.walk = walk;
+end
+
+function InputMoveNone(processId)
+begin
+    processId.input.move.x = 0;
+    processId.input.move.y = 0;
+    processId.input.move.walk = INPUT_RUN;
+end
+
+function InputLookAt(processId, x, y)
+begin
+    processId.input.lookAt.x = x;
+    processId.input.lookAt.y = y;
+end
+*/
+
+
+
+/* -----------------------------------------------------------------------------
  * Math functions
  * ---------------------------------------------------------------------------*/
 function RectangleContainsPoint(x0, y0, x1, y1, pointX, pointY)
 begin
     return (pointX >= x0 && pointX <= x1 && pointY >= y0 && pointY <= y1);
+end
+
+function RegionContainsPoint(regionIndex, pointX, pointY)
+begin
+    return (RectangleContainsPoint(
+        __regions[regionIndex].x, 
+        __regions[regionIndex].y,
+        __regions[regionIndex].width,
+        __regions[regionIndex].height,
+        pointX, pointY));
 end
 
 // TODO: Write CircleContainsPoint().
@@ -1729,5 +1972,7 @@ begin
     end
     return (0);
 end
+
+
 
 
