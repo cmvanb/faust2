@@ -102,6 +102,8 @@ const
     DEBUG_MODE = true;
 
     // ui
+    MAX_UI_DRAWINGS = 128;
+    MAX_UI_TEXTS    = 128;
     MAX_UI_GROUPS = 8;
     MAX_UI_GROUP_BUTTONS  = 32;
     MAX_UI_GROUP_DRAWINGS = 32;
@@ -266,10 +268,26 @@ global
         end
     end
 
+    // mouse
+    struct __mouse
+        leftClicked;
+        leftHeldDown;
+        rightClicked;
+        rightHeldDown;
+    end
+
     // ui
     struct __ui
         buttonHeldDown;
         buttonClicked;
+        drawingsCount;
+        struct drawings[MAX_UI_DRAWINGS - 1]
+            handle;
+        end
+        textsCount;
+        struct texts[MAX_UI_TEXTS - 1]
+            handle;
+        end
     end
 
     __uiGroupsCount;
@@ -775,13 +793,13 @@ begin
         end
         if (__uiEditor.objectBrushSelected > NULL)
             // LMB: place brush
-            if (mouse.left 
+            if (__mouse.leftClicked
                 && RegionContainsPoint(REGION_EDITOR_VIEWPORT, mouse.x, mouse.y))
-                debug;
+                EditorObject(mouse.x, mouse.y, __uiEditor.objectBrushSelected);
             end
 
             // RMB: deselect
-            if (mouse.right)
+            if (__mouse.rightClicked)
                 __uiEditor.objectBrushSelected = NULL;
                 ClearUIGroup(GROUP_EDITOR_INFO);
                 ConfigureUI_EditorInfo();
@@ -792,11 +810,24 @@ begin
     until (alive == false)
 end
 
+process EditorObject(x, y, objectBrushIndex)
+begin
+    // initialization
+    alive = true;
+    SetGraphic(GFX_OBJECTS, __objectData[objectBrushIndex].gfxIndex);
+    angle = __objectData[objectBrushIndex].angle;
+    size = __objectData[objectBrushIndex].size;
+    z = __objectData[objectBrushIndex].z;
+    repeat
+        frame;
+    until (alive == false)
+end
+
 
 
 
 /* -----------------------------------------------------------------------------
- * UI
+ * UI Rendering
  * ---------------------------------------------------------------------------*/
 process UIRenderer()
 begin
@@ -809,9 +840,8 @@ begin
         RenderUIButtons();
         RenderUISegments();
         frame;
-        // TODO: Don't delete all, logging e.g. uses text that shouldn't be deleted.
-        delete_draw(all_drawing);
-        delete_text(all_text);
+        DeleteAllUIDrawings();
+        DeleteAllUITexts();
     until (alive == false)
 end
 
@@ -850,12 +880,12 @@ begin
                 end
 
                 if (hover)
-                    if (mouse.left)
+                    if (__mouse.leftHeldDown)
                         c = __uiGroups[i].buttons[b].colorPressed;
                         o = __uiGroups[i].buttons[b].opacityPressed;
                         __ui.buttonHeldDown = __uiGroups[i].buttons[b].option;
                     end
-                    if (!mouse.left && __ui.buttonHeldDown == __uiGroups[i].buttons[b].option)
+                    if (!__mouse.leftHeldDown && __ui.buttonHeldDown == __uiGroups[i].buttons[b].option)
                         c = __uiGroups[i].buttons[b].colorHover;
                         o = __uiGroups[i].buttons[b].opacityHover;
                         __ui.buttonHeldDown = NULL;
@@ -871,7 +901,7 @@ begin
                 o = __uiGroups[i].buttons[b].opacityDisabled;
             end
 
-            draw(DRAW_RECTANGLE_FILL, c, o, REGION_FULL_SCREEN, x, y, x + w, y + h);
+            RenderUIDrawing(DRAW_RECTANGLE_FILL, c, o, REGION_FULL_SCREEN, x, y, x + w, y + h);
 
             if (__uiGroups[i].buttons[b].option == NULL)
                 __uiGroups[i].buttons[b].text = "[NULL]";
@@ -879,8 +909,8 @@ begin
                 __uiGroups[i].buttons[b].text = __uiOptions[__uiGroups[i].buttons[b].option].label;
             end
 
-            write(
-                __fonts[__uiGroups[i].buttons[b].fontIndex].handle,
+            RenderUIText(
+                __uiGroups[i].buttons[b].fontIndex,
                 x + (w / 2),
                 y + (h / 2),
                 FONT_ANCHOR_CENTERED,
@@ -898,7 +928,7 @@ begin
             continue;
         end
         for (d = 0; d < __uiGroups[i].drawingsCount; ++d)
-            draw(
+            RenderUIDrawing(
                 __uiGroups[i].drawings[d].drawType,
                 __uiGroups[i].drawings[d].color,
                 __uiGroups[i].drawings[d].opacity,
@@ -921,15 +951,15 @@ begin
         end
         for (t = 0; t < __uiGroups[i].textsCount; ++t)
             if (__uiGroups[i].texts[t].isInteger)
-                write_int(
-                    __fonts[__uiGroups[i].texts[t].fontIndex].handle,
+                RenderUITextInteger(
+                    __uiGroups[i].texts[t].fontIndex,
                     __uiGroups[i].texts[t].x,
                     __uiGroups[i].texts[t].y,
                     __uiGroups[i].texts[t].anchor,
                     __uiGroups[i].texts[t].text);
             else
-                write(
-                    __fonts[__uiGroups[i].texts[t].fontIndex].handle,
+                RenderUIText(
+                    __uiGroups[i].texts[t].fontIndex,
                     __uiGroups[i].texts[t].x,
                     __uiGroups[i].texts[t].y,
                     __uiGroups[i].texts[t].anchor,
@@ -954,15 +984,15 @@ begin
                 // TODO: implement click to activate text field
             end
             if (__uiGroups[i].textFields[t].text == "")
-                write(
-                    __fonts[__uiGroups[i].textFields[t].fontIndex].handle,
+                RenderUIText(
+                    __uiGroups[i].textFields[t].fontIndex,
                     __uiGroups[i].textFields[t].x,
                     __uiGroups[i].textFields[t].y,
                     __uiGroups[i].textFields[t].anchor,
                     "...");
             else
-                write(
-                    __fonts[__uiGroups[i].textFields[t].fontIndex].handle,
+                RenderUIText(
+                    __uiGroups[i].textFields[t].fontIndex,
                     __uiGroups[i].textFields[t].x,
                     __uiGroups[i].textFields[t].y,
                     __uiGroups[i].textFields[t].anchor,
@@ -1058,6 +1088,59 @@ begin
     */
 end
 
+function RenderUIDrawing(drawType, color, opacity, region, x0, y0, x1, y1)
+begin
+    if (__ui.drawingsCount == MAX_UI_DRAWINGS)
+        return;
+    end
+    __ui.drawings[__ui.drawingsCount].handle = 
+        draw(drawType, color, opacity, region, x0, y0, x1, y1);
+    ++__ui.drawingsCount;
+end
+
+function RenderUIText(fontIndex, x, y, anchor, text)
+begin
+    if (__ui.textsCount == MAX_UI_TEXTS)
+        return;
+    end
+    __ui.texts[__ui.textsCount].handle = 
+        write(__fonts[fontIndex].handle, x, y, anchor, text);
+    ++__ui.textsCount;
+end
+
+function RenderUITextInteger(fontIndex, x, y, anchor, var)
+begin
+    if (__ui.textsCount == MAX_UI_TEXTS)
+        return;
+    end
+    __ui.texts[__ui.textsCount].handle = 
+        write_int(__fonts[fontIndex].handle, x, y, anchor, var);
+    ++__ui.textsCount;
+end
+
+function DeleteAllUIDrawings()
+begin
+    for (i = 0; i < __ui.drawingsCount; ++i)
+        delete_draw(__ui.drawings[i].handle);
+        __ui.drawings[i].handle = 0;
+    end
+    __ui.drawingsCount = 0;
+end
+
+function DeleteAllUITexts()
+begin
+    for (i = 0; i < __ui.textsCount; ++i)
+        delete_text(__ui.texts[i].handle);
+        __ui.texts[i].handle = 0;
+    end
+    __ui.textsCount = 0;
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * UI Configuration
+ * ---------------------------------------------------------------------------*/
 function AddDrawingToUIGroup(ui, x0, y0, x1, y1, drawType, color, opacity)
 begin
     i = __uiGroups[ui].drawingsCount;
@@ -1243,7 +1326,15 @@ begin
     end
 end
 
+
+
+/* -----------------------------------------------------------------------------
+ * UI Mouse
+ * ---------------------------------------------------------------------------*/
 process MouseCursor()
+private
+    previousMouseLeft;
+    previousMouseRight;
 begin
     // initialization
     resolution = GPR;
@@ -1252,6 +1343,12 @@ begin
     loop
         x = mouse.x * GPR;
         y = mouse.y * GPR;
+        __mouse.leftHeldDown = mouse.left;
+        __mouse.rightHeldDown = mouse.right;
+        __mouse.leftClicked = previousMouseLeft && !mouse.left;
+        __mouse.rightClicked = previousMouseRight && !mouse.right;
+        previousMouseLeft = mouse.left;
+        previousMouseRight = mouse.right;
         frame;
     end
 end
