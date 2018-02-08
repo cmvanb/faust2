@@ -832,7 +832,6 @@ begin
                 WrapAngle360(__objectData[__uiEditor.objectBrushSelected].angle + a),
                 __objectData[__uiEditor.objectBrushSelected].size + s,
                 FLAG_TRANSPARENT);
-
             // LMB: place brush
             if (__mouse.leftClicked
                 && RegionContainsPoint(REGION_EDITOR_VIEWPORT, mouse.x, mouse.y))
@@ -844,7 +843,6 @@ begin
                     __objectData[__uiEditor.objectBrushSelected].size + s,
                     __uiEditor.objectBrushSelected);
             end
-
             // RMB: deselect
             if (__mouse.rightClicked)
                 __uiEditor.objectBrushSelected = NULL;
@@ -868,7 +866,6 @@ begin
         frame;
     until (alive == false)
 end
-
 
 
 
