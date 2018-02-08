@@ -87,9 +87,9 @@ const
     GPR = 10;
 
     // regions
-    REGION_FULL_SCREEN = 0;
+    REGION_FULL_SCREEN     = 0;
     REGION_EDITOR_VIEWPORT = 1;
-    REGION_COUNT = 2;
+    REGION_COUNT           = 2;
 
     // camera
     CAMERA_MOVE_FREE_LOOK   = 0;
