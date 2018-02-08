@@ -575,7 +575,7 @@ begin
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_PALETTE_ENTITIES, true);
     AddButtonToUIGroup(ui,
-        (unit * 50), unit / 2, (unit * 16), unit * 4,
+        (unit / 2) + (unit * 66), unit / 2, (unit * 16), unit * 4,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_PALETTE_TERRAIN, false);
