@@ -41,6 +41,14 @@ const
     COLOR_RED   = 22;
     COLOR_GREEN = 41;
     COLOR_BLUE  = 54;
+    FLAG_NORMAL               = 0;
+    FLAG_FLIP_X               = 1;
+    FLAG_FLIP_Y               = 2;
+    FLAG_FLIP_X_Y             = 3;
+    FLAG_TRANSPARENT          = 4;
+    FLAG_TRANSPARENT_FLIP_X   = 5;
+    FLAG_TRANSPARENT_FLIP_Y   = 6;
+    FLAG_TRANSPARENT_FLIP_X_Y = 7;
 
     // null index
     NULL = -1;
@@ -324,7 +332,7 @@ global
         imagesCount;
         struct images[MAX_UI_GROUP_IMAGES - 1]
             x, y, z;
-            fileIndex, gfxIndex, angle, size;
+            fileIndex, gfxIndex, angle, size, flags;
         end
         segmentsCount;
         struct segments[MAX_UI_GROUP_SEGMENTS - 1]
@@ -476,7 +484,7 @@ private
 begin
     AddImageToUIGroup(ui,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT, UI_Z_UNDER,
-        GFX_MAIN, 2, 0, 100);
+        GFX_MAIN, 2, 0, 100, FLAG_NORMAL);
 end
 
 function ConfigureUI_MainMenu()
@@ -647,7 +655,7 @@ begin
             size = CalculateFittedSize(pbFileIndex, pbGfxIndex, w, h);
         AddImageToUIGroup(ui,
             x + (pbSize / 2) + (unit / 2), y + (pbSize / 2) + (unit), UI_Z_ABOVE,
-            pbFileIndex, pbGfxIndex, __objectData[objectDataIndex].angle, size);
+            pbFileIndex, pbGfxIndex, __objectData[objectDataIndex].angle, size, FLAG_NORMAL);
     end
     // SCROLL BAR
     AddDrawingToUIGroup(ui,
@@ -726,11 +734,14 @@ begin
         size = CalculateFittedSize(GFX_OBJECTS, __objectData[i].gfxIndex, bw, bh);
         AddImageToUIGroup(ui,
             bx + (bw / 2), by + (bh / 2), UI_Z_ABOVE,
-            GFX_OBJECTS, __objectData[i].gfxIndex, __objectData[i].angle, size);
+            GFX_OBJECTS, __objectData[i].gfxIndex, __objectData[i].angle, size, FLAG_NORMAL);
     end
 end
 
 process ButtonHandler()
+private
+    a;
+    s;
 begin
     alive = true;
     __ui.buttonClicked = NULL;
@@ -792,10 +803,46 @@ begin
             __ui.buttonClicked = NULL;
         end
         if (__uiEditor.objectBrushSelected > NULL)
+            if (shift_status == 1 || shift_status == 2)
+                __camera.moveMode = NULL;
+                // manipulate angle
+                if (key(_a))
+                    a += 4000;
+                end
+                if (key(_d))
+                    a -= 4000;
+                end
+                // manipulate size
+                if (key(_w))
+                    s += 1;
+                end
+                if (key(_s))
+                    s -= 1;
+                end
+            else
+                __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
+            end
+            // preview
+            RenderImageOneFrame(
+                mouse.x, 
+                mouse.y, 
+                __objectData[__uiEditor.objectBrushSelected].z, 
+                GFX_OBJECTS,
+                __objectData[__uiEditor.objectBrushSelected].gfxIndex,
+                WrapAngle360(__objectData[__uiEditor.objectBrushSelected].angle + a),
+                __objectData[__uiEditor.objectBrushSelected].size + s,
+                FLAG_TRANSPARENT);
+
             // LMB: place brush
             if (__mouse.leftClicked
                 && RegionContainsPoint(REGION_EDITOR_VIEWPORT, mouse.x, mouse.y))
-                EditorObject(mouse.x, mouse.y, __uiEditor.objectBrushSelected);
+                EditorObject(
+                    (scroll[0].x0 + 0 + mouse.x) * GPR, 
+                    (scroll[0].y0 - 20 + mouse.y) * GPR, 
+                    __objectData[__uiEditor.objectBrushSelected].z,
+                    WrapAngle360(__objectData[__uiEditor.objectBrushSelected].angle + a),
+                    __objectData[__uiEditor.objectBrushSelected].size + s,
+                    __uiEditor.objectBrushSelected);
             end
 
             // RMB: deselect
@@ -810,14 +857,13 @@ begin
     until (alive == false)
 end
 
-process EditorObject(x, y, objectBrushIndex)
+process EditorObject(x, y, z, angle, size, objectBrushIndex)
 begin
     // initialization
     alive = true;
+    resolution = GPR;
+    ctype = c_scroll;
     SetGraphic(GFX_OBJECTS, __objectData[objectBrushIndex].gfxIndex);
-    angle = __objectData[objectBrushIndex].angle;
-    size = __objectData[objectBrushIndex].size;
-    z = __objectData[objectBrushIndex].z;
     repeat
         frame;
     until (alive == false)
@@ -1037,12 +1083,13 @@ begin
                 __uiGroups[i].images[j].fileIndex,
                 __uiGroups[i].images[j].gfxIndex,
                 __uiGroups[i].images[j].angle,
-                __uiGroups[i].images[j].size);
+                __uiGroups[i].images[j].size,
+                __uiGroups[i].images[j].flags);
         end
     end
 end
 
-process RenderImageOneFrame(x, y, z, fileIndex, gfxIndex, angle, size)
+process RenderImageOneFrame(x, y, z, fileIndex, gfxIndex, angle, size, flags)
 begin
     SetGraphic(fileIndex, gfxIndex);
     frame;
@@ -1179,7 +1226,7 @@ begin
     __uiGroups[ui].textFieldsCount++;
 end
 
-function AddImageToUIGroup(ui, x, y, z, fileIndex, gfxIndex, angle, size)
+function AddImageToUIGroup(ui, x, y, z, fileIndex, gfxIndex, angle, size, flags)
 begin
     i = __uiGroups[ui].imagesCount;
     __uiGroups[ui].images[i].x = x;
@@ -1189,6 +1236,7 @@ begin
     __uiGroups[ui].images[i].gfxIndex = gfxIndex;
     __uiGroups[ui].images[i].angle = angle;
     __uiGroups[ui].images[i].size = size;
+    __uiGroups[ui].images[i].flags = flags;
     __uiGroups[ui].imagesCount++;
 end
 
@@ -1219,7 +1267,6 @@ end
 function ClearUIGroup(ui)
 begin
     __uiGroups[ui].visible = false;
-
     __uiGroups[ui].buttonsCount = 0;
     for (i = 0; i < MAX_UI_GROUP_BUTTONS - 1; ++i)
         __uiGroups[ui].buttons[i].x               = 0;
@@ -1238,7 +1285,6 @@ begin
         __uiGroups[ui].buttons[i].option          = 0;
         __uiGroups[ui].buttons[i].text            = "";
     end
-
     __uiGroups[ui].drawingsCount = 0;
     for (i = 0; i < MAX_UI_GROUP_BUTTONS - 1; ++i)
         __uiGroups[ui].drawings[i].x0       = 0;
@@ -1249,7 +1295,6 @@ begin
         __uiGroups[ui].drawings[i].color    = 0;
         __uiGroups[ui].drawings[i].opacity  = 0;
     end
-
     __uiGroups[ui].textsCount = 0;
     for (i = 0; i < MAX_UI_GROUP_TEXTS - 1; ++i)
         __uiGroups[ui].texts[i].x         = 0;
@@ -1259,7 +1304,6 @@ begin
         __uiGroups[ui].texts[i].text      = "";
         __uiGroups[ui].texts[i].isInteger = false;
     end
-
     __uiGroups[ui].textFieldsCount = 0;
     for (i = 0; i < MAX_UI_GROUP_TEXTS - 1; ++i)
         __uiGroups[ui].textFields[i].x         = 0;
@@ -1269,7 +1313,6 @@ begin
         __uiGroups[ui].textFields[i].option    = 0;
         __uiGroups[ui].textFields[i].text      = "";
     end
-
     __uiGroups[ui].imagesCount = 0;
     for (i = 0; i < MAX_UI_GROUP_IMAGES - 1; ++i)
         __uiGroups[ui].images[i].x         = 0;
@@ -1279,8 +1322,8 @@ begin
         __uiGroups[ui].images[i].gfxIndex  = 0;
         __uiGroups[ui].images[i].angle     = 0;
         __uiGroups[ui].images[i].size      = 0;
+        __uiGroups[ui].images[i].flags     = 0;
     end
-
     __uiGroups[ui].segmentsCount = 0;
     for (i = 0; i < MAX_UI_GROUP_SEGMENTS - 1; ++i)
         __uiGroups[ui].segments[i].x0           = 0;
