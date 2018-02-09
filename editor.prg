@@ -858,10 +858,19 @@ begin
     until (alive == false)
 end
 
+function IsInsideScrollWindow(processId, scrollIndex, region)
+begin
+    return (processId.x >= (scroll[scrollIndex].x0) * processId.resolution
+        && processId.y >= (scroll[scrollIndex].y0) * processId.resolution
+        && processId.x < (scroll[scrollIndex].x0 + __regions[region].width) * processId.resolution
+        && processId.y < (scroll[scrollIndex].y0 + __regions[region].height) * processId.resolution);
+end
+
 process EditorObject(x, y, z, angle, size, objectBrushIndex)
 private
     pointsCount;
     isLogging = false;
+    insideScrollWindow = false;
 begin
     // initialization
     alive = true;
@@ -870,15 +879,13 @@ begin
     SetGraphic(GFX_OBJECTS, __objectData[objectBrushIndex].gfxIndex);
     pointsCount = __objectData[objectBrushIndex].pointsCount;
     repeat
-        if (x >= scroll[0].x0 
-            && y >= scroll[0].y0 
-            && x < scroll[0].x0 + __regions[REGION_EDITOR_VIEWPORT].width * GPR
-            && y < scroll[0].y0 + __regions[REGION_EDITOR_VIEWPORT].height * GPR)
+        insideScrollWindow = IsInsideScrollWindow(id, 0, REGION_EDITOR_VIEWPORT);
+        if (insideScrollWindow)
             FindGfxPoints(id, pointsCount);
             DrawGfxPoints(pointsCount, COLOR_WHITE, OPACITY_SOLID, REGION_EDITOR_VIEWPORT);
         end
         if (collision(type MouseCursor))
-            if (!isLogging)
+            if (!isLogging && insideScrollWindow)
                 LogValueFollowOffset(id, "x", &x, 0, 20);
                 LogValueFollowOffset(id, "y", &y, 0, 30);
                 isLogging = true;
