@@ -11,7 +11,7 @@ program Faust2LevelEditor;
  * Constants
  * ---------------------------------------------------------------------------*/
 const
-    // DIV command enums
+    // DIV constants
     SCROLL_FOREGROUND_HORIZONTAL = 1;
     SCROLL_FOREGROUND_VERTICAL   = 2;
     SCROLL_BACKGROUND_HORIZONTAL = 4;
@@ -49,6 +49,7 @@ const
     FLAG_TRANSPARENT_FLIP_X   = 5;
     FLAG_TRANSPARENT_FLIP_Y   = 6;
     FLAG_TRANSPARENT_FLIP_X_Y = 7;
+    MAX_GFX_POINTS = 1000;
 
     // null index
     NULL = -1;
@@ -185,6 +186,10 @@ global
         0, 0,  SCREEN_WIDTH, SCREEN_HEIGHT,
         0, 20, 480,          380;
 
+    struct __gfxPoints[MAX_GFX_POINTS - 1]
+        x, y;
+    end
+
     // resources
     struct __graphics[GFX_COUNT - 1]
         handle;
@@ -271,9 +276,7 @@ global
         gfxIndex;
         material;
         collidable;
-        struct points[MAX_OBJECT_SEGMENTS - 1]
-            x, y;
-        end
+        pointsCount;
     end
 
     // mouse
@@ -856,13 +859,37 @@ begin
 end
 
 process EditorObject(x, y, z, angle, size, objectBrushIndex)
+private
+    pointsCount;
+    isLogging = false;
 begin
     // initialization
     alive = true;
     resolution = GPR;
     ctype = c_scroll;
     SetGraphic(GFX_OBJECTS, __objectData[objectBrushIndex].gfxIndex);
+    pointsCount = __objectData[objectBrushIndex].pointsCount;
     repeat
+        if (x >= scroll[0].x0 
+            && y >= scroll[0].y0 
+            && x < scroll[0].x0 + __regions[REGION_EDITOR_VIEWPORT].width * GPR
+            && y < scroll[0].y0 + __regions[REGION_EDITOR_VIEWPORT].height * GPR)
+            FindGfxPoints(id, pointsCount);
+            DrawGfxPoints(pointsCount, COLOR_WHITE, OPACITY_SOLID, REGION_EDITOR_VIEWPORT);
+        end
+        if (collision(type MouseCursor))
+            if (!isLogging)
+                LogValueFollowOffset(id, "x", &x, 0, 20);
+                LogValueFollowOffset(id, "y", &y, 0, 30);
+                isLogging = true;
+            end
+        else
+            if (isLogging)
+                DeleteLocalLog(id);
+                DeleteLocalLog(id);
+                isLogging = false;
+            end
+        end
         frame;
     until (alive == false)
 end
@@ -1380,6 +1407,8 @@ begin
     resolution = GPR;
     SetGraphic(GFX_MAIN, 303);
     z = -1000;
+    LogValueFollowOffset(id, "scroll[0].x0", &scroll[0].x0, 0, 20);
+    LogValueFollowOffset(id, "scroll[0].y0", &scroll[0].y0, 0, 30);
     loop
         x = mouse.x * GPR;
         y = mouse.y * GPR;
@@ -1465,7 +1494,6 @@ begin
     fread(offset obj_gfxIndex,   sizeof(obj_gfxIndex),   fileHandle);
     //fread(offset obj_material,   sizeof(obj_material),   fileHandle);
     //fread(offset obj_collidable, sizeof(obj_collidable), fileHandle);
-    // TODO: assign points data from graphic
 
     // cut off file extension
     strdel(fileName, 0, 4);
@@ -1478,6 +1506,9 @@ begin
     __objectData[objectIndex].gfxIndex   = obj_gfxIndex;
     __objectData[objectIndex].material   = obj_material;
     __objectData[objectIndex].collidable = obj_collidable;
+
+    // count points from object graphic
+    __objectData[objectIndex].pointsCount = CountGfxPoints(GFX_OBJECTS, obj_gfxIndex);
 
     // close file handle
     fclose(fileHandle);
@@ -1622,7 +1653,7 @@ end
 
 
 /* -----------------------------------------------------------------------------
- * Process functions
+ * Process utilities
  * ---------------------------------------------------------------------------*/
 function SetGraphic(fileIndex, gfxIndex)
 begin
@@ -1651,6 +1682,75 @@ begin
         return ((100 * GPR) / wf);
     end
     return ((100 * GPR) / hf);
+end
+
+function CountGfxPoints(fileIndex, gfxIndex)
+private
+    pointX, pointY;
+begin
+    repeat
+        pointX = 0;
+        pointY = 0;
+        get_point(__graphics[fileIndex].handle, gfxIndex, i + 1, &pointX, &pointY);
+        if (pointX != 0 || pointY != 0)
+            ++i;
+        else
+            break;
+        end
+    until (i >= 1000)
+    return (i);
+end
+
+function FindGfxPoints(processId, pointsCount)
+begin
+    file       = processId.file;
+    graph      = processId.graph;
+    x          = processId.x;
+    y          = processId.y;
+    angle      = processId.angle;
+    size       = processId.size;
+    resolution = processId.resolution;
+    ctype      = processId.ctype;
+    for (i = 0; i < pointsCount; ++i)
+        get_real_point(i + 1, &__gfxPoints[i].x, &__gfxPoints[i].y);
+    end
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Drawing and writing functions
+ * ---------------------------------------------------------------------------*/
+function DrawScrollSpaceLine(x0, y0, x1, y1, color, opacity, region);
+begin
+    x0 = (x0 / GPR) - scroll[0].x0 + __regions[region].x;
+    y0 = (y0 / GPR) - scroll[0].y0 + __regions[region].y;
+    x1 = (x1 / GPR) - scroll[0].x0 + __regions[region].x;
+    y1 = (y1 / GPR) - scroll[0].y0 + __regions[region].y;
+    return (draw(DRAW_LINE, color, opacity, region, x0, y0, x1, y1));
+end
+
+process DrawGfxPoints(pointsCount, color, opacity, region)
+private
+    drawings[MAX_GFX_POINTS - 1];
+    x0, y0, x1, y1;
+begin
+    for (i = 0; i < pointsCount; ++i)
+        x0 = __gfxPoints[i].x;
+        y0 = __gfxPoints[i].y;
+        x1 = __gfxPoints[(i + 1) % pointsCount].x;
+        y1 = __gfxPoints[(i + 1) % pointsCount].y;
+        drawings[i] = DrawScrollSpaceLine(
+            __gfxPoints[i].x, 
+            __gfxPoints[i].y, 
+            __gfxPoints[(i + 1) % pointsCount].x, 
+            __gfxPoints[(i + 1) % pointsCount].y,
+            color, opacity, region);
+    end
+    frame;
+    for (i = 0; i < pointsCount; ++i)
+        delete_draw(drawings[i]);
+    end
 end
 
 
@@ -1932,10 +2032,13 @@ end
 
 function DeleteGlobalLog()
 begin
-    __logging.logCount--;
-    delete_text(__logging.logs[__logging.logCount].txtLabel);
-    delete_text(__logging.logs[__logging.logCount].txtVal);
-    signal(__logging.logs[__logging.logCount].logId, s_kill_tree);
+    i = --__logging.logCount;
+    delete_text(__logging.logs[i].txtLabel);
+    delete_text(__logging.logs[i].txtVal);
+    signal(__logging.logs[i].logId, s_kill_tree);
+    __logging.logs[i].logId = 0;
+    __logging.logs[i].txtLabel = 0;
+    __logging.logs[i].txtVal = 0;
 end
 
 function DeleteLocalLog(processId)
@@ -1944,6 +2047,9 @@ begin
     delete_text(processId.logging.logs[i].txtLabel);
     delete_text(processId.logging.logs[i].txtVal);
     signal(processId.logging.logs[i].logId, s_kill_tree);
+    processId.logging.logs[i].logId = 0;
+    processId.logging.logs[i].txtLabel = 0;
+    processId.logging.logs[i].txtVal = 0;
 end
 
 function GetNextGlobalLogIndex()
