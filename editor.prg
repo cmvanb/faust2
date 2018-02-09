@@ -141,6 +141,11 @@ const
     // EDITOR SPECIFIC ---------------------------------------------------------
     // editor ui
     UI_EDITOR_PALETTE_SIZE = 8;
+    UI_EDITOR_VIEW_MODE          = 0;
+    UI_EDITOR_OBJECT_BRUSH_MODE  = 1;
+    UI_EDITOR_ENTITY_BRUSH_MODE  = 2;
+    UI_EDITOR_TERRAIN_BRUSH_MODE = 3;
+    UI_EDITOR_OBJECT_EDIT_MODE   = 4;
 
     // ui options
     OPT_NEW_LEVEL           = 0;
@@ -171,8 +176,9 @@ const
     GROUP_MAIN_MENU            = 1;
     GROUP_STRING_PROMPT_DIALOG = 2;
     GROUP_EDITOR_BG            = 3;
-    GROUP_EDITOR_SIDE_PANEL    = 4;
+    GROUP_EDITOR_PALETTE    = 4;
     GROUP_EDITOR_INFO          = 5;
+    GROUP_EDITOR_OBJECT_EDIT   = 6;
 
 /* -----------------------------------------------------------------------------
  * Global variables
@@ -349,6 +355,7 @@ global
     struct __uiEditor
         palettePage;
         objectBrushSelected;
+        mode;
     end
 
     struct __uiOptions[UI_OPTION_COUNT - 1]
@@ -449,7 +456,7 @@ begin
     ConfigureUI();
 
     // ui processes
-    ButtonHandler();
+    UIController();
     UIRenderer();
     MouseCursor();
 
@@ -462,7 +469,243 @@ end
 
     // EDITOR SPECIFIC ---------------------------------------------------------
 /* -----------------------------------------------------------------------------
- * UI
+ * Level Editor functionality
+ * ---------------------------------------------------------------------------*/
+process EditorController()
+private
+    a;
+    s;
+begin
+    // initialization
+    alive = true;
+
+    // controls editor camera
+    CameraController(REGION_EDITOR_VIEWPORT);
+
+    // ui setup
+    HideAllUIGroups();
+    ShowUIGroup(GROUP_EDITOR_BG);
+
+    // editor mode
+    SetEditorMode(UI_EDITOR_VIEW_MODE);
+    repeat
+        switch (__uiEditor.mode)
+            case UI_EDITOR_VIEW_MODE:
+            end
+            case UI_EDITOR_OBJECT_BRUSH_MODE:
+                if (__uiEditor.objectBrushSelected > NULL)
+                    if (shift_status == 1 || shift_status == 2)
+                        __camera.moveMode = NULL;
+                        // manipulate angle
+                        if (key(_a))
+                            a += 4000;
+                        end
+                        if (key(_d))
+                            a -= 4000;
+                        end
+                        // manipulate size
+                        if (key(_w))
+                            s += 1;
+                        end
+                        if (key(_s))
+                            s -= 1;
+                        end
+                    else
+                        __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
+                    end
+                    // preview
+                    RenderImageOneFrame(
+                        mouse.x, 
+                        mouse.y, 
+                        __objectData[__uiEditor.objectBrushSelected].z, 
+                        GFX_OBJECTS,
+                        __objectData[__uiEditor.objectBrushSelected].gfxIndex,
+                        WrapAngle360(__objectData[__uiEditor.objectBrushSelected].angle + a),
+                        __objectData[__uiEditor.objectBrushSelected].size + s,
+                        FLAG_TRANSPARENT);
+                    // LMB: place brush
+                    if (__mouse.leftClicked
+                        && RegionContainsPoint(REGION_EDITOR_VIEWPORT, mouse.x, mouse.y))
+                        EditorObject(
+                            (scroll[0].x0 + 0 + mouse.x) * GPR, 
+                            (scroll[0].y0 - 20 + mouse.y) * GPR, 
+                            __objectData[__uiEditor.objectBrushSelected].z,
+                            WrapAngle360(__objectData[__uiEditor.objectBrushSelected].angle + a),
+                            __objectData[__uiEditor.objectBrushSelected].size + s,
+                            __uiEditor.objectBrushSelected);
+                    end
+                    // RMB: deselect
+                    if (__mouse.rightClicked)
+                        __uiEditor.objectBrushSelected = NULL;
+                        ClearUIGroup(GROUP_EDITOR_INFO);
+                        ConfigureUI_EditorInfo();
+                        ShowUIGroup(GROUP_EDITOR_INFO);
+                    end
+                end
+            end
+            case UI_EDITOR_ENTITY_BRUSH_MODE:
+            end
+            case UI_EDITOR_TERRAIN_BRUSH_MODE:
+            end
+            case UI_EDITOR_OBJECT_EDIT_MODE:
+            end
+        end
+        frame;
+    until (alive == false);
+end
+
+function SetEditorMode(mode)
+begin
+    if (__uiEditor.mode != mode)
+        ExitEditorMode(__uiEditor.mode);
+        __uiEditor.mode = mode;
+        EnterEditorMode(__uiEditor.mode);
+    end
+end
+
+function ExitEditorMode(mode)
+begin
+    switch (__uiEditor.mode)
+        case UI_EDITOR_VIEW_MODE:
+        end
+        case UI_EDITOR_OBJECT_BRUSH_MODE:
+        end
+        case UI_EDITOR_ENTITY_BRUSH_MODE:
+        end
+        case UI_EDITOR_TERRAIN_BRUSH_MODE:
+        end
+        case UI_EDITOR_OBJECT_EDIT_MODE:
+        end
+    end
+end
+
+function EnterEditorMode(mode)
+begin
+    switch (__uiEditor.mode)
+        case UI_EDITOR_VIEW_MODE:
+            __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
+        end
+        case UI_EDITOR_OBJECT_BRUSH_MODE:
+            ShowUIGroup(GROUP_EDITOR_PALETTE);
+        end
+        case UI_EDITOR_ENTITY_BRUSH_MODE:
+            // TODO: implement.
+        end
+        case UI_EDITOR_TERRAIN_BRUSH_MODE:
+            // TODO: implement.
+        end
+        case UI_EDITOR_OBJECT_EDIT_MODE:
+            __camera.moveMode = NULL;
+        end
+    end
+end
+
+process EditorObject(x, y, z, angle, size, objectBrushIndex)
+private
+    pointsCount;
+    isLogging = false;
+    insideScrollWindow = false;
+begin
+    // initialization
+    alive = true;
+    resolution = GPR;
+    ctype = c_scroll;
+    SetGraphic(GFX_OBJECTS, __objectData[objectBrushIndex].gfxIndex);
+    pointsCount = __objectData[objectBrushIndex].pointsCount;
+    repeat
+        insideScrollWindow = IsInsideScrollWindow(id, 0, REGION_EDITOR_VIEWPORT);
+        if (insideScrollWindow)
+            FindGfxPoints(id, pointsCount);
+            DrawGfxPointsOneFrame(pointsCount, COLOR_WHITE, OPACITY_SOLID, REGION_EDITOR_VIEWPORT);
+        end
+        if (collision(type MouseCursor) && insideScrollWindow)
+            if (!isLogging)
+                LogValueFollowOffset(id, "x", &x, 0, 20);
+                LogValueFollowOffset(id, "y", &y, 0, 30);
+                isLogging = true;
+            end
+        else
+            if (isLogging)
+                DeleteLocalLog(id);
+                DeleteLocalLog(id);
+                isLogging = false;
+            end
+        end
+        frame;
+    until (alive == false)
+end
+
+process UIController()
+begin
+    alive = true;
+    __ui.buttonClicked = NULL;
+    __ui.buttonHeldDown = NULL;
+    repeat
+        if (__ui.buttonClicked != NULL)
+            switch (__ui.buttonClicked)
+                case OPT_NEW_LEVEL:
+                    HideUIGroup(GROUP_MAIN_MENU);
+                    ShowUIGroup(GROUP_STRING_PROMPT_DIALOG);
+                end
+                case OPT_MAIN_MENU:
+                    HideUIGroup(GROUP_STRING_PROMPT_DIALOG);
+                    ShowUIGroup(GROUP_MAIN_MENU);
+                end
+                case OPT_EXIT:
+                    exit("", 0);
+                end
+                case OPT_NEW_LEVEL_FILE_NAME:
+                    EditorController();
+                end
+                case OPT_SCROLL_UP:
+                    if (__uiEditor.palettePage > 0)
+                        __uiEditor.palettePage--;
+                    end
+                    ClearUIGroup(GROUP_EDITOR_PALETTE);
+                    ConfigureUI_EditorPalette();
+                    ShowUIGroup(GROUP_EDITOR_PALETTE);
+                end
+                case OPT_SCROLL_DOWN:
+                    if (__uiEditor.palettePage < (__objectDataCount / UI_EDITOR_PALETTE_SIZE))
+                        __uiEditor.palettePage++;
+                    end
+                    ClearUIGroup(GROUP_EDITOR_PALETTE);
+                    ConfigureUI_EditorPalette();
+                    ShowUIGroup(GROUP_EDITOR_PALETTE);
+                end
+                case OPT_PALETTE_BOX_0..(OPT_PALETTE_BOX_0 + UI_EDITOR_PALETTE_SIZE - 1):
+                    i = (__uiEditor.palettePage * UI_EDITOR_PALETTE_SIZE) 
+                        + (__ui.buttonClicked - OPT_PALETTE_BOX_0);
+                    if (i == __objectDataCount)
+                        // TODO: Implement new object function.
+                        debug;
+                    else
+                        if (__uiEditor.objectBrushSelected == i)
+                            __uiEditor.objectBrushSelected = NULL;
+                        else
+                            __uiEditor.objectBrushSelected = i;
+                        end
+                        ClearUIGroup(GROUP_EDITOR_INFO);
+                        ConfigureUI_EditorInfo();
+                        ShowUIGroup(GROUP_EDITOR_INFO);
+                    end
+                end
+                case OPT_EDIT_OBJECT:
+                    HideUIGroup(GROUP_EDITOR_PALETTE);
+                    ShowUIGroup(GROUP_EDITOR_OBJECT_EDIT);
+                end
+            end
+            __ui.buttonClicked = NULL;
+        end
+        frame;
+    until (alive == false)
+end
+
+
+
+    // EDITOR SPECIFIC ---------------------------------------------------------
+/* -----------------------------------------------------------------------------
+ * Level Editor UI Configuration
  * ---------------------------------------------------------------------------*/
 function ConfigureUI()
 begin
@@ -475,10 +718,11 @@ begin
     ConfigureUI_MainMenu();
     ConfigureUI_StringPromptDialog();
     ConfigureUI_EditorBg();
-    ConfigureUI_EditorSidePanel();
+    ConfigureUI_EditorPalette();
     ConfigureUI_EditorInfo();
+    ConfigureUI_EditorObjectEdit();
 
-    __uiGroupsCount = 6;
+    __uiGroupsCount = 7;
 end
 
 function ConfigureUI_MainBg()
@@ -584,9 +828,9 @@ begin
         FONT_SYSTEM, OPT_PALETTE_TERRAIN, false);
 end
 
-function ConfigureUI_EditorSidePanel()
+function ConfigureUI_EditorPalette()
 private
-    ui = GROUP_EDITOR_SIDE_PANEL;
+    ui = GROUP_EDITOR_PALETTE;
     unit = 4;
     w, h;
     pw = SCREEN_WIDTH / 4; // panel width
@@ -640,7 +884,7 @@ begin
         if (objectDataIndex == __objectDataCount)
             pbText = "NEW";
             pbFileIndex = GFX_UI;
-            pbGfxIndex = 1;
+            pbGfxIndex = 100;
         end
         x = (SCREEN_WIDTH - (pw) - 1 + (unit / 2)) + ((i % 2) * (pbSize + (unit * 2)));
         y = (ph + (unit) + (unit / 2)            ) + ((i / 2) * pbSize);
@@ -741,156 +985,15 @@ begin
     end
 end
 
-process ButtonHandler()
+function ConfigureUI_EditorObjectEdit()
 private
-    a;
-    s;
+    ui = GROUP_EDITOR_OBJECT_EDIT;
 begin
-    alive = true;
-    __ui.buttonClicked = NULL;
-    __ui.buttonHeldDown = NULL;
-    repeat
-        if (__ui.buttonClicked != NULL)
-            switch (__ui.buttonClicked)
-                case OPT_NEW_LEVEL:
-                    HideUIGroup(GROUP_MAIN_MENU);
-                    ShowUIGroup(GROUP_STRING_PROMPT_DIALOG);
-                end
-                case OPT_MAIN_MENU:
-                    HideUIGroup(GROUP_STRING_PROMPT_DIALOG);
-                    ShowUIGroup(GROUP_MAIN_MENU);
-                end
-                case OPT_EXIT:
-                    exit("", 0);
-                end
-                case OPT_NEW_LEVEL_FILE_NAME:
-                    CameraController(REGION_EDITOR_VIEWPORT);
-                    HideAllUIGroups();
-                    ShowUIGroup(GROUP_EDITOR_BG);
-                    ShowUIGroup(GROUP_EDITOR_SIDE_PANEL);
-                end
-                case OPT_SCROLL_UP:
-                    if (__uiEditor.palettePage > 0)
-                        __uiEditor.palettePage--;
-                    end
-                    ClearUIGroup(GROUP_EDITOR_SIDE_PANEL);
-                    ConfigureUI_EditorSidePanel();
-                    ShowUIGroup(GROUP_EDITOR_SIDE_PANEL);
-                end
-                case OPT_SCROLL_DOWN:
-                    if (__uiEditor.palettePage < (__objectDataCount / UI_EDITOR_PALETTE_SIZE))
-                        __uiEditor.palettePage++;
-                    end
-                    ClearUIGroup(GROUP_EDITOR_SIDE_PANEL);
-                    ConfigureUI_EditorSidePanel();
-                    ShowUIGroup(GROUP_EDITOR_SIDE_PANEL);
-                end
-                case OPT_PALETTE_BOX_0..(OPT_PALETTE_BOX_0 + UI_EDITOR_PALETTE_SIZE - 1):
-                    i = (__uiEditor.palettePage * UI_EDITOR_PALETTE_SIZE) 
-                        + (__ui.buttonClicked - OPT_PALETTE_BOX_0);
-                    if (i == __objectDataCount)
-                        // TODO: Implement new object function.
-                        debug;
-                    else
-                        if (__uiEditor.objectBrushSelected == i)
-                            __uiEditor.objectBrushSelected = NULL;
-                        else
-                            __uiEditor.objectBrushSelected = i;
-                        end
-                        ClearUIGroup(GROUP_EDITOR_INFO);
-                        ConfigureUI_EditorInfo();
-                        ShowUIGroup(GROUP_EDITOR_INFO);
-                    end
-                end
-            end
-            __ui.buttonClicked = NULL;
-        end
-        if (__uiEditor.objectBrushSelected > NULL)
-            if (shift_status == 1 || shift_status == 2)
-                __camera.moveMode = NULL;
-                // manipulate angle
-                if (key(_a))
-                    a += 4000;
-                end
-                if (key(_d))
-                    a -= 4000;
-                end
-                // manipulate size
-                if (key(_w))
-                    s += 1;
-                end
-                if (key(_s))
-                    s -= 1;
-                end
-            else
-                __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
-            end
-            // preview
-            RenderImageOneFrame(
-                mouse.x, 
-                mouse.y, 
-                __objectData[__uiEditor.objectBrushSelected].z, 
-                GFX_OBJECTS,
-                __objectData[__uiEditor.objectBrushSelected].gfxIndex,
-                WrapAngle360(__objectData[__uiEditor.objectBrushSelected].angle + a),
-                __objectData[__uiEditor.objectBrushSelected].size + s,
-                FLAG_TRANSPARENT);
-            // LMB: place brush
-            if (__mouse.leftClicked
-                && RegionContainsPoint(REGION_EDITOR_VIEWPORT, mouse.x, mouse.y))
-                EditorObject(
-                    (scroll[0].x0 + 0 + mouse.x) * GPR, 
-                    (scroll[0].y0 - 20 + mouse.y) * GPR, 
-                    __objectData[__uiEditor.objectBrushSelected].z,
-                    WrapAngle360(__objectData[__uiEditor.objectBrushSelected].angle + a),
-                    __objectData[__uiEditor.objectBrushSelected].size + s,
-                    __uiEditor.objectBrushSelected);
-            end
-            // RMB: deselect
-            if (__mouse.rightClicked)
-                __uiEditor.objectBrushSelected = NULL;
-                ClearUIGroup(GROUP_EDITOR_INFO);
-                ConfigureUI_EditorInfo();
-                ShowUIGroup(GROUP_EDITOR_INFO);
-            end
-        end
-        frame;
-    until (alive == false)
-end
-
-process EditorObject(x, y, z, angle, size, objectBrushIndex)
-private
-    pointsCount;
-    isLogging = false;
-    insideScrollWindow = false;
-begin
-    // initialization
-    alive = true;
-    resolution = GPR;
-    ctype = c_scroll;
-    SetGraphic(GFX_OBJECTS, __objectData[objectBrushIndex].gfxIndex);
-    pointsCount = __objectData[objectBrushIndex].pointsCount;
-    repeat
-        insideScrollWindow = IsInsideScrollWindow(id, 0, REGION_EDITOR_VIEWPORT);
-        if (insideScrollWindow)
-            FindGfxPoints(id, pointsCount);
-            DrawGfxPoints(pointsCount, COLOR_WHITE, OPACITY_SOLID, REGION_EDITOR_VIEWPORT);
-        end
-        if (collision(type MouseCursor) && insideScrollWindow)
-            if (!isLogging)
-                LogValueFollowOffset(id, "x", &x, 0, 20);
-                LogValueFollowOffset(id, "y", &y, 0, 30);
-                isLogging = true;
-            end
-        else
-            if (isLogging)
-                DeleteLocalLog(id);
-                DeleteLocalLog(id);
-                isLogging = false;
-            end
-        end
-        frame;
-    until (alive == false)
+    AddImageToUIGroup(ui,
+        __regions[REGION_EDITOR_VIEWPORT].x + (__regions[REGION_EDITOR_VIEWPORT].width / 2), 
+        __regions[REGION_EDITOR_VIEWPORT].y + (__regions[REGION_EDITOR_VIEWPORT].height / 2), 
+        UI_Z_UNDER,
+        GFX_UI, 1, 0, 100, FLAG_NORMAL);
 end
 
 
@@ -907,7 +1010,6 @@ begin
         RenderUITextFields();
         RenderUIImages();
         RenderUIButtons();
-        RenderUISegments();
         frame;
         DeleteAllUIDrawings();
         DeleteAllUITexts();
@@ -1118,44 +1220,17 @@ begin
     frame;
 end
 
-function RenderUISegments()
+// TODO: use this code for object editor
+process RenderGfxPointsOneFrame(x, y, fileIndex, gfxIndex, angle, size, color, opacity, region)
+private
+    pointsCount;
 begin
-    // TODO: Implement.
-
-    // for reference
-    /*
-    process SegmentRenderer(x0, y0, x1, y1, lineColor, lineOpacity, pointColor, pointOpacity, pointRadius)
-    private
-        drawLine = NULL;
-        drawPoint0 = NULL;
-        drawPoint1 = NULL;
-    begin
-        // initialization
-        alive = true;
-
-        // ui
-        drawLine = DrawRenderer(
-            x0, y0, x1, y1, DRAW_LINE, lineColor, lineOpacity);
-        drawPoint0 = DrawRenderer(
-            x0 - pointRadius, y0 - pointRadius, x0 + pointRadius, y0 + pointRadius, DRAW_ELLIPSE, pointColor, pointOpacity);
-        drawPoint1 = DrawRenderer(
-            x1 - pointRadius, y1 - pointRadius, x1 + pointRadius, y1 + pointRadius, DRAW_ELLIPSE, pointColor, pointOpacity);
-
-        repeat
-            if (ui.needsUpdate == true)
-                drawLine.ui.needsUpdate = true;
-                drawPoint0.ui.needsUpdate = true;
-                drawPoint1.ui.needsUpdate = true;
-                ui.needsUpdate = false;
-            end
-            frame;
-        until (alive == false)
-
-        drawLine.alive = false;
-        drawPoint0.alive = false;
-        drawPoint1.alive = false;
-    end
-    */
+    SetGraphic(fileIndex, gfxIndex);
+    pointsCount = CountGfxPoints(fileIndex, gfxIndex);
+    FindGfxPoints(id, pointsCount);
+    graph = NULL;
+    DrawGfxPointsOneFrame(pointsCount, color, opacity, region);
+    frame;
 end
 
 function RenderUIDrawing(drawType, color, opacity, region, x0, y0, x1, y1)
@@ -1406,8 +1481,6 @@ begin
     resolution = GPR;
     SetGraphic(GFX_MAIN, 303);
     z = -1000;
-    LogValueFollowOffset(id, "scroll[0].x0", &scroll[0].x0, 0, 20);
-    LogValueFollowOffset(id, "scroll[0].y0", &scroll[0].y0, 0, 30);
     loop
         x = mouse.x * GPR;
         y = mouse.y * GPR;
@@ -1737,7 +1810,7 @@ begin
     return (draw(DRAW_LINE, color, opacity, region, x0, y0, x1, y1));
 end
 
-process DrawGfxPoints(pointsCount, color, opacity, region)
+process DrawGfxPointsOneFrame(pointsCount, color, opacity, region)
 private
     drawings[MAX_GFX_POINTS - 1];
     x0, y0, x1, y1;
