@@ -130,9 +130,6 @@ const
 
     // ui
     UI_UNIT = 4;
-    UI_PW = SCREEN_WIDTH / 4;
-    UI_PX = SCREEN_WIDTH - UI_PW;
-    UI_PAL_Y = SCREEN_HEIGHT / 3;
 
     // ui colors
     COLOR_B_NORMAL = COLOR_BLUE;
@@ -142,6 +139,9 @@ const
 
     // EDITOR SPECIFIC ---------------------------------------------------------
     // editor ui
+    UI_PW    = SCREEN_WIDTH / 4;
+    UI_PX    = SCREEN_WIDTH - UI_PW;
+    UI_PAL_Y = SCREEN_HEIGHT / 3;
     UI_EDITOR_PALETTE_SIZE = 8;
     UI_EDITOR_VIEW_MODE          = 0;
     UI_EDITOR_OBJECT_BRUSH_MODE  = 1;
