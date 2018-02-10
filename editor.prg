@@ -130,7 +130,7 @@ const
 
     // ui
     UI_UNIT = 4;
-    UI_DIAL_DEAD_ZONE_WIDTH = UI_UNIT * 2;
+    UI_DIAL_DEAD_ZONE_WIDTH = UI_UNIT / 2;
     UI_DIAL_SLOW_ZONE_WIDTH = UI_UNIT * 8;
 
     // ui colors
@@ -580,6 +580,28 @@ begin
             case UI_EDITOR_TERRAIN_BRUSH_MODE:
             end
             case UI_EDITOR_OBJECT_EDIT_MODE:
+                x = 240;
+                y = 210;
+                a = WrapAngle360(__uiEditor.object.angle);
+                s = __uiEditor.object.size;
+                RenderImageOneFrame(
+                    x, y,
+                    UI_Z_ABOVE,
+                    GFX_OBJECTS,
+                    __uiEditor.object.gfxIndex,
+                    a, s,
+                    FLAG_NORMAL);
+                // TODO: validate gfxIndex
+                /*
+                RenderGfxPointsOneFrame(
+                    x, y, 
+                    GFX_OBJECTS, 
+                    __uiEditor.object.gfxIndex,
+                    a, s,
+                    COLOR_WHITE, 
+                    OPACITY_SOLID, 
+                    REGION_FULL_SCREEN);
+                */
             end
         end
         frame;
@@ -787,6 +809,8 @@ begin
                     lastDialTick = timer[0];
                 end
             end
+        else
+            lastDialTick = 0;
         end
         frame;
     until (alive == false)
@@ -1091,15 +1115,17 @@ private
     tx;
     textOffsetY;
 begin
-    bw = (UI_PW) - (UI_UNIT * 1);
-    bh = (UI_UNIT * 8);
-    by = (UI_UNIT / 2);
-    buttonOffsetY = bh + (UI_UNIT * 1);
+    // BG
     AddImageToUIGroup(ui,
         __regions[REGION_EDITOR_VIEWPORT].x + (__regions[REGION_EDITOR_VIEWPORT].width / 2), 
         __regions[REGION_EDITOR_VIEWPORT].y + (__regions[REGION_EDITOR_VIEWPORT].height / 2), 
         UI_Z_UNDER,
         GFX_UI, 1, 0, 100, FLAG_NORMAL);
+    // SIDE PANEL BUTTONS
+    bw = (UI_PW) - (UI_UNIT * 1);
+    bh = (UI_UNIT * 8);
+    by = (UI_UNIT / 2);
+    buttonOffsetY = bh + (UI_UNIT * 1);
     AddButtonToUIGroup(ui,
         UI_PX + (UI_UNIT / 2) - 1, by, bw, bh,
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
@@ -1115,6 +1141,7 @@ begin
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_DISCARD, true);
+    // SIDE PANEL WIDGETS
     tx = (UI_PX) + (UI_UNIT * 16) + (UI_UNIT / 2);
     textOffsetY = (UI_UNIT * 8);
     AddTextToUIGroup(ui,
@@ -1125,7 +1152,7 @@ begin
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 0) + (UI_UNIT * 1),
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, &__uiEditor.object.gfxIndex, 25, 5, 1, 10, true);
+        FONT_SYSTEM, &__uiEditor.object.gfxIndex, 100, 25, 1, 1, true);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 1),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
@@ -1147,7 +1174,7 @@ begin
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 3) + (UI_UNIT * 1),
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, &__uiEditor.object.angle, 25, 5, 1, 10, true);
+        FONT_SYSTEM, &__uiEditor.object.angle, 2, 1, -1000, -5000, true);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 4),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
