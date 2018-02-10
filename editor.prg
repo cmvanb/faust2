@@ -114,28 +114,25 @@ const
     MAX_UI_DRAWINGS = 128;
     MAX_UI_TEXTS    = 128;
     MAX_UI_GROUPS = 8;
-    MAX_UI_GROUP_BUTTONS  = 32;
+    MAX_UI_GROUP_BUTTONS  = 16;
+    MAX_UI_GROUP_DIALS    = 8;
     MAX_UI_GROUP_DRAWINGS = 32;
     MAX_UI_GROUP_TEXTS    = 32;
     MAX_UI_GROUP_IMAGES   = 32;
-    MAX_UI_GROUP_SEGMENTS = 32;
     UI_Z_ABOVE = -512;
     UI_Z_UNDER = 0;
 
     // level
-    MAX_LEVEL_SEGMENTS = 1000;
     MAX_LEVEL_OBJECTS  = 100;
     MATERIAL_CONCRETE = 0;
     MATERIAL_WOOD     = 1;
     MATERIAL_METAL    = 2;
 
-    // objects
-    MAX_OBJECT_SEGMENTS = MAX_LEVEL_SEGMENTS / MAX_LEVEL_OBJECTS;
-
     // ui
     UI_UNIT = 4;
     UI_PW = SCREEN_WIDTH / 4;
     UI_PX = SCREEN_WIDTH - UI_PW;
+    UI_PAL_Y = SCREEN_HEIGHT / 3;
 
     // ui colors
     COLOR_B_NORMAL = COLOR_BLUE;
@@ -330,6 +327,14 @@ global
             fontIndex, option;
             string text;
         end
+        dialsCount;
+        struct dials[MAX_UI_GROUP_DIALS - 1]
+            enabled;
+            x, y;
+            colorNormal, colorHover, colorPressed, colorDisabled;
+            opacityNormal, opacityHover, opacityPressed, opacityDisabled;
+            fontIndex, var;
+        end
         drawingsCount;
         struct drawings[MAX_UI_GROUP_DRAWINGS - 1]
            x0, y0, x1, y1;
@@ -354,12 +359,6 @@ global
             x, y, z;
             fileIndex, gfxIndex, angle, size, flags;
         end
-        segmentsCount;
-        struct segments[MAX_UI_GROUP_SEGMENTS - 1]
-            x0, y0, x1, y1;
-            lineColor, lineOpacity;
-            pointColor, pointOpacity, pointRadius;
-        end
     end
 
     // EDITOR SPECIFIC ---------------------------------------------------------
@@ -367,6 +366,12 @@ global
         palettePage;
         objectBrushSelected;
         mode;
+        struct object
+            fileName;
+            angle, size, z;
+            gfxIndex, material, collidable;
+            changesSaved;
+        end
     end
 
     struct __uiOptions[UI_OPTION_COUNT - 1]
@@ -891,7 +896,6 @@ function ConfigureUI_EditorPalette()
 private
     ui = GROUP_EDITOR_PALETTE;
     w, h;
-    paletteY = SCREEN_HEIGHT / 3;
     objectDataIndex;
     pbSize = 64;
     string pbText;
@@ -902,7 +906,7 @@ begin
     w = (UI_PW) - (UI_UNIT * 1) - (UI_UNIT / 2);
     h = (UI_UNIT * 4) + (UI_UNIT / 2);
     x = SCREEN_WIDTH - (UI_PW) + (UI_UNIT / 2);
-    y = (paletteY) - (h) + (UI_UNIT / 2);
+    y = (UI_PAL_Y) - (h) + (UI_UNIT / 2);
     AddDrawingToUIGroup(ui,
         x, y, x + w, y + h,
         DRAW_RECTANGLE_FILL, COLOR_BLACK, OPACITY_SOLID);
@@ -914,16 +918,16 @@ begin
         FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_PALETTE_SEARCH, false);
     // PALETTE BG
     AddDrawingToUIGroup(ui,
-        SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT / 2), paletteY + (UI_UNIT) + (UI_UNIT / 2), SCREEN_WIDTH - (UI_UNIT / 2) - 1, SCREEN_HEIGHT - (UI_UNIT / 2) - 1,
+        SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT / 2), UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2), SCREEN_WIDTH - (UI_UNIT / 2) - 1, SCREEN_HEIGHT - (UI_UNIT / 2) - 1,
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
     // PALETTE LINES
     AddDrawingToUIGroup(ui,
-        SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT * 2) + pbSize, paletteY + (UI_UNIT) + (UI_UNIT / 2), 
+        SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT * 2) + pbSize, UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2), 
         SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT * 2) + pbSize, SCREEN_HEIGHT - (UI_UNIT / 2) - 1,
         DRAW_LINE, COLOR_BLUE - 6, OPACITY_SOLID);
     for (i = 1; i <= 3; ++i)
         AddDrawingToUIGroup(ui,
-            SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT / 2), paletteY + (UI_UNIT) + (UI_UNIT / 2) + (pbSize * i), SCREEN_WIDTH - (UI_UNIT / 2) - 1, paletteY + (UI_UNIT) + (UI_UNIT / 2) + (pbSize * i),
+            SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT / 2), UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2) + (pbSize * i), SCREEN_WIDTH - (UI_UNIT / 2) - 1, UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2) + (pbSize * i),
             DRAW_LINE, COLOR_BLUE - 6, OPACITY_SOLID);
     end
     // PALETTE BOXES
@@ -944,7 +948,7 @@ begin
             pbGfxIndex = 100;
         end
         x = (SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT / 2)) + ((i % 2) * (pbSize + (UI_UNIT * 2)));
-        y = (paletteY + (UI_UNIT) + (UI_UNIT / 2)      ) + ((i / 2) * (pbSize));
+        y = (UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2)      ) + ((i / 2) * (pbSize));
         w = (pbSize) - (UI_UNIT * 3);
         h = (pbSize) - (UI_UNIT * 6);
         AddTextToUIGroup(ui,
@@ -963,10 +967,10 @@ begin
     end
     // SCROLL BAR
     AddDrawingToUIGroup(ui,
-        SCREEN_WIDTH - (UI_UNIT * 4) - (UI_UNIT / 2) - 1, paletteY + (UI_UNIT) + (UI_UNIT / 2), SCREEN_WIDTH - (UI_UNIT / 2) - 1, SCREEN_HEIGHT - (UI_UNIT / 2) - 1,
+        SCREEN_WIDTH - (UI_UNIT * 4) - (UI_UNIT / 2) - 1, UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2), SCREEN_WIDTH - (UI_UNIT / 2) - 1, SCREEN_HEIGHT - (UI_UNIT / 2) - 1,
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 6, OPACITY_SOLID);
     AddButtonToUIGroup(ui,
-        SCREEN_WIDTH - (UI_UNIT * 4) - (UI_UNIT / 2) - 1, paletteY + (UI_UNIT) + (UI_UNIT / 2), (UI_UNIT * 4), (UI_UNIT * 4),
+        SCREEN_WIDTH - (UI_UNIT * 4) - (UI_UNIT / 2) - 1, UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2), (UI_UNIT * 4), (UI_UNIT * 4),
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_SCROLL_UP, true);
@@ -980,7 +984,6 @@ end
 function ConfigureUI_EditorInfo()
 private
     ui = GROUP_EDITOR_INFO;
-    ph = SCREEN_HEIGHT / 3; // panel height
     w, h;
     bx, by; // box x, box y
     bw, bh; // box width, box height
@@ -991,7 +994,7 @@ begin
         x = SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT);
         y = (UI_UNIT);
         w = UI_PW - (UI_UNIT) - (UI_UNIT / 2);
-        h = ph - (UI_UNIT * 2);
+        h = UI_PAL_Y - (UI_UNIT * 2);
         AddTextToUIGroup(ui,
             x, y, 
             FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
@@ -1045,6 +1048,8 @@ private
     ui = GROUP_EDITOR_OBJECT_EDIT;
     bw, bh, by;
     buttonOffsetY;
+    tx;
+    textOffsetY;
 begin
     bw = (UI_PW) - (UI_UNIT * 1);
     bh = (UI_UNIT * 8);
@@ -1070,6 +1075,37 @@ begin
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
         FONT_SYSTEM, OPT_DISCARD, true);
+    tx = (UI_PX) + (UI_UNIT * 16) + (UI_UNIT / 2);
+    textOffsetY = (UI_UNIT * 8);
+    AddTextToUIGroup(ui,
+        tx, (UI_PAL_Y) + (textOffsetY * 0),
+        FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
+        "Graphic:", false);
+    AddTextToUIGroup(ui,
+        tx, (UI_PAL_Y) + (textOffsetY * 1),
+        FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
+        "Material:", false);
+    AddTextToUIGroup(ui,
+        tx, (UI_PAL_Y) + (textOffsetY * 2),
+        FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
+        "Collision:", false);
+    AddTextToUIGroup(ui,
+        tx, (UI_PAL_Y) + (textOffsetY * 3),
+        FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
+        "Angle:", false);
+    AddTextToUIGroup(ui,
+        tx, (UI_PAL_Y) + (textOffsetY * 4),
+        FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
+        "Size:", false);
+    AddTextToUIGroup(ui,
+        tx, (UI_PAL_Y) + (textOffsetY * 5),
+        FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
+        "Z Depth:", false);
+    AddDialToUIGroup(ui,
+        tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 5),
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_SYSTEM, &__uiEditor.object.z, true);
 end
 
 
@@ -1080,16 +1116,13 @@ end
 process UIRenderer()
 begin
     alive = true;
-    LogValue("buttonClicked", &__ui.buttonClicked);
-    LogValue("buttonHeldDown", &__ui.buttonHeldDown);
-    LogValue("mouse.leftHeldDown", &__mouse.leftHeldDown);
-    LogValue("mouse.leftClicked", &__mouse.leftClicked);
     repeat
         RenderUIDrawings();
         RenderUITexts();
         RenderUITextFields();
         RenderUIImages();
         RenderUIButtons();
+        RenderUIDials();
         frame;
         DeleteAllUIDrawings();
         DeleteAllUITexts();
@@ -1098,7 +1131,7 @@ end
 
 function RenderUIButtons()
 private
-    b;
+    j;
     w, h;
     c, o;
     hover = false;
@@ -1107,62 +1140,62 @@ begin
         if (!__uiGroups[i].visible)
             continue;
         end
-        for (b = 0; b < __uiGroups[i].buttonsCount; ++b)
-            x = __uiGroups[i].buttons[b].x;
-            y = __uiGroups[i].buttons[b].y;
-            w = __uiGroups[i].buttons[b].width;
-            h = __uiGroups[i].buttons[b].height;
-            c = __uiGroups[i].buttons[b].colorNormal;
-            o = __uiGroups[i].buttons[b].opacityNormal;
+        for (j = 0; j < __uiGroups[i].buttonsCount; ++j)
+            x = __uiGroups[i].buttons[j].x;
+            y = __uiGroups[i].buttons[j].y;
+            w = __uiGroups[i].buttons[j].width;
+            h = __uiGroups[i].buttons[j].height;
+            c = __uiGroups[i].buttons[j].colorNormal;
+            o = __uiGroups[i].buttons[j].opacityNormal;
 
-            if (__uiGroups[i].buttons[b].enabled)
+            if (__uiGroups[i].buttons[j].enabled)
                 if (RectangleContainsPoint(x, y, x + w, y + h, mouse.x, mouse.y))
                     if (hover == false)
-                        c = __uiGroups[i].buttons[b].colorHover;
-                        o = __uiGroups[i].buttons[b].opacityHover;
+                        c = __uiGroups[i].buttons[j].colorHover;
+                        o = __uiGroups[i].buttons[j].opacityHover;
                         hover = true;
                     end
                 else
                     if (hover == true)
-                        c = __uiGroups[i].buttons[b].colorNormal;
-                        o = __uiGroups[i].buttons[b].opacityNormal;
+                        c = __uiGroups[i].buttons[j].colorNormal;
+                        o = __uiGroups[i].buttons[j].opacityNormal;
                         hover = false;
                     end
                 end
 
                 if (hover)
                     if (__mouse.leftHeldDown)
-                        c = __uiGroups[i].buttons[b].colorPressed;
-                        o = __uiGroups[i].buttons[b].opacityPressed;
-                        __ui.buttonHeldDown = __uiGroups[i].buttons[b].option;
+                        c = __uiGroups[i].buttons[j].colorPressed;
+                        o = __uiGroups[i].buttons[j].opacityPressed;
+                        __ui.buttonHeldDown = __uiGroups[i].buttons[j].option;
                     end
                     if (!__mouse.leftHeldDown 
-                        && __ui.buttonHeldDown == __uiGroups[i].buttons[b].option)
-                        c = __uiGroups[i].buttons[b].colorHover;
-                        o = __uiGroups[i].buttons[b].opacityHover;
+                        && __ui.buttonHeldDown == __uiGroups[i].buttons[j].option)
+                        c = __uiGroups[i].buttons[j].colorHover;
+                        o = __uiGroups[i].buttons[j].opacityHover;
                         __ui.buttonHeldDown = NULL;
-                        __ui.buttonClicked = __uiGroups[i].buttons[b].option;
+                        __ui.buttonClicked = __uiGroups[i].buttons[j].option;
                     end
                 end
             else
-                c = __uiGroups[i].buttons[b].colorDisabled;
-                o = __uiGroups[i].buttons[b].opacityDisabled;
+                c = __uiGroups[i].buttons[j].colorDisabled;
+                o = __uiGroups[i].buttons[j].opacityDisabled;
             end
 
             RenderUIDrawing(DRAW_RECTANGLE_FILL, c, o, REGION_FULL_SCREEN, x, y, x + w, y + h);
 
-            if (__uiGroups[i].buttons[b].option == NULL)
-                __uiGroups[i].buttons[b].text = "[NULL]";
+            if (__uiGroups[i].buttons[j].option == NULL)
+                __uiGroups[i].buttons[j].text = "[NULL]";
             else
-                __uiGroups[i].buttons[b].text = __uiOptions[__uiGroups[i].buttons[b].option].label;
+                __uiGroups[i].buttons[j].text = __uiOptions[__uiGroups[i].buttons[j].option].label;
             end
 
             RenderUIText(
-                __uiGroups[i].buttons[b].fontIndex,
+                __uiGroups[i].buttons[j].fontIndex,
                 x + (w / 2),
                 y + (h / 2),
                 FONT_ANCHOR_CENTERED,
-                __uiGroups[i].buttons[b].text);
+                __uiGroups[i].buttons[j].text);
         end
     end
     if (!__mouse.leftHeldDown)
@@ -1170,106 +1203,58 @@ begin
     end
 end
 
+function RenderUIDials()
+private
+    j;
+    w, h;
+    c, o;
+    hover = false;
+begin
+    for (i = 0; i < __uiGroupsCount; ++i)
+        if (!__uiGroups[i].visible)
+            continue;
+        end
+        for (j = 0; j < __uiGroups[i].dialsCount; ++j)
+            x = __uiGroups[i].dials[j].x;
+            y = __uiGroups[i].dials[j].y;
+            w = UI_UNIT * 5;
+            h = UI_UNIT * 5;
+            c = __uiGroups[i].dials[j].colorNormal;
+            o = __uiGroups[i].dials[j].opacityNormal;
+
+            RenderUIDrawing(DRAW_ELLIPSE_FILL, c, o, REGION_FULL_SCREEN,
+                x - (w / 2), y - (h / 2), x + (w / 2), y + (h / 2));
+
+            RenderUITextInteger(
+                __uiGroups[i].dials[j].fontIndex,
+                __uiGroups[i].dials[j].x,
+                __uiGroups[i].dials[j].y,
+                FONT_ANCHOR_CENTERED,
+                __uiGroups[i].dials[j].var);
+        end
+    end
+end
+
 function RenderUIDrawings()
 private
-    d;
+    j;
 begin
     for (i = 0; i < __uiGroupsCount; ++i)
         if (!__uiGroups[i].visible)
             continue;
         end
-        for (d = 0; d < __uiGroups[i].drawingsCount; ++d)
+        for (j = 0; j < __uiGroups[i].drawingsCount; ++j)
             RenderUIDrawing(
-                __uiGroups[i].drawings[d].drawType,
-                __uiGroups[i].drawings[d].color,
-                __uiGroups[i].drawings[d].opacity,
+                __uiGroups[i].drawings[j].drawType,
+                __uiGroups[i].drawings[j].color,
+                __uiGroups[i].drawings[j].opacity,
                 REGION_FULL_SCREEN,
-                __uiGroups[i].drawings[d].x0,
-                __uiGroups[i].drawings[d].y0,
-                __uiGroups[i].drawings[d].x1,
-                __uiGroups[i].drawings[d].y1);
+                __uiGroups[i].drawings[j].x0,
+                __uiGroups[i].drawings[j].y0,
+                __uiGroups[i].drawings[j].x1,
+                __uiGroups[i].drawings[j].y1);
         end
     end
-end
-
-function RenderUITexts()
-private
-    t;
-begin
-    for (i = 0; i < __uiGroupsCount; ++i)
-        if (!__uiGroups[i].visible)
-            continue;
-        end
-        for (t = 0; t < __uiGroups[i].textsCount; ++t)
-            if (__uiGroups[i].texts[t].isInteger)
-                RenderUITextInteger(
-                    __uiGroups[i].texts[t].fontIndex,
-                    __uiGroups[i].texts[t].x,
-                    __uiGroups[i].texts[t].y,
-                    __uiGroups[i].texts[t].anchor,
-                    __uiGroups[i].texts[t].text);
-            else
-                RenderUIText(
-                    __uiGroups[i].texts[t].fontIndex,
-                    __uiGroups[i].texts[t].x,
-                    __uiGroups[i].texts[t].y,
-                    __uiGroups[i].texts[t].anchor,
-                    __uiGroups[i].texts[t].text);
-            end
-        end
-    end
-end
-
-function RenderUITextFields()
-private
-    t;
-begin
-    for (i = 0; i < __uiGroupsCount; ++i)
-        if (!__uiGroups[i].visible)
-            continue;
-        end
-        for (t = 0; t < __uiGroups[i].textFieldsCount; ++t)
-            if (__uiGroups[i].textFields[t].active)
-                __uiGroups[i].textFields[t].text = UpdateTextField(__uiGroups[i].textFields[t].text);
-            else
-                // TODO: implement click to activate text field
-            end
-            if (__uiGroups[i].textFields[t].text == "")
-                RenderUIText(
-                    __uiGroups[i].textFields[t].fontIndex,
-                    __uiGroups[i].textFields[t].x,
-                    __uiGroups[i].textFields[t].y,
-                    __uiGroups[i].textFields[t].anchor,
-                    "...");
-            else
-                RenderUIText(
-                    __uiGroups[i].textFields[t].fontIndex,
-                    __uiGroups[i].textFields[t].x,
-                    __uiGroups[i].textFields[t].y,
-                    __uiGroups[i].textFields[t].anchor,
-                    __uiGroups[i].textFields[t].text);
-                if (__uiGroups[i].textFields[t].active && scan_code == _enter)
-                    __ui.buttonClicked = __uiGroups[i].textFields[t].option;
-                end
-            end
-        end
-    end
-end
-
-function UpdateTextField(string text)
-private
-    code;
-begin
-    code = ValidateAsciiCode(ascii);    
-    if (code != 0)
-        strcat(text, ascii);
-    end
-    if (text != "")
-        if (scan_code == _backspace)
-            strdel(text, 0, 1);
-        end
-    end
-    return (text);
 end
 
 function RenderUIImages()
@@ -1294,23 +1279,68 @@ begin
     end
 end
 
-process RenderImageOneFrame(x, y, z, fileIndex, gfxIndex, angle, size, flags)
+function RenderUITexts()
+private
+    j;
 begin
-    SetGraphic(fileIndex, gfxIndex);
-    frame;
+    for (i = 0; i < __uiGroupsCount; ++i)
+        if (!__uiGroups[i].visible)
+            continue;
+        end
+        for (j = 0; j < __uiGroups[i].textsCount; ++j)
+            if (__uiGroups[i].texts[j].isInteger)
+                RenderUITextInteger(
+                    __uiGroups[i].texts[j].fontIndex,
+                    __uiGroups[i].texts[j].x,
+                    __uiGroups[i].texts[j].y,
+                    __uiGroups[i].texts[j].anchor,
+                    __uiGroups[i].texts[j].text);
+            else
+                RenderUIText(
+                    __uiGroups[i].texts[j].fontIndex,
+                    __uiGroups[i].texts[j].x,
+                    __uiGroups[i].texts[j].y,
+                    __uiGroups[i].texts[j].anchor,
+                    __uiGroups[i].texts[j].text);
+            end
+        end
+    end
 end
 
-// TODO: use this code for object editor
-process RenderGfxPointsOneFrame(x, y, fileIndex, gfxIndex, angle, size, color, opacity, region)
+function RenderUITextFields()
 private
-    pointsCount;
+    j;
 begin
-    SetGraphic(fileIndex, gfxIndex);
-    pointsCount = CountGfxPoints(fileIndex, gfxIndex);
-    FindGfxPoints(id, pointsCount);
-    graph = NULL;
-    DrawGfxPointsOneFrame(pointsCount, color, opacity, region);
-    frame;
+    for (i = 0; i < __uiGroupsCount; ++i)
+        if (!__uiGroups[i].visible)
+            continue;
+        end
+        for (j = 0; j < __uiGroups[i].textFieldsCount; ++j)
+            if (__uiGroups[i].textFields[j].active)
+                __uiGroups[i].textFields[j].text = UpdateTextField(__uiGroups[i].textFields[j].text);
+            else
+                // TODO: implement click to activate text field
+            end
+            if (__uiGroups[i].textFields[j].text == "")
+                RenderUIText(
+                    __uiGroups[i].textFields[j].fontIndex,
+                    __uiGroups[i].textFields[j].x,
+                    __uiGroups[i].textFields[j].y,
+                    __uiGroups[i].textFields[j].anchor,
+                    "...");
+            else
+                RenderUIText(
+                    __uiGroups[i].textFields[j].fontIndex,
+                    __uiGroups[i].textFields[j].x,
+                    __uiGroups[i].textFields[j].y,
+                    __uiGroups[i].textFields[j].anchor,
+                    __uiGroups[i].textFields[j].text);
+                if (__uiGroups[i].textFields[j].active && scan_code == _enter)
+                    __ui.buttonClicked = __uiGroups[i].textFields[j].option;
+                end
+            end
+        end
+    end
 end
 
 function RenderUIDrawing(drawType, color, opacity, region, x0, y0, x1, y1)
@@ -1321,6 +1351,12 @@ begin
     __ui.drawings[__ui.drawingsCount].handle = 
         draw(drawType, color, opacity, region, x0, y0, x1, y1);
     ++__ui.drawingsCount;
+end
+
+process RenderImageOneFrame(x, y, z, fileIndex, gfxIndex, angle, size, flags)
+begin
+    SetGraphic(fileIndex, gfxIndex);
+    frame;
 end
 
 function RenderUIText(fontIndex, x, y, anchor, text)
@@ -1343,6 +1379,22 @@ begin
     ++__ui.textsCount;
 end
 
+function UpdateTextField(string text)
+private
+    code;
+begin
+    code = ValidateAsciiCode(ascii);    
+    if (code != 0)
+        strcat(text, ascii);
+    end
+    if (text != "")
+        if (scan_code == _backspace)
+            strdel(text, 0, 1);
+        end
+    end
+    return (text);
+end
+
 function DeleteAllUIDrawings()
 begin
     for (i = 0; i < __ui.drawingsCount; ++i)
@@ -1361,11 +1413,70 @@ begin
     __ui.textsCount = 0;
 end
 
+// TODO: use this code for object editor
+process RenderGfxPointsOneFrame(x, y, fileIndex, gfxIndex, angle, size, color, opacity, region)
+private
+    pointsCount;
+begin
+    SetGraphic(fileIndex, gfxIndex);
+    pointsCount = CountGfxPoints(fileIndex, gfxIndex);
+    FindGfxPoints(id, pointsCount);
+    graph = NULL;
+    DrawGfxPointsOneFrame(pointsCount, color, opacity, region);
+    frame;
+end
+
 
 
 /* -----------------------------------------------------------------------------
  * UI Configuration
  * ---------------------------------------------------------------------------*/
+function AddButtonToUIGroup(ui, x, y, width, height,
+    colorNormal, colorHover, colorPressed, colorDisabled,
+    opacityNormal, opacityHover, opacityPressed, opacityDisabled,
+    fontIndex, option, enabled)
+begin
+    i = __uiGroups[ui].buttonsCount;
+    __uiGroups[ui].buttons[i].x = x;
+    __uiGroups[ui].buttons[i].y = y;
+    __uiGroups[ui].buttons[i].width = width;
+    __uiGroups[ui].buttons[i].height = height;
+    __uiGroups[ui].buttons[i].colorNormal = colorNormal;
+    __uiGroups[ui].buttons[i].colorHover = colorHover;
+    __uiGroups[ui].buttons[i].colorPressed = colorPressed;
+    __uiGroups[ui].buttons[i].colorDisabled = colorDisabled;
+    __uiGroups[ui].buttons[i].opacityNormal = opacityNormal;
+    __uiGroups[ui].buttons[i].opacityHover = opacityHover;
+    __uiGroups[ui].buttons[i].opacityPressed = opacityPressed;
+    __uiGroups[ui].buttons[i].opacityDisabled = opacityDisabled;
+    __uiGroups[ui].buttons[i].fontIndex = fontIndex;
+    __uiGroups[ui].buttons[i].option = option;
+    __uiGroups[ui].buttons[i].enabled = enabled;
+    __uiGroups[ui].buttonsCount++;
+end
+
+function AddDialToUIGroup(ui, x, y,
+    colorNormal, colorHover, colorPressed, colorDisabled,
+    opacityNormal, opacityHover, opacityPressed, opacityDisabled,
+    fontIndex, var, enabled)
+begin
+    i = __uiGroups[ui].dialsCount;
+    __uiGroups[ui].dials[i].x = x;
+    __uiGroups[ui].dials[i].y = y;
+    __uiGroups[ui].dials[i].colorNormal = colorNormal;
+    __uiGroups[ui].dials[i].colorHover = colorHover;
+    __uiGroups[ui].dials[i].colorPressed = colorPressed;
+    __uiGroups[ui].dials[i].colorDisabled = colorDisabled;
+    __uiGroups[ui].dials[i].opacityNormal = opacityNormal;
+    __uiGroups[ui].dials[i].opacityHover = opacityHover;
+    __uiGroups[ui].dials[i].opacityPressed = opacityPressed;
+    __uiGroups[ui].dials[i].opacityDisabled = opacityDisabled;
+    __uiGroups[ui].dials[i].fontIndex = fontIndex;
+    __uiGroups[ui].dials[i].var = var;
+    __uiGroups[ui].dials[i].enabled = enabled;
+    __uiGroups[ui].dialsCount++;
+end
+
 function AddDrawingToUIGroup(ui, x0, y0, x1, y1, drawType, color, opacity)
 begin
     i = __uiGroups[ui].drawingsCount;
@@ -1377,6 +1488,20 @@ begin
     __uiGroups[ui].drawings[i].color = color;
     __uiGroups[ui].drawings[i].opacity = opacity;
     __uiGroups[ui].drawingsCount++;
+end
+
+function AddImageToUIGroup(ui, x, y, z, fileIndex, gfxIndex, angle, size, flags)
+begin
+    i = __uiGroups[ui].imagesCount;
+    __uiGroups[ui].images[i].x = x;
+    __uiGroups[ui].images[i].y = y;
+    __uiGroups[ui].images[i].z = z;
+    __uiGroups[ui].images[i].fileIndex = fileIndex;
+    __uiGroups[ui].images[i].gfxIndex = gfxIndex;
+    __uiGroups[ui].images[i].angle = angle;
+    __uiGroups[ui].images[i].size = size;
+    __uiGroups[ui].images[i].flags = flags;
+    __uiGroups[ui].imagesCount++;
 end
 
 function AddTextToUIGroup(ui, x, y, fontIndex, anchor, text, isInteger)
@@ -1404,44 +1529,6 @@ begin
     __uiGroups[ui].textFieldsCount++;
 end
 
-function AddImageToUIGroup(ui, x, y, z, fileIndex, gfxIndex, angle, size, flags)
-begin
-    i = __uiGroups[ui].imagesCount;
-    __uiGroups[ui].images[i].x = x;
-    __uiGroups[ui].images[i].y = y;
-    __uiGroups[ui].images[i].z = z;
-    __uiGroups[ui].images[i].fileIndex = fileIndex;
-    __uiGroups[ui].images[i].gfxIndex = gfxIndex;
-    __uiGroups[ui].images[i].angle = angle;
-    __uiGroups[ui].images[i].size = size;
-    __uiGroups[ui].images[i].flags = flags;
-    __uiGroups[ui].imagesCount++;
-end
-
-function AddButtonToUIGroup(ui, x, y, width, height,
-    colorNormal, colorHover, colorPressed, colorDisabled,
-    opacityNormal, opacityHover, opacityPressed, opacityDisabled,
-    fontIndex, option, enabled)
-begin
-    i = __uiGroups[ui].buttonsCount;
-    __uiGroups[ui].buttons[i].x = x;
-    __uiGroups[ui].buttons[i].y = y;
-    __uiGroups[ui].buttons[i].width = width;
-    __uiGroups[ui].buttons[i].height = height;
-    __uiGroups[ui].buttons[i].colorNormal = colorNormal;
-    __uiGroups[ui].buttons[i].colorHover = colorHover;
-    __uiGroups[ui].buttons[i].colorPressed = colorPressed;
-    __uiGroups[ui].buttons[i].colorDisabled = colorDisabled;
-    __uiGroups[ui].buttons[i].opacityNormal = opacityNormal;
-    __uiGroups[ui].buttons[i].opacityHover = opacityHover;
-    __uiGroups[ui].buttons[i].opacityPressed = opacityPressed;
-    __uiGroups[ui].buttons[i].opacityDisabled = opacityDisabled;
-    __uiGroups[ui].buttons[i].fontIndex = fontIndex;
-    __uiGroups[ui].buttons[i].option = option;
-    __uiGroups[ui].buttons[i].enabled = enabled;
-    __uiGroups[ui].buttonsCount++;
-end
-
 function ClearUIGroup(ui)
 begin
     __uiGroups[ui].visible = false;
@@ -1463,6 +1550,22 @@ begin
         __uiGroups[ui].buttons[i].option          = 0;
         __uiGroups[ui].buttons[i].text            = "";
     end
+    __uiGroups[ui].dialsCount = 0;
+    for (i = 0; i < MAX_UI_GROUP_DIALS - 1; ++i)
+        __uiGroups[ui].dials[i].x               = 0;
+        __uiGroups[ui].dials[i].y               = 0;
+        __uiGroups[ui].dials[i].colorNormal     = 0;
+        __uiGroups[ui].dials[i].colorHover      = 0;
+        __uiGroups[ui].dials[i].colorPressed    = 0;
+        __uiGroups[ui].dials[i].colorDisabled   = 0;
+        __uiGroups[ui].dials[i].opacityNormal   = 0;
+        __uiGroups[ui].dials[i].opacityHover    = 0;
+        __uiGroups[ui].dials[i].opacityPressed  = 0;
+        __uiGroups[ui].dials[i].opacityDisabled = 0;
+        __uiGroups[ui].dials[i].fontIndex       = 0;
+        __uiGroups[ui].dials[i].var             = 0;
+        __uiGroups[ui].dials[i].enabled         = 0;
+    end
     __uiGroups[ui].drawingsCount = 0;
     for (i = 0; i < MAX_UI_GROUP_BUTTONS - 1; ++i)
         __uiGroups[ui].drawings[i].x0       = 0;
@@ -1472,6 +1575,17 @@ begin
         __uiGroups[ui].drawings[i].drawType = 0;
         __uiGroups[ui].drawings[i].color    = 0;
         __uiGroups[ui].drawings[i].opacity  = 0;
+    end
+    __uiGroups[ui].imagesCount = 0;
+    for (i = 0; i < MAX_UI_GROUP_IMAGES - 1; ++i)
+        __uiGroups[ui].images[i].x         = 0;
+        __uiGroups[ui].images[i].y         = 0;
+        __uiGroups[ui].images[i].z         = 0;
+        __uiGroups[ui].images[i].fileIndex = 0;
+        __uiGroups[ui].images[i].gfxIndex  = 0;
+        __uiGroups[ui].images[i].angle     = 0;
+        __uiGroups[ui].images[i].size      = 0;
+        __uiGroups[ui].images[i].flags     = 0;
     end
     __uiGroups[ui].textsCount = 0;
     for (i = 0; i < MAX_UI_GROUP_TEXTS - 1; ++i)
@@ -1490,29 +1604,6 @@ begin
         __uiGroups[ui].textFields[i].anchor    = 0;
         __uiGroups[ui].textFields[i].option    = 0;
         __uiGroups[ui].textFields[i].text      = "";
-    end
-    __uiGroups[ui].imagesCount = 0;
-    for (i = 0; i < MAX_UI_GROUP_IMAGES - 1; ++i)
-        __uiGroups[ui].images[i].x         = 0;
-        __uiGroups[ui].images[i].y         = 0;
-        __uiGroups[ui].images[i].z         = 0;
-        __uiGroups[ui].images[i].fileIndex = 0;
-        __uiGroups[ui].images[i].gfxIndex  = 0;
-        __uiGroups[ui].images[i].angle     = 0;
-        __uiGroups[ui].images[i].size      = 0;
-        __uiGroups[ui].images[i].flags     = 0;
-    end
-    __uiGroups[ui].segmentsCount = 0;
-    for (i = 0; i < MAX_UI_GROUP_SEGMENTS - 1; ++i)
-        __uiGroups[ui].segments[i].x0           = 0;
-        __uiGroups[ui].segments[i].y0           = 0;
-        __uiGroups[ui].segments[i].x1           = 0;
-        __uiGroups[ui].segments[i].y1           = 0;
-        __uiGroups[ui].segments[i].lineColor    = 0;
-        __uiGroups[ui].segments[i].lineOpacity  = 0;
-        __uiGroups[ui].segments[i].pointColor   = 0;
-        __uiGroups[ui].segments[i].pointOpacity = 0;
-        __uiGroups[ui].segments[i].pointRadius  = 0;
     end
 end
 
