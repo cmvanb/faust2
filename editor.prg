@@ -1121,10 +1121,20 @@ begin
         tx, (UI_PAL_Y) + (textOffsetY * 0),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
         "Graphic:", false);
+    AddDialToUIGroup(ui,
+        tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 0) + (UI_UNIT * 1),
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_SYSTEM, &__uiEditor.object.gfxIndex, 25, 5, 1, 10, true);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 1),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
         "Material:", false);
+    AddDialToUIGroup(ui,
+        tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 1) + (UI_UNIT * 1),
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_SYSTEM, &__uiEditor.object.material, 25, 5, 1, 10, true);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 2),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
@@ -1133,6 +1143,11 @@ begin
         tx, (UI_PAL_Y) + (textOffsetY * 3),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
         "Angle:", false);
+    AddDialToUIGroup(ui,
+        tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 3) + (UI_UNIT * 1),
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_SYSTEM, &__uiEditor.object.angle, 25, 5, 1, 10, true);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 4),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
