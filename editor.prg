@@ -130,6 +130,8 @@ const
 
     // ui
     UI_UNIT = 4;
+    UI_DIAL_DEAD_ZONE_WIDTH = UI_UNIT * 2;
+    UI_DIAL_SLOW_ZONE_WIDTH = UI_UNIT * 8;
 
     // ui colors
     COLOR_B_NORMAL = COLOR_BLUE;
@@ -305,6 +307,13 @@ global
     struct __ui
         buttonHeldDown;
         buttonClicked;
+        struct dial
+            active;
+            state;
+            var;
+            delaySlow, delayFast;
+            deltaSlow, deltaFast;
+        end
         drawingsCount;
         struct drawings[MAX_UI_DRAWINGS - 1]
             handle;
@@ -333,7 +342,10 @@ global
             x, y;
             colorNormal, colorHover, colorPressed, colorDisabled;
             opacityNormal, opacityHover, opacityPressed, opacityDisabled;
-            fontIndex, var;
+            fontIndex;
+            var;
+            delaySlow, delayFast;
+            deltaSlow, deltaFast;
         end
         drawingsCount;
         struct drawings[MAX_UI_GROUP_DRAWINGS - 1]
@@ -513,7 +525,6 @@ begin
             case UI_EDITOR_VIEW_MODE:
             end
             case UI_EDITOR_OBJECT_BRUSH_MODE:
-                /*
                 if (__uiEditor.objectBrushSelected > NULL)
                     if (shift_status == 1 || shift_status == 2)
                         __camera.moveMode = NULL;
@@ -563,7 +574,6 @@ begin
                         ShowUIGroup(GROUP_EDITOR_INFO);
                     end
                 end
-                */
             end
             case UI_EDITOR_ENTITY_BRUSH_MODE:
             end
@@ -673,6 +683,10 @@ begin
 end
 
 process UIController()
+private
+    lastDialTick;
+    dialDelay;
+    dialDelta;
 begin
     alive = true;
     __ui.buttonClicked = NULL;
@@ -747,6 +761,32 @@ begin
                 end
             end
             __ui.buttonClicked = NULL;
+        end
+        if (__ui.dial.active)
+            if (__ui.dial.state != 0)
+                switch (__ui.dial.state)
+                    case -2:
+                        dialDelay = __ui.dial.delayFast;
+                        dialDelta = -__ui.dial.deltaFast;
+                    end
+                    case -1:
+                        dialDelay = __ui.dial.delaySlow;
+                        dialDelta = -__ui.dial.deltaSlow;
+                    end
+                    case 1:
+                        dialDelay = __ui.dial.delaySlow;
+                        dialDelta = __ui.dial.deltaSlow;
+                    end
+                    case 2:
+                        dialDelay = __ui.dial.delayFast;
+                        dialDelta = __ui.dial.deltaFast;
+                    end
+                end
+                if (timer[0] > lastDialTick + dialDelay)
+                    *__ui.dial.var += dialDelta;
+                    lastDialTick = timer[0];
+                end
+            end
         end
         frame;
     until (alive == false)
@@ -1097,15 +1137,20 @@ begin
         tx, (UI_PAL_Y) + (textOffsetY * 4),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
         "Size:", false);
+    AddDialToUIGroup(ui,
+        tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 4) + (UI_UNIT * 1),
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_SYSTEM, &__uiEditor.object.size, 25, 5, 1, 10, true);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 5),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
         "Z Depth:", false);
     AddDialToUIGroup(ui,
-        tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 5),
+        tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 5) + (UI_UNIT * 1),
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, &__uiEditor.object.z, true);
+        FONT_SYSTEM, &__uiEditor.object.z, 25, 5, 1, 10, true);
 end
 
 
@@ -1149,18 +1194,13 @@ begin
             o = __uiGroups[i].buttons[j].opacityNormal;
 
             if (__uiGroups[i].buttons[j].enabled)
-                if (RectangleContainsPoint(x, y, x + w, y + h, mouse.x, mouse.y))
-                    if (hover == false)
-                        c = __uiGroups[i].buttons[j].colorHover;
-                        o = __uiGroups[i].buttons[j].opacityHover;
-                        hover = true;
-                    end
+                hover = RectangleContainsPoint(x, y, x + w, y + h, mouse.x, mouse.y);
+                if (hover)
+                    c = __uiGroups[i].buttons[j].colorHover;
+                    o = __uiGroups[i].buttons[j].opacityHover;
                 else
-                    if (hover == true)
-                        c = __uiGroups[i].buttons[j].colorNormal;
-                        o = __uiGroups[i].buttons[j].opacityNormal;
-                        hover = false;
-                    end
+                    c = __uiGroups[i].buttons[j].colorNormal;
+                    o = __uiGroups[i].buttons[j].opacityNormal;
                 end
 
                 if (hover)
@@ -1207,8 +1247,10 @@ function RenderUIDials()
 private
     j;
     w, h;
+    kx, ky, kw, kh;
     c, o;
     hover = false;
+    dialDistance;
 begin
     for (i = 0; i < __uiGroupsCount; ++i)
         if (!__uiGroups[i].visible)
@@ -1219,19 +1261,94 @@ begin
             y = __uiGroups[i].dials[j].y;
             w = UI_UNIT * 5;
             h = UI_UNIT * 5;
+            kw = UI_UNIT;
+            kh = UI_UNIT;
+            kx = x;
+            ky = y - kh - 1;
             c = __uiGroups[i].dials[j].colorNormal;
             o = __uiGroups[i].dials[j].opacityNormal;
 
+            if (__uiGroups[i].dials[j].enabled)
+                hover = CircleContainsPoint(x, y, w / 2, mouse.x, mouse.y);
+                if (hover)
+                    c = __uiGroups[i].dials[j].colorHover;
+                    o = __uiGroups[i].dials[j].opacityHover;
+                else
+                    c = __uiGroups[i].dials[j].colorNormal;
+                    o = __uiGroups[i].dials[j].opacityNormal;
+                end
+
+                if (hover)
+                    if (__mouse.leftHeldDown)
+                        c = __uiGroups[i].dials[j].colorPressed;
+                        o = __uiGroups[i].dials[j].opacityPressed;
+                        __ui.dial.active    = true;
+                        __ui.dial.state     = 0;
+                        __ui.dial.var       = __uiGroups[i].dials[j].var;
+                        __ui.dial.delaySlow = __uiGroups[i].dials[j].delaySlow;
+                        __ui.dial.delayFast = __uiGroups[i].dials[j].delayFast;
+                        __ui.dial.deltaSlow = __uiGroups[i].dials[j].deltaSlow;
+                        __ui.dial.deltaFast = __uiGroups[i].dials[j].deltaFast;
+                    end
+                end
+            else
+                c = __uiGroups[i].dials[j].colorDisabled;
+                o = __uiGroups[i].dials[j].opacityDisabled;
+            end
+
+            if (__ui.dial.active 
+                && __ui.dial.var == __uiGroups[i].dials[j].var)
+                // set dial state
+                dialDistance = mouse.x - x;
+                if (abs(dialDistance) > UI_DIAL_DEAD_ZONE_WIDTH)
+                    __ui.dial.state = dialDistance / abs(dialDistance);
+                    if (abs(dialDistance) > UI_DIAL_SLOW_ZONE_WIDTH)
+                        __ui.dial.state *= 2;
+                    end
+                else
+                    __ui.dial.state = 0;
+                end
+                // set dial knob offset based on state
+                switch (__ui.dial.state)
+                    case -2:
+                        kx -= UI_UNIT;
+                        ky += (UI_UNIT / 2) + 1;
+                    end
+                    case -1:
+                        kx -= UI_UNIT / 2;
+                        ky += 1;
+                    end
+                    case 1:
+                        kx += UI_UNIT / 2;
+                        ky += 1;
+                    end
+                    case 2:
+                        kx += UI_UNIT;
+                        ky += (UI_UNIT / 2) + 1;
+                    end
+                end
+            end
+
             RenderUIDrawing(DRAW_ELLIPSE_FILL, c, o, REGION_FULL_SCREEN,
                 x - (w / 2), y - (h / 2), x + (w / 2), y + (h / 2));
-
+            RenderUIDrawing(DRAW_ELLIPSE_FILL, COLOR_WHITE, OPACITY_SOLID, REGION_FULL_SCREEN,
+                kx - (kw / 2), ky - (kh / 2), kx + (kw / 2), ky + (kh / 2));
             RenderUITextInteger(
                 __uiGroups[i].dials[j].fontIndex,
-                __uiGroups[i].dials[j].x,
+                __uiGroups[i].dials[j].x + w,
                 __uiGroups[i].dials[j].y,
-                FONT_ANCHOR_CENTERED,
+                FONT_ANCHOR_CENTER_LEFT,
                 __uiGroups[i].dials[j].var);
         end
+    end
+    if (!__mouse.leftHeldDown)
+        __ui.dial.active    = false;
+        __ui.dial.state     = 0;
+        __ui.dial.var       = NULL;
+        __ui.dial.delaySlow = 0;
+        __ui.dial.delayFast = 0;
+        __ui.dial.deltaSlow = 0;
+        __ui.dial.deltaFast = 0;
     end
 end
 
@@ -1458,7 +1575,7 @@ end
 function AddDialToUIGroup(ui, x, y,
     colorNormal, colorHover, colorPressed, colorDisabled,
     opacityNormal, opacityHover, opacityPressed, opacityDisabled,
-    fontIndex, var, enabled)
+    fontIndex, var, delaySlow, delayFast, deltaSlow, deltaFast, enabled)
 begin
     i = __uiGroups[ui].dialsCount;
     __uiGroups[ui].dials[i].x = x;
@@ -1473,6 +1590,10 @@ begin
     __uiGroups[ui].dials[i].opacityDisabled = opacityDisabled;
     __uiGroups[ui].dials[i].fontIndex = fontIndex;
     __uiGroups[ui].dials[i].var = var;
+    __uiGroups[ui].dials[i].delaySlow = delaySlow;
+    __uiGroups[ui].dials[i].delayFast = delayFast;
+    __uiGroups[ui].dials[i].deltaSlow = deltaSlow;
+    __uiGroups[ui].dials[i].deltaFast = deltaFast;
     __uiGroups[ui].dials[i].enabled = enabled;
     __uiGroups[ui].dialsCount++;
 end
@@ -1564,6 +1685,10 @@ begin
         __uiGroups[ui].dials[i].opacityDisabled = 0;
         __uiGroups[ui].dials[i].fontIndex       = 0;
         __uiGroups[ui].dials[i].var             = 0;
+        __uiGroups[ui].dials[i].delaySlow       = 0;
+        __uiGroups[ui].dials[i].delayFast       = 0;
+        __uiGroups[ui].dials[i].deltaSlow       = 0;
+        __uiGroups[ui].dials[i].deltaFast       = 0;
         __uiGroups[ui].dials[i].enabled         = 0;
     end
     __uiGroups[ui].drawingsCount = 0;
@@ -2071,7 +2196,10 @@ begin
         pointX, pointY));
 end
 
-// TODO: Write CircleContainsPoint().
+function CircleContainsPoint(x, y, radius, pointX, pointY)
+begin
+    return (fget_dist(x, y, pointX, pointY) <= radius);
+end
 
 function VectorNormalize(pointer vX, pointer vY, multiplier)
 private
