@@ -51,8 +51,12 @@ const
     FLAG_TRANSPARENT_FLIP_X_Y = 7;
     MAX_GFX_POINTS = 1000;
 
-    // null index
+    // common values
     NULL = -1;
+    DISABLED = false;
+    ENABLED  = true;
+    INACTIVE = false;
+    ACTIVE   = true;
 
     // resource indices
     GFX_MAIN    = 0;
@@ -136,10 +140,9 @@ const
     UI_DIAL_SLOW_ZONE_WIDTH = UI_UNIT * 8;
 
     // ui colors
-    COLOR_B_NORMAL   = COLOR_BLUE;
-    COLOR_B_HOVER    = COLOR_BLUE + 3;
-    COLOR_B_PRESSED  = COLOR_BLUE - 1;
-    COLOR_B_DISABLED = COLOR_GREY - 5;
+    COLOR_SCHEME_BLUE  = 0;
+    COLOR_SCHEME_BLACK = 1;
+    COLOR_SCHEME_COUNT = 2;
 
     // EDITOR SPECIFIC ---------------------------------------------------------
     // editor ui
@@ -164,22 +167,23 @@ const
     OPT_OBJECT_BRUSH        = 7;
     OPT_ENTITY_BRUSH        = 8;
     OPT_TERRAIN_BRUSH       = 9;
-    OPT_SCROLL_UP           = 10;
-    OPT_SCROLL_DOWN         = 11;
-    OPT_PALETTE_BOX_0       = 12;
-    OPT_PALETTE_BOX_1       = 13;
-    OPT_PALETTE_BOX_2       = 14;
-    OPT_PALETTE_BOX_3       = 15;
-    OPT_PALETTE_BOX_4       = 16;
-    OPT_PALETTE_BOX_5       = 17;
-    OPT_PALETTE_BOX_6       = 18;
-    OPT_PALETTE_BOX_7       = 19;
-    OPT_PALETTE_SEARCH      = 20;
-    OPT_EDIT_OBJECT         = 21;
-    OPT_NEW_OBJECT          = 22;
-    OPT_SAVE_OBJECT         = 23;
-    OPT_DISCARD             = 24;
-    UI_OPTION_COUNT = 25;
+    OPT_OBJECT_EDITOR       = 10;
+    OPT_SCROLL_UP           = 11;
+    OPT_SCROLL_DOWN         = 12;
+    OPT_PALETTE_BOX_0       = 13;
+    OPT_PALETTE_BOX_1       = 14;
+    OPT_PALETTE_BOX_2       = 15;
+    OPT_PALETTE_BOX_3       = 16;
+    OPT_PALETTE_BOX_4       = 17;
+    OPT_PALETTE_BOX_5       = 18;
+    OPT_PALETTE_BOX_6       = 19;
+    OPT_PALETTE_BOX_7       = 20;
+    OPT_PALETTE_SEARCH      = 21;
+    OPT_EDIT_OBJECT         = 22;
+    OPT_NEW_OBJECT          = 23;
+    OPT_SAVE_OBJECT         = 24;
+    OPT_DISCARD             = 25;
+    UI_OPTION_COUNT = 26;
 
     // ui groups
     GROUP_MAIN_BG              = 0;
@@ -241,6 +245,19 @@ global
         NULL,   "assets/audio/shell-dropped2.wav", 128,    256,       SOUND_PLAYBACK_ONCE,
         NULL,   "assets/audio/shell-dropped3.wav", 128,    256,       SOUND_PLAYBACK_ONCE,
         NULL,   "assets/audio/test-shot7.wav",     128,    256,       SOUND_PLAYBACK_ONCE;
+
+    // color schemes
+    struct __colorSchemes[COLOR_SCHEME_COUNT - 1]
+        struct color
+            normal, hover, pressed, disabled, highlight;
+        end
+        struct opacity
+            normal, hover, pressed, disabled, highlight;
+        end
+    end = 
+    //  normal           hover            pressed          disabled        highlight    normal         hover          pressed        disabled       highlight
+        COLOR_BLUE,      COLOR_BLUE + 3,  COLOR_BLUE - 1,  COLOR_GREY - 5, COLOR_WHITE, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        COLOR_BLACK + 1, COLOR_BLACK + 4, COLOR_BLACK,     COLOR_GREY - 5, COLOR_WHITE, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID;
 
     // camera
     struct __camera
@@ -331,27 +348,23 @@ global
         visible;
         buttonsCount;
         struct buttons[MAX_UI_GROUP_BUTTONS - 1]
-            enabled;
             x, y, width, height;
-            colorNormal, colorHover, colorPressed, colorDisabled;
-            opacityNormal, opacityHover, opacityPressed, opacityDisabled;
+            colorScheme;
             fontIndex, option;
             string text;
+            enabled;
         end
         checkboxesCount;
         struct checkboxes[MAX_UI_GROUP_CHECKBOXES - 1]
-            enabled;
             x, y;
-            colorNormal, colorHover, colorPressed, colorDisabled;
-            opacityNormal, opacityHover, opacityPressed, opacityDisabled;
+            colorScheme;
             var;
+            enabled;
         end
         dialsCount;
         struct dials[MAX_UI_GROUP_DIALS - 1]
-            enabled;
             x, y;
-            colorNormal, colorHover, colorPressed, colorDisabled;
-            opacityNormal, opacityHover, opacityPressed, opacityDisabled;
+            colorScheme;
             fontIndex;
             var;
             varMin;
@@ -359,6 +372,7 @@ global
             varWrapValue;
             delaySlow, delayFast;
             deltaSlow, deltaFast;
+            enabled;
         end
         drawingsCount;
         struct drawings[MAX_UI_GROUP_DRAWINGS - 1]
@@ -374,10 +388,11 @@ global
         end
         textFieldsCount;
         struct textFields[MAX_UI_GROUP_TEXTS - 1]
-            active;
-            x, y;
+            x, y, width, height;
+            colorScheme;
             fontIndex, anchor, option;
             string text;
+            active, enabled;
         end
         imagesCount;
         struct images[MAX_UI_GROUP_IMAGES - 1]
@@ -414,6 +429,7 @@ global
         "OBJECTS",         OPT_OBJECT_BRUSH,
         "ENTITIES",        OPT_ENTITY_BRUSH,
         "TERRAIN",         OPT_TERRAIN_BRUSH,
+        "OBJ EDITOR",      OPT_OBJECT_EDITOR,
         "^",               OPT_SCROLL_UP,
         "v",               OPT_SCROLL_DOWN,
         "",                OPT_PALETTE_BOX_0,
@@ -425,7 +441,7 @@ global
         "",                OPT_PALETTE_BOX_6,
         "",                OPT_PALETTE_BOX_7,
         "SEARCH",          OPT_PALETTE_SEARCH,
-        "OBJ EDIT",        OPT_EDIT_OBJECT,
+        "EDIT",            OPT_EDIT_OBJECT,
         "NEW OBJECT",      OPT_NEW_OBJECT,
         "SAVE CHANGES",    OPT_SAVE_OBJECT,
         "DISCARD CHANGES", OPT_DISCARD;
@@ -765,10 +781,13 @@ begin
                 case OPT_TERRAIN_BRUSH:
                     // TODO: implement.
                 end
-                case OPT_EDIT_OBJECT:
+                case OPT_OBJECT_EDITOR:
                     ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
                 end
                 // PALETTE
+                case OPT_EDIT_OBJECT:
+                    ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
+                end
                 case OPT_SCROLL_UP:
                     if (__uiEditor.palettePage > 0)
                         __uiEditor.palettePage--;
@@ -801,6 +820,11 @@ begin
                         ConfigureUI_EditorInfo();
                         ShowUIGroup(GROUP_EDITOR_INFO);
                     end
+                end
+                // OBJECT EDITOR
+                case OPT_DISCARD:
+                    // TODO: reset obj struct
+                    ChangeEditorMode(UI_EDITOR_VIEW_MODE);
                 end
             end
             __ui.buttonClicked = NULL;
@@ -895,19 +919,16 @@ begin
         FONT_MENU, FONT_ANCHOR_CENTERED, "LEVEL EDITOR", false);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 20, 200, 40,
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_MENU, OPT_NEW_LEVEL, true);
+        COLOR_SCHEME_BLUE,
+        FONT_MENU, OPT_NEW_LEVEL, ENABLED);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_MENU, OPT_LOAD_LEVEL, true);
+        COLOR_SCHEME_BLUE,
+        FONT_MENU, OPT_LOAD_LEVEL, ENABLED);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_MENU, OPT_EXIT, true);
+        COLOR_SCHEME_BLUE,
+        FONT_MENU, OPT_EXIT, ENABLED);
 end
 
 function ConfigureUI_StringPromptDialog()
@@ -917,25 +938,18 @@ begin
     AddTextToUIGroup(ui,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT,
         FONT_MENU, FONT_ANCHOR_CENTERED, "Enter file name:", false);
-    AddDrawingToUIGroup(ui,
-        HALF_SCREEN_WIDTH - 150, HALF_SCREEN_HEIGHT + 20, HALF_SCREEN_WIDTH + 150, HALF_SCREEN_HEIGHT + 50, 
-        DRAW_RECTANGLE_FILL, COLOR_BLACK, OPACITY_SOLID);
-    AddDrawingToUIGroup(ui,
-        HALF_SCREEN_WIDTH - 150, HALF_SCREEN_HEIGHT + 20, HALF_SCREEN_WIDTH + 150, HALF_SCREEN_HEIGHT + 50, 
-        DRAW_RECTANGLE, COLOR_WHITE, OPACITY_SOLID);
+        // TODO: change color scheme for text fields
     AddTextFieldToUIGroup(ui,
-        HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT + 35,
-        FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_NEW_LEVEL_FILE_NAME, true);
+        HALF_SCREEN_WIDTH - 150, HALF_SCREEN_HEIGHT + 20, 300, 30,
+        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_NEW_LEVEL_FILE_NAME, ACTIVE, ENABLED);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_MENU, OPT_NEW_LEVEL_FILE_NAME, true);
+        COLOR_SCHEME_BLUE,
+        FONT_MENU, OPT_NEW_LEVEL_FILE_NAME, ENABLED);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_MENU, OPT_MAIN_MENU, true);
+        COLOR_SCHEME_BLUE,
+        FONT_MENU, OPT_MAIN_MENU, ENABLED);
 end
 
 function ConfigureUI_EditorBg()
@@ -958,39 +972,32 @@ begin
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 4, OPACITY_SOLID);
     AddButtonToUIGroup(ui,
         (buttonOffset * 0) + (UI_UNIT / 2), UI_UNIT / 2, bw, UI_UNIT * 4,
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_SAVE_LEVEL, true);
+        COLOR_SCHEME_BLUE,
+        FONT_SYSTEM, OPT_SAVE_LEVEL, ENABLED);
     AddButtonToUIGroup(ui,
         (buttonOffset * 1) + (UI_UNIT / 2), UI_UNIT / 2, bw, UI_UNIT * 4,
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_LOAD_LEVEL, true);
+        COLOR_SCHEME_BLUE,
+        FONT_SYSTEM, OPT_LOAD_LEVEL, ENABLED);
     AddButtonToUIGroup(ui,
         (buttonOffset * 2) + (UI_UNIT / 2), UI_UNIT / 2, bw, UI_UNIT * 4,
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_VIEW, true);
+        COLOR_SCHEME_BLUE,
+        FONT_SYSTEM, OPT_VIEW, ENABLED);
     AddButtonToUIGroup(ui,
         (buttonOffset * 3) + (UI_UNIT / 2), UI_UNIT / 2, bw, UI_UNIT * 4,
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_OBJECT_BRUSH, true);
+        COLOR_SCHEME_BLUE,
+        FONT_SYSTEM, OPT_OBJECT_BRUSH, ENABLED);
     AddButtonToUIGroup(ui,
         (buttonOffset * 4) + (UI_UNIT / 2), UI_UNIT / 2, bw, UI_UNIT * 4,
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_ENTITY_BRUSH, false);
+        COLOR_SCHEME_BLUE,
+        FONT_SYSTEM, OPT_ENTITY_BRUSH, DISABLED);
     AddButtonToUIGroup(ui,
         (buttonOffset * 5) + (UI_UNIT / 2), UI_UNIT / 2, bw, UI_UNIT * 4,
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_TERRAIN_BRUSH, false);
+        COLOR_SCHEME_BLUE,
+        FONT_SYSTEM, OPT_TERRAIN_BRUSH, DISABLED);
     AddButtonToUIGroup(ui,
         (buttonOffset * 6) + (UI_UNIT / 2), UI_UNIT / 2, bw, UI_UNIT * 4,
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_EDIT_OBJECT, true);
+        COLOR_SCHEME_BLUE,
+        FONT_SYSTEM, OPT_OBJECT_EDITOR, ENABLED);
 end
 
 function ConfigureUI_EditorPalette()
@@ -1008,15 +1015,9 @@ begin
     h = (UI_UNIT * 4) + (UI_UNIT / 2);
     x = SCREEN_WIDTH - (UI_PW) + (UI_UNIT / 2);
     y = (UI_PAL_Y) - (h) + (UI_UNIT / 2);
-    AddDrawingToUIGroup(ui,
-        x, y, x + w, y + h,
-        DRAW_RECTANGLE_FILL, COLOR_BLACK, OPACITY_SOLID);
-    AddDrawingToUIGroup(ui,
-        x, y, x + w, y + h,
-        DRAW_RECTANGLE, COLOR_WHITE, OPACITY_SOLID);
     AddTextFieldToUIGroup(ui,
-        x + (w / 2), y + (h / 2),
-        FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_PALETTE_SEARCH, false);
+        x, y, w, h,
+        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_PALETTE_SEARCH, INACTIVE, ENABLED);
     // PALETTE BG
     AddDrawingToUIGroup(ui,
         SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT / 2), UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2), SCREEN_WIDTH - (UI_UNIT / 2) - 1, SCREEN_HEIGHT - (UI_UNIT / 2) - 1,
@@ -1058,9 +1059,8 @@ begin
             pbText, false);
         AddButtonToUIGroup(ui,
             x + (UI_UNIT * 2), y + (UI_UNIT * 4), w, h,
-            COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-            OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-            FONT_SYSTEM, OPT_PALETTE_BOX_0 + i, true);
+            COLOR_SCHEME_BLUE,
+            FONT_SYSTEM, OPT_PALETTE_BOX_0 + i, ENABLED);
             size = CalculateFittedSize(pbFileIndex, pbGfxIndex, w, h);
         AddImageToUIGroup(ui,
             x + (pbSize / 2) + (UI_UNIT / 2), y + (pbSize / 2) + (UI_UNIT), UI_Z_ABOVE,
@@ -1072,14 +1072,12 @@ begin
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 6, OPACITY_SOLID);
     AddButtonToUIGroup(ui,
         SCREEN_WIDTH - (UI_UNIT * 4) - (UI_UNIT / 2) - 1, UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2), (UI_UNIT * 4), (UI_UNIT * 4),
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_SCROLL_UP, true);
+        COLOR_SCHEME_BLUE,
+        FONT_SYSTEM, OPT_SCROLL_UP, ENABLED);
     AddButtonToUIGroup(ui,
         SCREEN_WIDTH - (UI_UNIT * 4) - (UI_UNIT / 2) - 1, SCREEN_HEIGHT - (UI_UNIT * 4) - (UI_UNIT / 2) - 1, (UI_UNIT * 4), (UI_UNIT * 4),
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_SCROLL_DOWN, true);
+        COLOR_SCHEME_BLUE,
+        FONT_SYSTEM, OPT_SCROLL_DOWN, ENABLED);
 end
 
 function ConfigureUI_EditorInfo()
@@ -1102,9 +1100,8 @@ begin
             __objectData[i].name, false);
         AddButtonToUIGroup(ui,
             x + w - (UI_UNIT * 16) - (UI_UNIT / 2), y, (UI_UNIT * 16), (UI_UNIT * 4),
-            COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-            OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-            FONT_SYSTEM, OPT_EDIT_OBJECT, true);
+            COLOR_SCHEME_BLUE,
+            FONT_SYSTEM, OPT_EDIT_OBJECT, ENABLED);
         AddTextToUIGroup(ui,
             x, y + (UI_UNIT * 5), 
             FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
@@ -1147,6 +1144,7 @@ end
 function ConfigureUI_EditorObjectEdit()
 private
     ui = GROUP_EDITOR_OBJECT_EDIT;
+    w, h;
     bw, bh, by;
     buttonOffsetY;
     tx;
@@ -1164,82 +1162,81 @@ begin
     by = (UI_UNIT / 2);
     buttonOffsetY = bh + (UI_UNIT * 1);
     AddButtonToUIGroup(ui,
-        UI_PX + (UI_UNIT / 2) - 1, by, bw, bh,
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_NEW_OBJECT, true);
+        UI_PX + (UI_UNIT / 2) - 1, by + (buttonOffsetY * 0), bw, bh,
+        COLOR_SCHEME_BLUE,
+        FONT_SYSTEM, OPT_SAVE_OBJECT, ENABLED);
     AddButtonToUIGroup(ui,
         UI_PX + (UI_UNIT / 2) - 1, by + (buttonOffsetY * 1), bw, bh,
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_SAVE_OBJECT, true);
-    AddButtonToUIGroup(ui,
-        UI_PX + (UI_UNIT / 2) - 1, by + (buttonOffsetY * 2), bw, bh,
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, OPT_DISCARD, true);
-    // SIDE PANEL WIDGETS
+        COLOR_SCHEME_BLUE,
+        FONT_SYSTEM, OPT_DISCARD, ENABLED);
+    // FILENAME
+    w = bw - (UI_UNIT / 2);
+    h = (UI_UNIT * 4) + (UI_UNIT / 2);
+    x = SCREEN_WIDTH - (UI_PW) + (UI_UNIT / 2);
+    y = by + (buttonOffsetY * 2) + (buttonOffsetY / 2) + (UI_UNIT);
     tx = (UI_PX) + (UI_UNIT * 16) + (UI_UNIT / 2);
     textOffsetY = (UI_UNIT * 8);
+    AddTextToUIGroup(ui,
+        x + (UI_PW / 2), y - (textOffsetY / 2) + (UI_UNIT),
+        FONT_SYSTEM, FONT_ANCHOR_TOP_CENTER, 
+        "File Name:", false);
+    AddTextFieldToUIGroup(ui,
+        x, y, w, h,
+        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", NULL, INACTIVE, ENABLED);
+    // SIDE PANEL WIDGETS
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 0),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
         "Graphic:", false);
     AddDialToUIGroup(ui,
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 0) + (UI_UNIT * 1),
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        COLOR_SCHEME_BLUE,
         FONT_SYSTEM, &__uiEditor.object.gfxIndex, 1, 2, true,
-        100, 25, 1, 1, true);
+        100, 25, 1, 1, ENABLED);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 1),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
         "Material:", false);
     AddDialToUIGroup(ui,
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 1) + (UI_UNIT * 1),
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        COLOR_SCHEME_BLUE,
         FONT_SYSTEM, &__uiEditor.object.material, 0, MATERIAL_COUNT - 1, true,
-        25, 5, 1, 10, true);
+        25, 5, 1, 10, ENABLED);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 2),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
         "Angle:", false);
     AddDialToUIGroup(ui,
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 2) + (UI_UNIT * 1),
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        COLOR_SCHEME_BLUE,
         FONT_SYSTEM, &__uiEditor.object.angle, 0, 360000, true,
-        2, 1, -1000, -5000, true);
+        2, 1, -1000, -5000, ENABLED);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 3),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
         "Size:", false);
     AddDialToUIGroup(ui,
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 3) + (UI_UNIT * 1),
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        COLOR_SCHEME_BLUE,
         FONT_SYSTEM, &__uiEditor.object.size, 0, 1000, false,
-        25, 5, 1, 10, true);
+        25, 5, 1, 10, ENABLED);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 4),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
         "Z Depth:", false);
     AddDialToUIGroup(ui,
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 4) + (UI_UNIT * 1),
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        COLOR_SCHEME_BLUE,
         FONT_SYSTEM, &__uiEditor.object.z, -100, 100, false,
-        25, 5, 1, 10, true);
+        25, 5, 1, 10, ENABLED);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 5),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
         "Collision:", false);
     AddCheckboxToUIGroup(ui, 
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 5),
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        &__uiEditor.object.collidable, true);
+        COLOR_SCHEME_BLUE,
+        &__uiEditor.object.collidable, ENABLED);
 end
 
 
@@ -1266,7 +1263,7 @@ end
 
 function RenderUIButtons()
 private
-    j;
+    j, k;
     w, h;
     c, o;
     hover = false;
@@ -1280,36 +1277,37 @@ begin
             y = __uiGroups[i].buttons[j].y;
             w = __uiGroups[i].buttons[j].width;
             h = __uiGroups[i].buttons[j].height;
-            c = __uiGroups[i].buttons[j].colorNormal;
-            o = __uiGroups[i].buttons[j].opacityNormal;
+            k = __uiGroups[i].buttons[j].colorScheme;
+            c = __colorSchemes[k].color.normal;
+            o = __colorSchemes[k].opacity.normal;
 
             if (__uiGroups[i].buttons[j].enabled)
                 hover = RectangleContainsPoint(x, y, x + w, y + h, mouse.x, mouse.y);
                 if (hover)
-                    c = __uiGroups[i].buttons[j].colorHover;
-                    o = __uiGroups[i].buttons[j].opacityHover;
+                    c = __colorSchemes[k].color.hover;
+                    o = __colorSchemes[k].opacity.hover;
                 else
-                    c = __uiGroups[i].buttons[j].colorNormal;
-                    o = __uiGroups[i].buttons[j].opacityNormal;
+                    c = __colorSchemes[k].color.normal;
+                    o = __colorSchemes[k].opacity.normal;
                 end
 
                 if (hover)
                     if (__mouse.leftHeldDown)
-                        c = __uiGroups[i].buttons[j].colorPressed;
-                        o = __uiGroups[i].buttons[j].opacityPressed;
+                        c = __colorSchemes[k].color.pressed;
+                        o = __colorSchemes[k].opacity.pressed;
                         __ui.buttonHeldDown = __uiGroups[i].buttons[j].option;
                     end
                     if (!__mouse.leftHeldDown 
                         && __ui.buttonHeldDown == __uiGroups[i].buttons[j].option)
-                        c = __uiGroups[i].buttons[j].colorHover;
-                        o = __uiGroups[i].buttons[j].opacityHover;
+                        c = __colorSchemes[k].color.hover;
+                        o = __colorSchemes[k].opacity.hover;
                         __ui.buttonHeldDown = NULL;
                         __ui.buttonClicked = __uiGroups[i].buttons[j].option;
                     end
                 end
             else
-                c = __uiGroups[i].buttons[j].colorDisabled;
-                o = __uiGroups[i].buttons[j].opacityDisabled;
+                c = __colorSchemes[k].color.disabled;
+                o = __colorSchemes[k].opacity.disabled;
             end
 
             RenderUIDrawing(DRAW_RECTANGLE_FILL, c, o, REGION_FULL_SCREEN, x, y, x + w, y + h);
@@ -1335,7 +1333,7 @@ end
 
 function RenderUICheckboxes()
 private
-    j;
+    j, k;
     w, h;
     c, o;
     hover = false;
@@ -1349,13 +1347,16 @@ begin
             y = __uiGroups[i].checkboxes[j].y;
             w = UI_UNIT * 5;
             h = UI_UNIT * 5;
+            k = __uiGroups[i].checkboxes[j].colorScheme;
+            c = __colorSchemes[k].color.normal;
+            o = __colorSchemes[k].opacity.normal;
 
             if (__uiGroups[i].checkboxes[j].enabled)
                 hover = RectangleContainsPoint(
                     x - (w / 2), y - (h / 2), x + (w / 2), y + (h / 2), mouse.x, mouse.y);
                 if (hover)
-                    c = __uiGroups[i].checkboxes[j].colorHover;
-                    o = __uiGroups[i].checkboxes[j].opacityHover;
+                    c = __colorSchemes[k].color.hover;
+                    o = __colorSchemes[k].opacity.hover;
                     if (__mouse.leftClicked)
                         if (*__uiGroups[i].checkboxes[j].var == true)
                             *__uiGroups[i].checkboxes[j].var = false;
@@ -1364,19 +1365,19 @@ begin
                         end
                     end
                 else
-                    c = __uiGroups[i].checkboxes[j].colorNormal;
-                    o = __uiGroups[i].checkboxes[j].opacityNormal;
+                    c = __colorSchemes[k].color.normal;
+                    o = __colorSchemes[k].opacity.normal;
                 end
 
                 if (hover)
                     if (__mouse.leftHeldDown)
-                        c = __uiGroups[i].checkboxes[j].colorPressed;
-                        o = __uiGroups[i].checkboxes[j].opacityPressed;
+                        c = __colorSchemes[k].color.pressed;
+                        o = __colorSchemes[k].opacity.pressed;
                     end
                 end
             else
-                c = __uiGroups[i].checkboxes[j].colorDisabled;
-                o = __uiGroups[i].checkboxes[j].opacityDisabled;
+                c = __colorSchemes[k].color.disabled;
+                o = __colorSchemes[k].opacity.disabled;
             end
 
             RenderUIDrawing(DRAW_RECTANGLE_FILL, c, o, REGION_FULL_SCREEN,
@@ -1392,7 +1393,7 @@ end
 
 function RenderUIDials()
 private
-    j;
+    j, k;
     w, h;
     kx, ky, kw, kh;
     c, o;
@@ -1408,27 +1409,28 @@ begin
             y = __uiGroups[i].dials[j].y;
             w = UI_UNIT * 5;
             h = UI_UNIT * 5;
+            k = __uiGroups[i].dials[j].colorScheme;
             kw = UI_UNIT;
             kh = UI_UNIT;
             kx = x;
             ky = y - kh - 1;
-            c = __uiGroups[i].dials[j].colorNormal;
-            o = __uiGroups[i].dials[j].opacityNormal;
+            c = __colorSchemes[k].color.normal;
+            o = __colorSchemes[k].opacity.normal;
 
             if (__uiGroups[i].dials[j].enabled)
                 hover = CircleContainsPoint(x, y, w / 2, mouse.x, mouse.y);
                 if (hover)
-                    c = __uiGroups[i].dials[j].colorHover;
-                    o = __uiGroups[i].dials[j].opacityHover;
+                    c = __colorSchemes[k].color.hover;
+                    o = __colorSchemes[k].opacity.hover;
                 else
-                    c = __uiGroups[i].dials[j].colorNormal;
-                    o = __uiGroups[i].dials[j].opacityNormal;
+                    c = __colorSchemes[k].color.normal;
+                    o = __colorSchemes[k].opacity.normal;
                 end
 
                 if (hover)
                     if (__mouse.leftHeldDown)
-                        c = __uiGroups[i].dials[j].colorPressed;
-                        o = __uiGroups[i].dials[j].opacityPressed;
+                        c = __colorSchemes[k].color.pressed;
+                        o = __colorSchemes[k].opacity.pressed;
                         __ui.dial.active       = true;
                         __ui.dial.state        = 0;
                         __ui.dial.uiGroupIndex = i;
@@ -1437,8 +1439,8 @@ begin
                     end
                 end
             else
-                c = __uiGroups[i].dials[j].colorDisabled;
-                o = __uiGroups[i].dials[j].opacityDisabled;
+                c = __colorSchemes[k].color.disabled;
+                o = __colorSchemes[k].opacity.disabled;
             end
 
             if (__ui.dial.active 
@@ -1570,35 +1572,94 @@ end
 
 function RenderUITextFields()
 private
-    j;
+    j, k;
+    w, h;
+    c, o;
+    hc, ho;
+    hover = false;
 begin
     for (i = 0; i < __uiGroupsCount; ++i)
         if (!__uiGroups[i].visible)
             continue;
         end
         for (j = 0; j < __uiGroups[i].textFieldsCount; ++j)
-            if (__uiGroups[i].textFields[j].active)
-                __uiGroups[i].textFields[j].text = UpdateTextField(__uiGroups[i].textFields[j].text);
+            x = __uiGroups[i].textFields[j].x;
+            y = __uiGroups[i].textFields[j].y;
+            w = __uiGroups[i].textFields[j].width;
+            h = __uiGroups[i].textFields[j].height;
+            k = __uiGroups[i].textFields[j].colorScheme;
+            c = __colorSchemes[k].color.normal;
+            o = __colorSchemes[k].opacity.normal;
+            hc = __colorSchemes[k].color.hover;
+            ho = __colorSchemes[k].opacity.hover;
+
+            if (__uiGroups[i].textFields[j].enabled)
+                if (__uiGroups[i].textFields[j].active)
+                    __uiGroups[i].textFields[j].text = UpdateTextField(__uiGroups[i].textFields[j].text);
+                    if (key(_esc))
+                        __uiGroups[i].textFields[j].active = INACTIVE;
+                    end
+                    if (key(_del))
+                        __uiGroups[i].textFields[j].text = "";
+                    end
+                    if (__uiGroups[i].textFields[j].text != ""
+                        && scan_code == _enter)
+                        __ui.buttonClicked = __uiGroups[i].textFields[j].option;
+                        __uiGroups[i].textFields[j].active = INACTIVE;
+                    end
+                    hc = __colorSchemes[k].color.highlight;
+                    ho = __colorSchemes[k].opacity.highlight;
+                else
+                    hover = RectangleContainsPoint(x, y, x + w, y + h, mouse.x, mouse.y);
+                    if (hover)
+                        c = __colorSchemes[k].color.hover;
+                        o = __colorSchemes[k].opacity.hover;
+                        hc = __colorSchemes[k].color.highlight;
+                        ho = __colorSchemes[k].opacity.highlight;
+                        if (__mouse.leftClicked)
+                             __uiGroups[i].textFields[j].active = ACTIVE;
+                            c = __colorSchemes[k].color.normal;
+                            o = __colorSchemes[k].opacity.normal;
+                            hc = __colorSchemes[k].color.highlight;
+                            ho = __colorSchemes[k].opacity.highlight;
+                        end
+                    else
+                        c = __colorSchemes[k].color.normal;
+                        o = __colorSchemes[k].opacity.normal;
+                    end
+
+                    if (hover)
+                        if (__mouse.leftHeldDown)
+                            c = __colorSchemes[k].color.pressed;
+                            o = __colorSchemes[k].opacity.pressed;
+                            hc = __colorSchemes[k].color.normal;
+                            ho = __colorSchemes[k].opacity.normal;
+                        end
+                    end
+                end
             else
-                // TODO: implement click to activate text field
+                c = __colorSchemes[k].color.disabled;
+                o = __colorSchemes[k].opacity.disabled;
+                hc = __colorSchemes[k].color.disabled;
+                ho = __colorSchemes[k].opacity.disabled;
             end
+
+
+            RenderUIDrawing(DRAW_RECTANGLE_FILL, c, o, REGION_FULL_SCREEN, x, y, x + w, y + h);
+            RenderUIDrawing(DRAW_RECTANGLE, hc, ho, REGION_FULL_SCREEN, x, y, x + w, y + h);
+
             if (__uiGroups[i].textFields[j].text == "")
                 RenderUIText(
                     __uiGroups[i].textFields[j].fontIndex,
-                    __uiGroups[i].textFields[j].x,
-                    __uiGroups[i].textFields[j].y,
+                    x + (w / 2), y + (h / 2),
                     __uiGroups[i].textFields[j].anchor,
                     "...");
             else
                 RenderUIText(
                     __uiGroups[i].textFields[j].fontIndex,
-                    __uiGroups[i].textFields[j].x,
-                    __uiGroups[i].textFields[j].y,
+                    x + (w / 2), y + (h / 2),
                     __uiGroups[i].textFields[j].anchor,
                     __uiGroups[i].textFields[j].text);
-                if (__uiGroups[i].textFields[j].active && scan_code == _enter)
-                    __ui.buttonClicked = __uiGroups[i].textFields[j].option;
-                end
             end
         end
     end
@@ -1694,8 +1755,7 @@ end
  * UI Configuration
  * ---------------------------------------------------------------------------*/
 function AddButtonToUIGroup(ui, x, y, width, height,
-    colorNormal, colorHover, colorPressed, colorDisabled,
-    opacityNormal, opacityHover, opacityPressed, opacityDisabled,
+    colorScheme,
     fontIndex, option, enabled)
 begin
     i = __uiGroups[ui].buttonsCount;
@@ -1703,14 +1763,7 @@ begin
     __uiGroups[ui].buttons[i].y = y;
     __uiGroups[ui].buttons[i].width = width;
     __uiGroups[ui].buttons[i].height = height;
-    __uiGroups[ui].buttons[i].colorNormal = colorNormal;
-    __uiGroups[ui].buttons[i].colorHover = colorHover;
-    __uiGroups[ui].buttons[i].colorPressed = colorPressed;
-    __uiGroups[ui].buttons[i].colorDisabled = colorDisabled;
-    __uiGroups[ui].buttons[i].opacityNormal = opacityNormal;
-    __uiGroups[ui].buttons[i].opacityHover = opacityHover;
-    __uiGroups[ui].buttons[i].opacityPressed = opacityPressed;
-    __uiGroups[ui].buttons[i].opacityDisabled = opacityDisabled;
+    __uiGroups[ui].buttons[i].colorScheme = colorScheme;
     __uiGroups[ui].buttons[i].fontIndex = fontIndex;
     __uiGroups[ui].buttons[i].option = option;
     __uiGroups[ui].buttons[i].enabled = enabled;
@@ -1718,43 +1771,27 @@ begin
 end
 
 function AddCheckboxToUIGroup(ui, x, y, 
-    colorNormal, colorHover, colorPressed, colorDisabled,
-    opacityNormal, opacityHover, opacityPressed, opacityDisabled,
+    colorScheme,
     var, enabled)
 begin
     i = __uiGroups[ui].checkboxesCount;
     __uiGroups[ui].checkboxes[i].x = x;
     __uiGroups[ui].checkboxes[i].y = y;
-    __uiGroups[ui].checkboxes[i].colorNormal = colorNormal;
-    __uiGroups[ui].checkboxes[i].colorHover = colorHover;
-    __uiGroups[ui].checkboxes[i].colorPressed = colorPressed;
-    __uiGroups[ui].checkboxes[i].colorDisabled = colorDisabled;
-    __uiGroups[ui].checkboxes[i].opacityNormal = opacityNormal;
-    __uiGroups[ui].checkboxes[i].opacityHover = opacityHover;
-    __uiGroups[ui].checkboxes[i].opacityPressed = opacityPressed;
-    __uiGroups[ui].checkboxes[i].opacityDisabled = opacityDisabled;
+    __uiGroups[ui].checkboxes[i].colorScheme = colorScheme;
     __uiGroups[ui].checkboxes[i].var = var;
     __uiGroups[ui].checkboxes[i].enabled = enabled;
     __uiGroups[ui].checkboxesCount++;
 end
 
 function AddDialToUIGroup(ui, x, y,
-    colorNormal, colorHover, colorPressed, colorDisabled,
-    opacityNormal, opacityHover, opacityPressed, opacityDisabled,
-    fontIndex, var, varMin, varMax, varWrapValue,
+    colorScheme, fontIndex, 
+    var, varMin, varMax, varWrapValue,
     delaySlow, delayFast, deltaSlow, deltaFast, enabled)
 begin
     i = __uiGroups[ui].dialsCount;
     __uiGroups[ui].dials[i].x = x;
     __uiGroups[ui].dials[i].y = y;
-    __uiGroups[ui].dials[i].colorNormal = colorNormal;
-    __uiGroups[ui].dials[i].colorHover = colorHover;
-    __uiGroups[ui].dials[i].colorPressed = colorPressed;
-    __uiGroups[ui].dials[i].colorDisabled = colorDisabled;
-    __uiGroups[ui].dials[i].opacityNormal = opacityNormal;
-    __uiGroups[ui].dials[i].opacityHover = opacityHover;
-    __uiGroups[ui].dials[i].opacityPressed = opacityPressed;
-    __uiGroups[ui].dials[i].opacityDisabled = opacityDisabled;
+    __uiGroups[ui].dials[i].colorScheme = colorScheme;
     __uiGroups[ui].dials[i].fontIndex = fontIndex;
     __uiGroups[ui].dials[i].var = var;
     __uiGroups[ui].dials[i].varMin = varMin;
@@ -1807,16 +1844,22 @@ begin
     __uiGroups[ui].textsCount++;
 end
 
-function AddTextFieldToUIGroup(ui, x, y, fontIndex, anchor, text, option, active)
+function AddTextFieldToUIGroup(ui, x, y, width, height, 
+    colorScheme, fontIndex, anchor, 
+    text, option, active, enabled)
 begin
     i = __uiGroups[ui].textFieldsCount;
     __uiGroups[ui].textFields[i].x = x;
     __uiGroups[ui].textFields[i].y = y;
+    __uiGroups[ui].textFields[i].width = width;
+    __uiGroups[ui].textFields[i].height = height;
+    __uiGroups[ui].textFields[i].colorScheme = colorScheme;
     __uiGroups[ui].textFields[i].fontIndex = fontIndex;
     __uiGroups[ui].textFields[i].anchor = anchor;
     __uiGroups[ui].textFields[i].text = text;
     __uiGroups[ui].textFields[i].option = option;
     __uiGroups[ui].textFields[i].active = active;
+    __uiGroups[ui].textFields[i].enabled = enabled;
     __uiGroups[ui].textFieldsCount++;
 end
 
@@ -1829,44 +1872,24 @@ begin
         __uiGroups[ui].buttons[i].y               = 0;
         __uiGroups[ui].buttons[i].width           = 0;
         __uiGroups[ui].buttons[i].height          = 0;
-        __uiGroups[ui].buttons[i].colorNormal     = 0;
-        __uiGroups[ui].buttons[i].colorHover      = 0;
-        __uiGroups[ui].buttons[i].colorPressed    = 0;
-        __uiGroups[ui].buttons[i].colorDisabled   = 0;
-        __uiGroups[ui].buttons[i].opacityNormal   = 0;
-        __uiGroups[ui].buttons[i].opacityHover    = 0;
-        __uiGroups[ui].buttons[i].opacityPressed  = 0;
-        __uiGroups[ui].buttons[i].opacityDisabled = 0;
+        __uiGroups[ui].buttons[i].colorScheme     = 0;
         __uiGroups[ui].buttons[i].fontIndex       = 0;
         __uiGroups[ui].buttons[i].option          = 0;
         __uiGroups[ui].buttons[i].text            = "";
+        __uiGroups[ui].buttons[i].enabled         = 0;
     end
     __uiGroups[ui].checkboxesCount = 0;
     for (i = 0; i < MAX_UI_GROUP_CHECKBOXES - 1; ++i)
         __uiGroups[ui].checkboxes[i].x               = 0;
         __uiGroups[ui].checkboxes[i].y               = 0;
-        __uiGroups[ui].checkboxes[i].colorNormal     = 0;
-        __uiGroups[ui].checkboxes[i].colorHover      = 0;
-        __uiGroups[ui].checkboxes[i].colorPressed    = 0;
-        __uiGroups[ui].checkboxes[i].colorDisabled   = 0;
-        __uiGroups[ui].checkboxes[i].opacityNormal   = 0;
-        __uiGroups[ui].checkboxes[i].opacityHover    = 0;
-        __uiGroups[ui].checkboxes[i].opacityPressed  = 0;
-        __uiGroups[ui].checkboxes[i].opacityDisabled = 0;
+        __uiGroups[ui].checkboxes[i].colorScheme     = 0;
         __uiGroups[ui].checkboxes[i].var             = NULL;
         __uiGroups[ui].checkboxes[i].enabled         = 0;
     end
     for (i = 0; i < MAX_UI_GROUP_DIALS - 1; ++i)
         __uiGroups[ui].dials[i].x               = 0;
         __uiGroups[ui].dials[i].y               = 0;
-        __uiGroups[ui].dials[i].colorNormal     = 0;
-        __uiGroups[ui].dials[i].colorHover      = 0;
-        __uiGroups[ui].dials[i].colorPressed    = 0;
-        __uiGroups[ui].dials[i].colorDisabled   = 0;
-        __uiGroups[ui].dials[i].opacityNormal   = 0;
-        __uiGroups[ui].dials[i].opacityHover    = 0;
-        __uiGroups[ui].dials[i].opacityPressed  = 0;
-        __uiGroups[ui].dials[i].opacityDisabled = 0;
+        __uiGroups[ui].dials[i].colorScheme     = 0;
         __uiGroups[ui].dials[i].fontIndex       = 0;
         __uiGroups[ui].dials[i].var             = NULL;
         __uiGroups[ui].dials[i].varMin          = 0;
@@ -1910,12 +1933,17 @@ begin
     end
     __uiGroups[ui].textFieldsCount = 0;
     for (i = 0; i < MAX_UI_GROUP_TEXTS - 1; ++i)
-        __uiGroups[ui].textFields[i].x         = 0;
-        __uiGroups[ui].textFields[i].y         = 0;
-        __uiGroups[ui].textFields[i].fontIndex = 0;
-        __uiGroups[ui].textFields[i].anchor    = 0;
-        __uiGroups[ui].textFields[i].option    = 0;
-        __uiGroups[ui].textFields[i].text      = "";
+        __uiGroups[ui].textFields[i].x           = 0;
+        __uiGroups[ui].textFields[i].y           = 0;
+        __uiGroups[ui].textFields[i].width       = 0;
+        __uiGroups[ui].textFields[i].height      = 0;
+        __uiGroups[ui].textFields[i].colorScheme = 0;
+        __uiGroups[ui].textFields[i].fontIndex   = 0;
+        __uiGroups[ui].textFields[i].anchor      = 0;
+        __uiGroups[ui].textFields[i].option      = 0;
+        __uiGroups[ui].textFields[i].text        = "";
+        __uiGroups[ui].textFields[i].active      = 0;
+        __uiGroups[ui].textFields[i].enabled     = 0;
     end
 end
 
