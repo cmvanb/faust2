@@ -184,6 +184,11 @@ const
     OPT_DISCARD             = 25;
     UI_OPTION_COUNT = 26;
 
+    TF_LEVEL_FILE_NAME  = 0;
+    TF_OBJECT_FILE_NAME = 1;
+    TF_PALETTE_SEARCH   = 2;
+    UI_TEXTFIELD_COUNT = 3;
+
     // ui groups
     GROUP_MAIN_BG              = 0;
     GROUP_MAIN_MENU            = 1;
@@ -390,6 +395,7 @@ global
             x, y, width, height;
             colorScheme;
             fontIndex, anchor, option;
+            textFieldId;
             string text;
             active, enabled;
         end
@@ -940,7 +946,7 @@ begin
         // TODO: change color scheme for text fields
     AddTextFieldToUIGroup(ui,
         HALF_SCREEN_WIDTH - 150, HALF_SCREEN_HEIGHT + 20, 300, 30,
-        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_NEW_LEVEL_FILE_NAME, ACTIVE, ENABLED);
+        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_NEW_LEVEL_FILE_NAME, TF_LEVEL_FILE_NAME, ACTIVE, ENABLED);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
         COLOR_SCHEME_BLUE,
@@ -1016,7 +1022,7 @@ begin
     y = (UI_PAL_Y) - (h) + (UI_UNIT / 2);
     AddTextFieldToUIGroup(ui,
         x, y, w, h,
-        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_PALETTE_SEARCH, INACTIVE, ENABLED);
+        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_PALETTE_SEARCH, TF_PALETTE_SEARCH, INACTIVE, ENABLED);
     // PALETTE BG
     AddDrawingToUIGroup(ui,
         SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT / 2), UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2), SCREEN_WIDTH - (UI_UNIT / 2) - 1, SCREEN_HEIGHT - (UI_UNIT / 2) - 1,
@@ -1181,7 +1187,7 @@ begin
         "File Name:", false);
     AddTextFieldToUIGroup(ui,
         x, y, w, h,
-        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", NULL, INACTIVE, ENABLED);
+        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", NULL, TF_OBJECT_FILE_NAME, INACTIVE, ENABLED);
     // SIDE PANEL WIDGETS
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 0),
@@ -1845,7 +1851,7 @@ end
 
 function AddTextFieldToUIGroup(ui, x, y, width, height, 
     colorScheme, fontIndex, anchor, 
-    text, option, active, enabled)
+    text, option, textFieldId, active, enabled)
 begin
     i = __uiGroups[ui].textFieldsCount;
     __uiGroups[ui].textFields[i].x = x;
@@ -1857,6 +1863,7 @@ begin
     __uiGroups[ui].textFields[i].anchor = anchor;
     __uiGroups[ui].textFields[i].text = text;
     __uiGroups[ui].textFields[i].option = option;
+    __uiGroups[ui].textFields[i].textFieldId = textFieldId;
     __uiGroups[ui].textFields[i].active = active;
     __uiGroups[ui].textFields[i].enabled = enabled;
     __uiGroups[ui].textFieldsCount++;
@@ -1940,6 +1947,7 @@ begin
         __uiGroups[ui].textFields[i].fontIndex   = 0;
         __uiGroups[ui].textFields[i].anchor      = 0;
         __uiGroups[ui].textFields[i].option      = 0;
+        __uiGroups[ui].textFields[i].textFieldId = NULL;
         __uiGroups[ui].textFields[i].text        = "";
         __uiGroups[ui].textFields[i].active      = 0;
         __uiGroups[ui].textFields[i].enabled     = 0;
