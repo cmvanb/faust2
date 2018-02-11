@@ -765,6 +765,9 @@ begin
                 case OPT_TERRAIN_BRUSH:
                     // TODO: implement.
                 end
+                case OPT_EDIT_OBJECT:
+                    ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
+                end
                 // PALETTE
                 case OPT_SCROLL_UP:
                     if (__uiEditor.palettePage > 0)
@@ -798,9 +801,6 @@ begin
                         ConfigureUI_EditorInfo();
                         ShowUIGroup(GROUP_EDITOR_INFO);
                     end
-                end
-                case OPT_EDIT_OBJECT:
-                    ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
                 end
             end
             __ui.buttonClicked = NULL;
