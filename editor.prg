@@ -161,29 +161,34 @@ const
     OPT_LOAD_LEVEL          = 1;
     OPT_MAIN_MENU           = 2;
     OPT_EXIT                = 3;
-    OPT_NEW_LEVEL_FILE_NAME = 4;
-    OPT_SAVE_LEVEL          = 5;
-    OPT_VIEW                = 6;
-    OPT_OBJECT_BRUSH        = 7;
-    OPT_ENTITY_BRUSH        = 8;
-    OPT_TERRAIN_BRUSH       = 9;
-    OPT_OBJECT_EDITOR       = 10;
-    OPT_SCROLL_UP           = 11;
-    OPT_SCROLL_DOWN         = 12;
-    OPT_PALETTE_BOX_0       = 13;
-    OPT_PALETTE_BOX_1       = 14;
-    OPT_PALETTE_BOX_2       = 15;
-    OPT_PALETTE_BOX_3       = 16;
-    OPT_PALETTE_BOX_4       = 17;
-    OPT_PALETTE_BOX_5       = 18;
-    OPT_PALETTE_BOX_6       = 19;
-    OPT_PALETTE_BOX_7       = 20;
-    OPT_PALETTE_SEARCH      = 21;
-    OPT_EDIT_OBJECT         = 22;
-    OPT_NEW_OBJECT          = 23;
-    OPT_SAVE_OBJECT         = 24;
-    OPT_DISCARD             = 25;
-    UI_OPTION_COUNT = 26;
+    OPT_SAVE_LEVEL          = 4;
+    OPT_VIEW                = 5;
+    OPT_OBJECT_BRUSH        = 6;
+    OPT_ENTITY_BRUSH        = 7;
+    OPT_TERRAIN_BRUSH       = 8;
+    OPT_OBJECT_EDITOR       = 9;
+    OPT_SCROLL_UP           = 10;
+    OPT_SCROLL_DOWN         = 11;
+    OPT_PALETTE_BOX_0       = 12;
+    OPT_PALETTE_BOX_1       = 13;
+    OPT_PALETTE_BOX_2       = 14;
+    OPT_PALETTE_BOX_3       = 15;
+    OPT_PALETTE_BOX_4       = 16;
+    OPT_PALETTE_BOX_5       = 17;
+    OPT_PALETTE_BOX_6       = 18;
+    OPT_PALETTE_BOX_7       = 19;
+    OPT_PALETTE_SEARCH      = 20;
+    OPT_EDIT_OBJECT         = 21;
+    OPT_NEW_OBJECT          = 22;
+    OPT_SAVE_OBJECT         = 23;
+    OPT_DISCARD             = 24;
+    UI_OPTION_COUNT = 25;
+
+    // ui text fields
+    TF_LEVEL_FILE_NAME  = 0;
+    TF_OBJECT_FILE_NAME = 1;
+    TF_PALETTE_SEARCH   = 2;
+    UI_TEXTFIELD_COUNT = 3;
 
     // ui groups
     GROUP_MAIN_BG              = 0;
@@ -326,6 +331,8 @@ global
     struct __ui
         buttonHeldDown;
         buttonClicked;
+        textFieldSubmitted;
+        string textFieldValue;
         struct dial
             active;
             state;
@@ -390,8 +397,9 @@ global
         struct textFields[MAX_UI_GROUP_TEXTS - 1]
             x, y, width, height;
             colorScheme;
-            fontIndex, anchor, option;
+            fontIndex, anchor, textFieldId;
             string text;
+            //string textDefault;
             active, enabled;
         end
         imagesCount;
@@ -423,7 +431,6 @@ global
         "LOAD LEVEL",      OPT_LOAD_LEVEL,
         "CANCEL",          OPT_MAIN_MENU,
         "EXIT",            OPT_EXIT,
-        "SUBMIT",          OPT_NEW_LEVEL_FILE_NAME,
         "SAVE LEVEL",      OPT_SAVE_LEVEL,
         "VIEW MODE",       OPT_VIEW,
         "OBJECTS",         OPT_OBJECT_BRUSH,
@@ -750,7 +757,20 @@ begin
     alive = true;
     __ui.buttonClicked = NULL;
     __ui.buttonHeldDown = NULL;
+    __ui.textFieldSubmitted = NULL;
+    //__ui.textFieldValue = "";
     repeat
+        if (__ui.textFieldSubmitted != NULL
+            && __ui.textFieldValue != "")
+            switch (__ui.textFieldSubmitted)
+                case TF_LEVEL_FILE_NAME:
+                    EditorController();
+                end
+                case TF_OBJECT_FILE_NAME:
+                    // TODO: implement
+                end
+            end
+        end
         if (__ui.buttonClicked != NULL)
             switch (__ui.buttonClicked)
                 // MAIN MENU
@@ -764,9 +784,6 @@ begin
                 end
                 case OPT_EXIT:
                     exit("", 0);
-                end
-                case OPT_NEW_LEVEL_FILE_NAME:
-                    EditorController();
                 end
                 // TOP BAR
                 case OPT_VIEW:
@@ -941,13 +958,9 @@ begin
         // TODO: change color scheme for text fields
     AddTextFieldToUIGroup(ui,
         HALF_SCREEN_WIDTH - 150, HALF_SCREEN_HEIGHT + 20, 300, 30,
-        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_NEW_LEVEL_FILE_NAME, ACTIVE, ENABLED);
+        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", TF_LEVEL_FILE_NAME, ACTIVE, ENABLED);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
-        COLOR_SCHEME_BLUE,
-        FONT_MENU, OPT_NEW_LEVEL_FILE_NAME, ENABLED);
-    AddButtonToUIGroup(ui,
-        HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
         COLOR_SCHEME_BLUE,
         FONT_MENU, OPT_MAIN_MENU, ENABLED);
 end
@@ -1017,7 +1030,7 @@ begin
     y = (UI_PAL_Y) - (h) + (UI_UNIT / 2);
     AddTextFieldToUIGroup(ui,
         x, y, w, h,
-        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_PALETTE_SEARCH, INACTIVE, ENABLED);
+        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", TF_PALETTE_SEARCH, INACTIVE, ENABLED);
     // PALETTE BG
     AddDrawingToUIGroup(ui,
         SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT / 2), UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2), SCREEN_WIDTH - (UI_UNIT / 2) - 1, SCREEN_HEIGHT - (UI_UNIT / 2) - 1,
@@ -1182,7 +1195,7 @@ begin
         "File Name:", false);
     AddTextFieldToUIGroup(ui,
         x, y, w, h,
-        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", NULL, INACTIVE, ENABLED);
+        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", TF_OBJECT_FILE_NAME, INACTIVE, ENABLED);
     // SIDE PANEL WIDGETS
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 0),
@@ -1604,7 +1617,8 @@ begin
                     end
                     if (__uiGroups[i].textFields[j].text != ""
                         && scan_code == _enter)
-                        __ui.buttonClicked = __uiGroups[i].textFields[j].option;
+                        __ui.textFieldSubmitted = __uiGroups[i].textFields[j].textFieldId;
+                        strcpy(__ui.textFieldValue, __uiGroups[i].textFields[j].text);
                         __uiGroups[i].textFields[j].active = INACTIVE;
                     end
                     hc = __colorSchemes[k].color.highlight;
@@ -1643,7 +1657,6 @@ begin
                 hc = __colorSchemes[k].color.disabled;
                 ho = __colorSchemes[k].opacity.disabled;
             end
-
 
             RenderUIDrawing(DRAW_RECTANGLE_FILL, c, o, REGION_FULL_SCREEN, x, y, x + w, y + h);
             RenderUIDrawing(DRAW_RECTANGLE, hc, ho, REGION_FULL_SCREEN, x, y, x + w, y + h);
@@ -1846,7 +1859,8 @@ end
 
 function AddTextFieldToUIGroup(ui, x, y, width, height, 
     colorScheme, fontIndex, anchor, 
-    text, option, active, enabled)
+    text, textFieldId, 
+    active, enabled)
 begin
     i = __uiGroups[ui].textFieldsCount;
     __uiGroups[ui].textFields[i].x = x;
@@ -1857,7 +1871,9 @@ begin
     __uiGroups[ui].textFields[i].fontIndex = fontIndex;
     __uiGroups[ui].textFields[i].anchor = anchor;
     __uiGroups[ui].textFields[i].text = text;
-    __uiGroups[ui].textFields[i].option = option;
+    //strcpy(__uiGroups[ui].textFields[i].textDefault, text);
+    //__uiGroups[ui].textFields[i].textDefault = text;
+    __uiGroups[ui].textFields[i].textFieldId = textFieldId;
     __uiGroups[ui].textFields[i].active = active;
     __uiGroups[ui].textFields[i].enabled = enabled;
     __uiGroups[ui].textFieldsCount++;
@@ -1940,8 +1956,9 @@ begin
         __uiGroups[ui].textFields[i].colorScheme = 0;
         __uiGroups[ui].textFields[i].fontIndex   = 0;
         __uiGroups[ui].textFields[i].anchor      = 0;
-        __uiGroups[ui].textFields[i].option      = 0;
+        __uiGroups[ui].textFields[i].textFieldId = 0;
         __uiGroups[ui].textFields[i].text        = "";
+        //__uiGroups[ui].textFields[i].textDefault = "";
         __uiGroups[ui].textFields[i].active      = 0;
         __uiGroups[ui].textFields[i].enabled     = 0;
     end
