@@ -114,11 +114,12 @@ const
     MAX_UI_DRAWINGS = 128;
     MAX_UI_TEXTS    = 128;
     MAX_UI_GROUPS = 8;
-    MAX_UI_GROUP_BUTTONS  = 16;
-    MAX_UI_GROUP_DIALS    = 8;
-    MAX_UI_GROUP_DRAWINGS = 32;
-    MAX_UI_GROUP_TEXTS    = 32;
-    MAX_UI_GROUP_IMAGES   = 32;
+    MAX_UI_GROUP_BUTTONS    = 16;
+    MAX_UI_GROUP_CHECKBOXES = 8;
+    MAX_UI_GROUP_DIALS      = 8;
+    MAX_UI_GROUP_DRAWINGS   = 32;
+    MAX_UI_GROUP_TEXTS      = 32;
+    MAX_UI_GROUP_IMAGES     = 16;
     UI_Z_ABOVE = -512;
     UI_Z_UNDER = 0;
 
@@ -336,6 +337,14 @@ global
             opacityNormal, opacityHover, opacityPressed, opacityDisabled;
             fontIndex, option;
             string text;
+        end
+        checkboxesCount;
+        struct checkboxes[MAX_UI_GROUP_CHECKBOXES - 1]
+            enabled;
+            x, y;
+            colorNormal, colorHover, colorPressed, colorDisabled;
+            opacityNormal, opacityHover, opacityPressed, opacityDisabled;
+            var;
         end
         dialsCount;
         struct dials[MAX_UI_GROUP_DIALS - 1]
@@ -595,14 +604,16 @@ begin
                     __uiEditor.object.gfxIndex,
                     a, s,
                     FLAG_NORMAL);
-                RenderGfxPointsOneFrame(
-                    x * GPR, y * GPR, 
-                    GFX_OBJECTS, 
-                    __uiEditor.object.gfxIndex,
-                    a, s, GPR,
-                    COLOR_WHITE, 
-                    OPACITY_SOLID, 
-                    REGION_FULL_SCREEN, false);
+                if (__uiEditor.object.collidable == true)
+                    RenderGfxPointsOneFrame(
+                        x * GPR, y * GPR, 
+                        GFX_OBJECTS, 
+                        __uiEditor.object.gfxIndex,
+                        a, s, GPR,
+                        COLOR_WHITE, 
+                        OPACITY_SOLID, 
+                        REGION_FULL_SCREEN, false);
+                end
             end
         end
         frame;
@@ -1224,6 +1235,11 @@ begin
         tx, (UI_PAL_Y) + (textOffsetY * 5),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
         "Collision:", false);
+    AddCheckboxToUIGroup(ui, 
+        tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 5),
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        &__uiEditor.object.collidable, true);
 end
 
 
@@ -1241,6 +1257,7 @@ begin
         RenderUIImages();
         RenderUIButtons();
         RenderUIDials();
+        RenderUICheckboxes();
         frame;
         DeleteAllUIDrawings();
         DeleteAllUITexts();
@@ -1313,6 +1330,63 @@ begin
     end
     if (!__mouse.leftHeldDown)
         __ui.buttonHeldDown = NULL;
+    end
+end
+
+function RenderUICheckboxes()
+private
+    j;
+    w, h;
+    c, o;
+    hover = false;
+begin
+    for (i = 0; i < __uiGroupsCount; ++i)
+        if (!__uiGroups[i].visible)
+            continue;
+        end
+        for (j = 0; j < __uiGroups[i].checkboxesCount; ++j)
+            x = __uiGroups[i].checkboxes[j].x;
+            y = __uiGroups[i].checkboxes[j].y;
+            w = UI_UNIT * 5;
+            h = UI_UNIT * 5;
+
+            if (__uiGroups[i].checkboxes[j].enabled)
+                hover = RectangleContainsPoint(
+                    x - (w / 2), y - (h / 2), x + (w / 2), y + (h / 2), mouse.x, mouse.y);
+                if (hover)
+                    c = __uiGroups[i].checkboxes[j].colorHover;
+                    o = __uiGroups[i].checkboxes[j].opacityHover;
+                    if (__mouse.leftClicked)
+                        if (*__uiGroups[i].checkboxes[j].var == true)
+                            *__uiGroups[i].checkboxes[j].var = false;
+                        else
+                            *__uiGroups[i].checkboxes[j].var = true;
+                        end
+                    end
+                else
+                    c = __uiGroups[i].checkboxes[j].colorNormal;
+                    o = __uiGroups[i].checkboxes[j].opacityNormal;
+                end
+
+                if (hover)
+                    if (__mouse.leftHeldDown)
+                        c = __uiGroups[i].checkboxes[j].colorPressed;
+                        o = __uiGroups[i].checkboxes[j].opacityPressed;
+                    end
+                end
+            else
+                c = __uiGroups[i].checkboxes[j].colorDisabled;
+                o = __uiGroups[i].checkboxes[j].opacityDisabled;
+            end
+
+            RenderUIDrawing(DRAW_RECTANGLE_FILL, c, o, REGION_FULL_SCREEN,
+                x - (w / 2), y - (h / 2), x + (w / 2), y + (h / 2));
+
+            if (*__uiGroups[i].checkboxes[j].var == true)
+                RenderUIDrawing(DRAW_ELLIPSE_FILL, COLOR_WHITE, OPACITY_SOLID, REGION_FULL_SCREEN,
+                    x - (w / 3), y - (h / 3), x + (w / 3), y + (h / 3));
+            end
+        end
     end
 end
 
@@ -1643,6 +1717,27 @@ begin
     __uiGroups[ui].buttonsCount++;
 end
 
+function AddCheckboxToUIGroup(ui, x, y, 
+    colorNormal, colorHover, colorPressed, colorDisabled,
+    opacityNormal, opacityHover, opacityPressed, opacityDisabled,
+    var, enabled)
+begin
+    i = __uiGroups[ui].checkboxesCount;
+    __uiGroups[ui].checkboxes[i].x = x;
+    __uiGroups[ui].checkboxes[i].y = y;
+    __uiGroups[ui].checkboxes[i].colorNormal = colorNormal;
+    __uiGroups[ui].checkboxes[i].colorHover = colorHover;
+    __uiGroups[ui].checkboxes[i].colorPressed = colorPressed;
+    __uiGroups[ui].checkboxes[i].colorDisabled = colorDisabled;
+    __uiGroups[ui].checkboxes[i].opacityNormal = opacityNormal;
+    __uiGroups[ui].checkboxes[i].opacityHover = opacityHover;
+    __uiGroups[ui].checkboxes[i].opacityPressed = opacityPressed;
+    __uiGroups[ui].checkboxes[i].opacityDisabled = opacityDisabled;
+    __uiGroups[ui].checkboxes[i].var = var;
+    __uiGroups[ui].checkboxes[i].enabled = enabled;
+    __uiGroups[ui].checkboxesCount++;
+end
+
 function AddDialToUIGroup(ui, x, y,
     colorNormal, colorHover, colorPressed, colorDisabled,
     opacityNormal, opacityHover, opacityPressed, opacityDisabled,
@@ -1746,7 +1841,21 @@ begin
         __uiGroups[ui].buttons[i].option          = 0;
         __uiGroups[ui].buttons[i].text            = "";
     end
-    __uiGroups[ui].dialsCount = 0;
+    __uiGroups[ui].checkboxesCount = 0;
+    for (i = 0; i < MAX_UI_GROUP_CHECKBOXES - 1; ++i)
+        __uiGroups[ui].checkboxes[i].x               = 0;
+        __uiGroups[ui].checkboxes[i].y               = 0;
+        __uiGroups[ui].checkboxes[i].colorNormal     = 0;
+        __uiGroups[ui].checkboxes[i].colorHover      = 0;
+        __uiGroups[ui].checkboxes[i].colorPressed    = 0;
+        __uiGroups[ui].checkboxes[i].colorDisabled   = 0;
+        __uiGroups[ui].checkboxes[i].opacityNormal   = 0;
+        __uiGroups[ui].checkboxes[i].opacityHover    = 0;
+        __uiGroups[ui].checkboxes[i].opacityPressed  = 0;
+        __uiGroups[ui].checkboxes[i].opacityDisabled = 0;
+        __uiGroups[ui].checkboxes[i].var             = NULL;
+        __uiGroups[ui].checkboxes[i].enabled         = 0;
+    end
     for (i = 0; i < MAX_UI_GROUP_DIALS - 1; ++i)
         __uiGroups[ui].dials[i].x               = 0;
         __uiGroups[ui].dials[i].y               = 0;
@@ -1759,7 +1868,7 @@ begin
         __uiGroups[ui].dials[i].opacityPressed  = 0;
         __uiGroups[ui].dials[i].opacityDisabled = 0;
         __uiGroups[ui].dials[i].fontIndex       = 0;
-        __uiGroups[ui].dials[i].var             = 0;
+        __uiGroups[ui].dials[i].var             = NULL;
         __uiGroups[ui].dials[i].varMin          = 0;
         __uiGroups[ui].dials[i].varMax          = 0;
         __uiGroups[ui].dials[i].varWrapValue    = 0;
