@@ -127,6 +127,7 @@ const
     MATERIAL_CONCRETE = 0;
     MATERIAL_WOOD     = 1;
     MATERIAL_METAL    = 2;
+    MATERIAL_COUNT = 3;
 
     // ui
     UI_UNIT = 4;
@@ -134,9 +135,9 @@ const
     UI_DIAL_SLOW_ZONE_WIDTH = UI_UNIT * 8;
 
     // ui colors
-    COLOR_B_NORMAL = COLOR_BLUE;
-    COLOR_B_HOVER = COLOR_BLUE + 3;
-    COLOR_B_PRESSED = COLOR_BLUE - 1;
+    COLOR_B_NORMAL   = COLOR_BLUE;
+    COLOR_B_HOVER    = COLOR_BLUE + 3;
+    COLOR_B_PRESSED  = COLOR_BLUE - 1;
     COLOR_B_DISABLED = COLOR_GREY - 5;
 
     // EDITOR SPECIFIC ---------------------------------------------------------
@@ -310,9 +311,9 @@ global
         struct dial
             active;
             state;
-            var;
-            delaySlow, delayFast;
-            deltaSlow, deltaFast;
+            uiGroupIndex;
+            dialIndex;
+            clickX;
         end
         drawingsCount;
         struct drawings[MAX_UI_DRAWINGS - 1]
@@ -344,6 +345,9 @@ global
             opacityNormal, opacityHover, opacityPressed, opacityDisabled;
             fontIndex;
             var;
+            varMin;
+            varMax;
+            varWrapValue;
             delaySlow, delayFast;
             deltaSlow, deltaFast;
         end
@@ -586,22 +590,19 @@ begin
                 s = __uiEditor.object.size;
                 RenderImageOneFrame(
                     x, y,
-                    UI_Z_ABOVE,
+                    UI_Z_UNDER - 1,
                     GFX_OBJECTS,
                     __uiEditor.object.gfxIndex,
                     a, s,
                     FLAG_NORMAL);
-                // TODO: validate gfxIndex
-                /*
                 RenderGfxPointsOneFrame(
-                    x, y, 
+                    x * GPR, y * GPR, 
                     GFX_OBJECTS, 
                     __uiEditor.object.gfxIndex,
-                    a, s,
+                    a, s, GPR,
                     COLOR_WHITE, 
                     OPACITY_SOLID, 
-                    REGION_FULL_SCREEN);
-                */
+                    REGION_FULL_SCREEN, false);
             end
         end
         frame;
@@ -656,6 +657,14 @@ begin
         end
         case UI_EDITOR_OBJECT_EDIT_MODE:
             __camera.moveMode = NULL;
+            __uiEditor.object.fileName     = "";
+            __uiEditor.object.angle        = 0;
+            __uiEditor.object.size         = 100;
+            __uiEditor.object.z            = 0;
+            __uiEditor.object.gfxIndex     = 1;
+            __uiEditor.object.material     = 0;
+            __uiEditor.object.collidable   = true;
+            __uiEditor.object.changesSaved = false;
             ShowUIGroup(GROUP_EDITOR_OBJECT_EDIT);
         end
     end
@@ -678,7 +687,7 @@ begin
             insideScrollWindow = IsInsideScrollWindow(id, 0, REGION_EDITOR_VIEWPORT);
             if (insideScrollWindow)
                 FindGfxPoints(id, pointsCount);
-                DrawGfxPointsOneFrame(pointsCount, COLOR_WHITE, OPACITY_SOLID, REGION_EDITOR_VIEWPORT);
+                DrawGfxPointsOneFrame(pointsCount, COLOR_WHITE, OPACITY_SOLID, REGION_EDITOR_VIEWPORT, true);
             end
             if (collision(type MouseCursor) && insideScrollWindow)
                 if (!isLogging)
@@ -709,6 +718,7 @@ private
     lastDialTick;
     dialDelay;
     dialDelta;
+    j;
 begin
     alive = true;
     __ui.buttonClicked = NULL;
@@ -788,24 +798,40 @@ begin
             if (__ui.dial.state != 0)
                 switch (__ui.dial.state)
                     case -2:
-                        dialDelay = __ui.dial.delayFast;
-                        dialDelta = -__ui.dial.deltaFast;
+                        dialDelay = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].delayFast;
+                        dialDelta = -__uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].deltaFast;
                     end
                     case -1:
-                        dialDelay = __ui.dial.delaySlow;
-                        dialDelta = -__ui.dial.deltaSlow;
+                        dialDelay = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].delaySlow;
+                        dialDelta = -__uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].deltaSlow;
                     end
                     case 1:
-                        dialDelay = __ui.dial.delaySlow;
-                        dialDelta = __ui.dial.deltaSlow;
+                        dialDelay = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].delaySlow;
+                        dialDelta = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].deltaSlow;
                     end
                     case 2:
-                        dialDelay = __ui.dial.delayFast;
-                        dialDelta = __ui.dial.deltaFast;
+                        dialDelay = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].delayFast;
+                        dialDelta = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].deltaFast;
                     end
                 end
                 if (timer[0] > lastDialTick + dialDelay)
-                    *__ui.dial.var += dialDelta;
+                    i = __ui.dial.uiGroupIndex;
+                    j = __ui.dial.dialIndex;
+                    *__uiGroups[i].dials[j].var += dialDelta;
+                    if (*__uiGroups[i].dials[j].var < __uiGroups[i].dials[j].varMin)
+                        if (__uiGroups[i].dials[j].varWrapValue)
+                            *__uiGroups[i].dials[j].var = __uiGroups[i].dials[j].varMax;
+                        else
+                            *__uiGroups[i].dials[j].var = __uiGroups[i].dials[j].varMin;
+                        end
+                    end
+                    if (*__uiGroups[i].dials[j].var > __uiGroups[i].dials[j].varMax)
+                        if (__uiGroups[i].dials[j].varWrapValue)
+                            *__uiGroups[i].dials[j].var = __uiGroups[i].dials[j].varMin;
+                        else
+                            *__uiGroups[i].dials[j].var = __uiGroups[i].dials[j].varMax;
+                        end
+                    end
                     lastDialTick = timer[0];
                 end
             end
@@ -1152,7 +1178,8 @@ begin
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 0) + (UI_UNIT * 1),
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, &__uiEditor.object.gfxIndex, 100, 25, 1, 1, true);
+        FONT_SYSTEM, &__uiEditor.object.gfxIndex, 1, 2, true,
+        100, 25, 1, 1, true);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 1),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
@@ -1161,38 +1188,42 @@ begin
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 1) + (UI_UNIT * 1),
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, &__uiEditor.object.material, 25, 5, 1, 10, true);
+        FONT_SYSTEM, &__uiEditor.object.material, 0, MATERIAL_COUNT - 1, true,
+        25, 5, 1, 10, true);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 2),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
-        "Collision:", false);
+        "Angle:", false);
+    AddDialToUIGroup(ui,
+        tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 2) + (UI_UNIT * 1),
+        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
+        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
+        FONT_SYSTEM, &__uiEditor.object.angle, 0, 360000, true,
+        2, 1, -1000, -5000, true);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 3),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
-        "Angle:", false);
+        "Size:", false);
     AddDialToUIGroup(ui,
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 3) + (UI_UNIT * 1),
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, &__uiEditor.object.angle, 2, 1, -1000, -5000, true);
+        FONT_SYSTEM, &__uiEditor.object.size, 0, 1000, false,
+        25, 5, 1, 10, true);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 4),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
-        "Size:", false);
+        "Z Depth:", false);
     AddDialToUIGroup(ui,
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 4) + (UI_UNIT * 1),
         COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
         OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, &__uiEditor.object.size, 25, 5, 1, 10, true);
+        FONT_SYSTEM, &__uiEditor.object.z, -100, 100, false,
+        25, 5, 1, 10, true);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 5),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
-        "Z Depth:", false);
-    AddDialToUIGroup(ui,
-        tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 5) + (UI_UNIT * 1),
-        COLOR_B_NORMAL, COLOR_B_HOVER, COLOR_B_PRESSED, COLOR_B_DISABLED,
-        OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID, OPACITY_SOLID,
-        FONT_SYSTEM, &__uiEditor.object.z, 25, 5, 1, 10, true);
+        "Collision:", false);
 end
 
 
@@ -1324,13 +1355,11 @@ begin
                     if (__mouse.leftHeldDown)
                         c = __uiGroups[i].dials[j].colorPressed;
                         o = __uiGroups[i].dials[j].opacityPressed;
-                        __ui.dial.active    = true;
-                        __ui.dial.state     = 0;
-                        __ui.dial.var       = __uiGroups[i].dials[j].var;
-                        __ui.dial.delaySlow = __uiGroups[i].dials[j].delaySlow;
-                        __ui.dial.delayFast = __uiGroups[i].dials[j].delayFast;
-                        __ui.dial.deltaSlow = __uiGroups[i].dials[j].deltaSlow;
-                        __ui.dial.deltaFast = __uiGroups[i].dials[j].deltaFast;
+                        __ui.dial.active       = true;
+                        __ui.dial.state        = 0;
+                        __ui.dial.uiGroupIndex = i;
+                        __ui.dial.dialIndex    = j;
+                        __ui.dial.clickX       = mouse.x;
                     end
                 end
             else
@@ -1339,9 +1368,10 @@ begin
             end
 
             if (__ui.dial.active 
-                && __ui.dial.var == __uiGroups[i].dials[j].var)
+                && __ui.dial.uiGroupIndex == i
+                && __ui.dial.dialIndex == j)
                 // set dial state
-                dialDistance = mouse.x - x;
+                dialDistance = mouse.x - __ui.dial.clickX;
                 if (abs(dialDistance) > UI_DIAL_DEAD_ZONE_WIDTH)
                     __ui.dial.state = dialDistance / abs(dialDistance);
                     if (abs(dialDistance) > UI_DIAL_SLOW_ZONE_WIDTH)
@@ -1384,13 +1414,11 @@ begin
         end
     end
     if (!__mouse.leftHeldDown)
-        __ui.dial.active    = false;
-        __ui.dial.state     = 0;
-        __ui.dial.var       = NULL;
-        __ui.dial.delaySlow = 0;
-        __ui.dial.delayFast = 0;
-        __ui.dial.deltaSlow = 0;
-        __ui.dial.deltaFast = 0;
+        __ui.dial.active       = false;
+        __ui.dial.state        = 0;
+        __ui.dial.uiGroupIndex = NULL;
+        __ui.dial.dialIndex    = NULL;
+        __ui.dial.clickX       = NULL;
     end
 end
 
@@ -1572,8 +1600,9 @@ begin
     __ui.textsCount = 0;
 end
 
-// TODO: use this code for object editor
-process RenderGfxPointsOneFrame(x, y, fileIndex, gfxIndex, angle, size, color, opacity, region)
+process RenderGfxPointsOneFrame(x, y, 
+    fileIndex, gfxIndex, angle, size, resolution, 
+    color, opacity, region, scrollSpace)
 private
     pointsCount;
 begin
@@ -1581,7 +1610,7 @@ begin
     pointsCount = CountGfxPoints(fileIndex, gfxIndex);
     FindGfxPoints(id, pointsCount);
     graph = NULL;
-    DrawGfxPointsOneFrame(pointsCount, color, opacity, region);
+    DrawGfxPointsOneFrame(pointsCount, color, opacity, region, scrollSpace);
     frame;
 end
 
@@ -1617,7 +1646,8 @@ end
 function AddDialToUIGroup(ui, x, y,
     colorNormal, colorHover, colorPressed, colorDisabled,
     opacityNormal, opacityHover, opacityPressed, opacityDisabled,
-    fontIndex, var, delaySlow, delayFast, deltaSlow, deltaFast, enabled)
+    fontIndex, var, varMin, varMax, varWrapValue,
+    delaySlow, delayFast, deltaSlow, deltaFast, enabled)
 begin
     i = __uiGroups[ui].dialsCount;
     __uiGroups[ui].dials[i].x = x;
@@ -1632,6 +1662,9 @@ begin
     __uiGroups[ui].dials[i].opacityDisabled = opacityDisabled;
     __uiGroups[ui].dials[i].fontIndex = fontIndex;
     __uiGroups[ui].dials[i].var = var;
+    __uiGroups[ui].dials[i].varMin = varMin;
+    __uiGroups[ui].dials[i].varMax = varMax;
+    __uiGroups[ui].dials[i].varWrapValue = varWrapValue;
     __uiGroups[ui].dials[i].delaySlow = delaySlow;
     __uiGroups[ui].dials[i].delayFast = delayFast;
     __uiGroups[ui].dials[i].deltaSlow = deltaSlow;
@@ -1727,6 +1760,9 @@ begin
         __uiGroups[ui].dials[i].opacityDisabled = 0;
         __uiGroups[ui].dials[i].fontIndex       = 0;
         __uiGroups[ui].dials[i].var             = 0;
+        __uiGroups[ui].dials[i].varMin          = 0;
+        __uiGroups[ui].dials[i].varMax          = 0;
+        __uiGroups[ui].dials[i].varWrapValue    = 0;
         __uiGroups[ui].dials[i].delaySlow       = 0;
         __uiGroups[ui].dials[i].delayFast       = 0;
         __uiGroups[ui].dials[i].deltaSlow       = 0;
@@ -2139,16 +2175,22 @@ end
 /* -----------------------------------------------------------------------------
  * Drawing and writing functions
  * ---------------------------------------------------------------------------*/
-function DrawScrollSpaceLine(x0, y0, x1, y1, color, opacity, region);
+function DrawLine(x0, y0, x1, y1, color, opacity, region, scrollSpace)
+private
+    sx, sy;
 begin
-    x0 = (x0 / GPR) - scroll[0].x0 + __regions[region].x;
-    y0 = (y0 / GPR) - scroll[0].y0 + __regions[region].y;
-    x1 = (x1 / GPR) - scroll[0].x0 + __regions[region].x;
-    y1 = (y1 / GPR) - scroll[0].y0 + __regions[region].y;
+    if (scrollSpace)
+        sx = -scroll[0].x0;
+        sy = -scroll[0].y0;
+    end
+    x0 = (x0 / GPR) + sx + __regions[region].x;
+    y0 = (y0 / GPR) + sy + __regions[region].y;
+    x1 = (x1 / GPR) + sx + __regions[region].x;
+    y1 = (y1 / GPR) + sy + __regions[region].y;
     return (draw(DRAW_LINE, color, opacity, region, x0, y0, x1, y1));
 end
 
-process DrawGfxPointsOneFrame(pointsCount, color, opacity, region)
+process DrawGfxPointsOneFrame(pointsCount, color, opacity, region, scrollSpace)
 private
     drawings[MAX_GFX_POINTS - 1];
     x0, y0, x1, y1;
@@ -2158,12 +2200,12 @@ begin
         y0 = __gfxPoints[i].y;
         x1 = __gfxPoints[(i + 1) % pointsCount].x;
         y1 = __gfxPoints[(i + 1) % pointsCount].y;
-        drawings[i] = DrawScrollSpaceLine(
+        drawings[i] = DrawLine(
             __gfxPoints[i].x, 
             __gfxPoints[i].y, 
             __gfxPoints[(i + 1) % pointsCount].x, 
             __gfxPoints[(i + 1) % pointsCount].y,
-            color, opacity, region);
+            color, opacity, region, scrollSpace);
     end
     frame;
     for (i = 0; i < pointsCount; ++i)
