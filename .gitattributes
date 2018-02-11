@@ -1,0 +1,12 @@
+# Autodetect text files
+* text=auto
+
+# definitely text files
+*.prg text
+
+# definitely binary files
+*.fnt binary
+*.fpg binary
+*.lvl binary
+*.obj binary
+*.wav binary
