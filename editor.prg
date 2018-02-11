@@ -2,7 +2,6 @@
  * Faust 2 Level Editor by Casper
  * (c) 2017 altsrc
  * ========================================================================== */
-
 COMPILER_OPTIONS _case_sensitive;
 
 program Faust2LevelEditor;
