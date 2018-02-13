@@ -160,7 +160,7 @@ const
     OPT_LOAD_LEVEL          = 1;
     OPT_MAIN_MENU           = 2;
     OPT_EXIT                = 3;
-    OPT_NEW_LEVEL_FILE_NAME = 4;
+    OPT_SUBMIT              = 4;
     OPT_SAVE_LEVEL          = 5;
     OPT_VIEW                = 6;
     OPT_OBJECT_BRUSH        = 7;
@@ -330,6 +330,9 @@ global
     struct __ui
         buttonHeldDown;
         buttonClicked;
+        activeTextFieldId;
+        submittedTextFieldId;
+        submittedText;
         struct dial
             active;
             state;
@@ -355,8 +358,8 @@ global
             x, y, width, height;
             colorScheme;
             fontIndex, option;
-            string text;
             enabled;
+            string text;
         end
         checkboxesCount;
         struct checkboxes[MAX_UI_GROUP_CHECKBOXES - 1]
@@ -387,17 +390,17 @@ global
         struct texts[MAX_UI_GROUP_TEXTS - 1]
             x, y;
             fontIndex, anchor;
-            string text;
             isInteger;
+            string text;
         end
         textFieldsCount;
         struct textFields[MAX_UI_GROUP_TEXTS - 1]
             x, y, width, height;
             colorScheme;
-            fontIndex, anchor, option;
+            fontIndex, anchor;
             textFieldId;
-            string text;
             active, enabled;
+            string text;
         end
         imagesCount;
         struct images[MAX_UI_GROUP_IMAGES - 1]
@@ -428,7 +431,7 @@ global
         "LOAD LEVEL",      OPT_LOAD_LEVEL,
         "CANCEL",          OPT_MAIN_MENU,
         "EXIT",            OPT_EXIT,
-        "SUBMIT",          OPT_NEW_LEVEL_FILE_NAME,
+        "SUBMIT",          OPT_SUBMIT,
         "SAVE LEVEL",      OPT_SAVE_LEVEL,
         "VIEW MODE",       OPT_VIEW,
         "OBJECTS",         OPT_OBJECT_BRUSH,
@@ -559,6 +562,12 @@ begin
             case UI_EDITOR_VIEW_MODE:
             end
             case UI_EDITOR_OBJECT_BRUSH_MODE:
+                if (__ui.activeTextFieldId != NULL)
+                    __camera.moveMode = NULL;
+                    __uiEditor.objectBrushSelected = NULL;
+                else
+                    __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
+                end
                 if (__uiEditor.objectBrushSelected > NULL)
                     if (shift_status == 1 || shift_status == 2)
                         __camera.moveMode = NULL;
@@ -679,6 +688,7 @@ begin
             __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
         end
         case UI_EDITOR_OBJECT_BRUSH_MODE:
+            __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
             ShowUIGroup(GROUP_EDITOR_PALETTE);
         end
         case UI_EDITOR_ENTITY_BRUSH_MODE:
@@ -751,11 +761,32 @@ private
     dialDelay;
     dialDelta;
     j;
+    text;
 begin
     alive = true;
-    __ui.buttonClicked = NULL;
-    __ui.buttonHeldDown = NULL;
+    __ui.buttonClicked        = NULL;
+    __ui.buttonHeldDown       = NULL;
+    __ui.submittedTextFieldId = NULL;
+    __ui.submittedText        = "";
     repeat
+        if (__ui.submittedTextFieldId != NULL)
+            switch (__ui.submittedTextFieldId)
+                case TF_LEVEL_FILE_NAME:
+                    // TODO: Validate file name doesn't already exist.
+                    if (__ui.submittedText != "")
+                        EditorController();
+                    end
+                end
+                case TF_OBJECT_FILE_NAME:
+                    // TODO: implement.
+                end
+                case TF_PALETTE_SEARCH:
+                    // TODO: implement.
+                end
+            end
+            __ui.submittedTextFieldId = NULL;
+            __ui.submittedText = "";
+        end
         if (__ui.buttonClicked != NULL)
             switch (__ui.buttonClicked)
                 // MAIN MENU
@@ -770,8 +801,12 @@ begin
                 case OPT_EXIT:
                     exit("", 0);
                 end
-                case OPT_NEW_LEVEL_FILE_NAME:
-                    EditorController();
+                case OPT_SUBMIT:
+                    // TODO: Validate file name doesn't already exist.
+                    text = GetTextFieldValue(GROUP_STRING_PROMPT_DIALOG, TF_LEVEL_FILE_NAME);
+                    if (text != "")
+                        EditorController();
+                    end
                 end
                 // TOP BAR
                 case OPT_VIEW:
@@ -943,14 +978,13 @@ begin
     AddTextToUIGroup(ui,
         HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT,
         FONT_MENU, FONT_ANCHOR_CENTERED, "Enter file name:", false);
-        // TODO: change color scheme for text fields
     AddTextFieldToUIGroup(ui,
         HALF_SCREEN_WIDTH - 150, HALF_SCREEN_HEIGHT + 20, 300, 30,
-        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_NEW_LEVEL_FILE_NAME, TF_LEVEL_FILE_NAME, ACTIVE, ENABLED);
+        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", TF_LEVEL_FILE_NAME, ACTIVE, ENABLED);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
         COLOR_SCHEME_BLUE,
-        FONT_MENU, OPT_NEW_LEVEL_FILE_NAME, ENABLED);
+        FONT_MENU, OPT_SUBMIT, ENABLED);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
         COLOR_SCHEME_BLUE,
@@ -1022,7 +1056,7 @@ begin
     y = (UI_PAL_Y) - (h) + (UI_UNIT / 2);
     AddTextFieldToUIGroup(ui,
         x, y, w, h,
-        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", OPT_PALETTE_SEARCH, TF_PALETTE_SEARCH, INACTIVE, ENABLED);
+        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", TF_PALETTE_SEARCH, INACTIVE, ENABLED);
     // PALETTE BG
     AddDrawingToUIGroup(ui,
         SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT / 2), UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2), SCREEN_WIDTH - (UI_UNIT / 2) - 1, SCREEN_HEIGHT - (UI_UNIT / 2) - 1,
@@ -1187,7 +1221,7 @@ begin
         "File Name:", false);
     AddTextFieldToUIGroup(ui,
         x, y, w, h,
-        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", NULL, TF_OBJECT_FILE_NAME, INACTIVE, ENABLED);
+        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", TF_OBJECT_FILE_NAME, INACTIVE, ENABLED);
     // SIDE PANEL WIDGETS
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 0),
@@ -1252,6 +1286,8 @@ end
 process UIRenderer()
 begin
     alive = true;
+    __ui.buttonHeldDown = NULL;
+    __ui.buttonClicked = NULL;
     repeat
         RenderUIDrawings();
         RenderUITexts();
@@ -1583,6 +1619,7 @@ private
     hc, ho;
     hover = false;
 begin
+    __ui.activeTextFieldId = NULL;
     for (i = 0; i < __uiGroupsCount; ++i)
         if (!__uiGroups[i].visible)
             continue;
@@ -1599,21 +1636,21 @@ begin
             ho = __colorSchemes[k].opacity.hover;
 
             if (__uiGroups[i].textFields[j].enabled)
-                if (__uiGroups[i].textFields[j].active)
+                if (__uiGroups[i].textFields[j].active == ACTIVE)
+                    hc = __colorSchemes[k].color.highlight;
+                    ho = __colorSchemes[k].opacity.highlight;
                     __uiGroups[i].textFields[j].text = UpdateTextField(__uiGroups[i].textFields[j].text);
-                    if (key(_esc))
+                    if (key(_esc) || __mouse.rightClicked)
                         __uiGroups[i].textFields[j].active = INACTIVE;
                     end
                     if (key(_del))
                         __uiGroups[i].textFields[j].text = "";
                     end
-                    if (__uiGroups[i].textFields[j].text != ""
-                        && scan_code == _enter)
-                        __ui.buttonClicked = __uiGroups[i].textFields[j].option;
+                    if (key(_enter))
+                        __ui.submittedTextFieldId = __uiGroups[i].textFields[j].textFieldId;
+                        __ui.submittedText = __uiGroups[i].textFields[j].text;
                         __uiGroups[i].textFields[j].active = INACTIVE;
                     end
-                    hc = __colorSchemes[k].color.highlight;
-                    ho = __colorSchemes[k].opacity.highlight;
                 else
                     hover = RectangleContainsPoint(x, y, x + w, y + h, mouse.x, mouse.y);
                     if (hover)
@@ -1621,8 +1658,14 @@ begin
                         o = __colorSchemes[k].opacity.hover;
                         hc = __colorSchemes[k].color.highlight;
                         ho = __colorSchemes[k].opacity.highlight;
+                        if (__mouse.leftHeldDown)
+                            c = __colorSchemes[k].color.pressed;
+                            o = __colorSchemes[k].opacity.pressed;
+                            hc = __colorSchemes[k].color.normal;
+                            ho = __colorSchemes[k].opacity.normal;
+                        end
                         if (__mouse.leftClicked)
-                             __uiGroups[i].textFields[j].active = ACTIVE;
+                            __uiGroups[i].textFields[j].active = ACTIVE;
                             c = __colorSchemes[k].color.normal;
                             o = __colorSchemes[k].opacity.normal;
                             hc = __colorSchemes[k].color.highlight;
@@ -1632,15 +1675,9 @@ begin
                         c = __colorSchemes[k].color.normal;
                         o = __colorSchemes[k].opacity.normal;
                     end
-
-                    if (hover)
-                        if (__mouse.leftHeldDown)
-                            c = __colorSchemes[k].color.pressed;
-                            o = __colorSchemes[k].opacity.pressed;
-                            hc = __colorSchemes[k].color.normal;
-                            ho = __colorSchemes[k].opacity.normal;
-                        end
-                    end
+                end
+                if (__uiGroups[i].textFields[j].active == ACTIVE)
+                    __ui.activeTextFieldId = __uiGroups[i].textFields[j].textFieldId;
                 end
             else
                 c = __colorSchemes[k].color.disabled;
@@ -1648,7 +1685,6 @@ begin
                 hc = __colorSchemes[k].color.disabled;
                 ho = __colorSchemes[k].opacity.disabled;
             end
-
 
             RenderUIDrawing(DRAW_RECTANGLE_FILL, c, o, REGION_FULL_SCREEN, x, y, x + w, y + h);
             RenderUIDrawing(DRAW_RECTANGLE, hc, ho, REGION_FULL_SCREEN, x, y, x + w, y + h);
@@ -1720,6 +1756,26 @@ begin
         end
     end
     return (text);
+end
+
+function GetTextFieldValue(ui, textFieldId)
+begin
+    for (i = 0; i < __uiGroups[ui].textFieldsCount; ++i)
+        if (__uiGroups[ui].textFields[i].textFieldId == textFieldId)
+            return (__uiGroups[ui].textFields[i].text);
+        end
+    end
+    return ("");
+end
+
+function IsTextFieldActive(ui, textFieldId)
+begin
+    for (i = 0; i < __uiGroups[ui].textFieldsCount; ++i)
+        if (__uiGroups[ui].textFields[i].textFieldId == textFieldId)
+            return (__uiGroups[ui].textFields[i].active);
+        end
+    end
+    return (false);
 end
 
 function DeleteAllUIDrawings()
@@ -1851,7 +1907,7 @@ end
 
 function AddTextFieldToUIGroup(ui, x, y, width, height, 
     colorScheme, fontIndex, anchor, 
-    text, option, textFieldId, active, enabled)
+    text, textFieldId, active, enabled)
 begin
     i = __uiGroups[ui].textFieldsCount;
     __uiGroups[ui].textFields[i].x = x;
@@ -1862,7 +1918,6 @@ begin
     __uiGroups[ui].textFields[i].fontIndex = fontIndex;
     __uiGroups[ui].textFields[i].anchor = anchor;
     __uiGroups[ui].textFields[i].text = text;
-    __uiGroups[ui].textFields[i].option = option;
     __uiGroups[ui].textFields[i].textFieldId = textFieldId;
     __uiGroups[ui].textFields[i].active = active;
     __uiGroups[ui].textFields[i].enabled = enabled;
@@ -1946,7 +2001,6 @@ begin
         __uiGroups[ui].textFields[i].colorScheme = 0;
         __uiGroups[ui].textFields[i].fontIndex   = 0;
         __uiGroups[ui].textFields[i].anchor      = 0;
-        __uiGroups[ui].textFields[i].option      = 0;
         __uiGroups[ui].textFields[i].textFieldId = NULL;
         __uiGroups[ui].textFields[i].text        = "";
         __uiGroups[ui].textFields[i].active      = 0;
