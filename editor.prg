@@ -652,6 +652,10 @@ begin
                 if (IsEditorObjectDirty())
                     ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                     ConfigureUI_ObjectEditorButtons();
+                    SetTextFieldValue(
+                        GROUP_OBJECT_EDITOR_WIDGETS, 
+                        TF_OBJECT_FILE_NAME, 
+                        __uiEditor.object.edit.name);
                     ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                 end
             end
@@ -712,11 +716,15 @@ begin
         case UI_EDITOR_OBJECT_EDIT_MODE:
             ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
             ConfigureUI_ObjectEditorButtons();
-            ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
+            SetTextFieldValue(
+                GROUP_OBJECT_EDITOR_WIDGETS, 
+                TF_OBJECT_FILE_NAME, 
+                __uiEditor.object.edit.name);
             __camera.moveMode = NULL;
             ShowUIGroup(GROUP_OBJECT_EDITOR_BG);
             ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
             ShowUIGroup(GROUP_OBJECT_EDITOR_WIDGETS);
+            // Set the text field to the correct value.
         end
     end
 end
@@ -736,7 +744,8 @@ begin
     repeat
         if (__uiEditor.mode != UI_EDITOR_OBJECT_EDIT_MODE)
             insideScrollWindow = IsInsideScrollWindow(id, 0, REGION_EDITOR_VIEWPORT);
-            if (insideScrollWindow)
+            if (__objectData[objectBrushIndex].collidable 
+                && insideScrollWindow)
                 FindGfxPoints(id, pointsCount);
                 DrawGfxPointsOneFrame(pointsCount, COLOR_WHITE, OPACITY_SOLID, REGION_EDITOR_VIEWPORT, true);
             end
@@ -1007,6 +1016,7 @@ end
 
 function ValidateEditorObjectFileName(string name)
 begin
+    // TODO: Check whether a file already exists with the same file name.
     return (name != "");
 end
 
@@ -1318,8 +1328,6 @@ private
     ui = GROUP_OBJECT_EDITOR_BUTTONS;
     bw, bh, by;
     buttonOffsetY;
-    w, h;
-    textOffsetY;
     canSave;
     canDiscard;
 begin
@@ -1339,6 +1347,15 @@ begin
         UI_PX + (UI_UNIT / 2) - 1, by + (buttonOffsetY * 1), bw, bh,
         COLOR_SCHEME_BLUE,
         FONT_SYSTEM, OPT_DISCARD_OBJECT, canDiscard);
+end
+
+function ConfigureUI_ObjectEditorWidgets()
+private
+    ui = GROUP_OBJECT_EDITOR_WIDGETS;
+    tx;
+    w, h;
+    textOffsetY;
+begin
     // FILENAME
     w = (UI_PW) - (UI_UNIT * 1) - (UI_UNIT / 2);
     h = (UI_UNIT * 4) + (UI_UNIT / 2);
@@ -1353,17 +1370,8 @@ begin
         x, y, w, h,
         COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, 
         __uiEditor.object.edit.name, TF_OBJECT_FILE_NAME, INACTIVE, ENABLED);
-end
-
-function ConfigureUI_ObjectEditorWidgets()
-private
-    ui = GROUP_OBJECT_EDITOR_WIDGETS;
-    tx;
-    textOffsetY;
-begin
     // SIDE PANEL WIDGETS
     tx = (UI_PX) + (UI_UNIT * 16) + (UI_UNIT / 2);
-    textOffsetY = (UI_UNIT * 8);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 0),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
@@ -1909,6 +1917,16 @@ begin
     return ("");
 end
 
+function SetTextFieldValue(ui, textFieldId, string text)
+begin
+    for (i = 0; i < __uiGroups[ui].textFieldsCount; ++i)
+        if (__uiGroups[ui].textFields[i].textFieldId == textFieldId)
+            __uiGroups[ui].textFields[i].text = text;
+            return;
+        end
+    end
+end
+
 function IsTextFieldActive(ui, textFieldId)
 begin
     for (i = 0; i < __uiGroups[ui].textFieldsCount; ++i)
@@ -2278,12 +2296,8 @@ begin
     fread(offset obj_size,       sizeof(obj_size),       fileHandle);
     fread(offset obj_z,          sizeof(obj_z),          fileHandle);
     fread(offset obj_gfxIndex,   sizeof(obj_gfxIndex),   fileHandle);
-
-    // TODO: write and read these variables instead of having them hard coded.
-    //fread(offset obj_material,   sizeof(obj_material),   fileHandle);
-    //fread(offset obj_collidable, sizeof(obj_collidable), fileHandle);
-    obj_material = MATERIAL_CONCRETE;
-    obj_collidable = true;
+    fread(offset obj_material,   sizeof(obj_material),   fileHandle);
+    fread(offset obj_collidable, sizeof(obj_collidable), fileHandle);
 
     // NOTE: cut off file extension
     strdel(fileName, 0, 4);
@@ -2309,7 +2323,7 @@ private
     fileHandle;
 begin
     // open file handle
-    fileName = DATA_OBJECTS_PATH + fileName;
+    fileName = DATA_OBJECTS_PATH + fileName + ".obj";
     fileHandle = fopen(fileName, "w");
 
     // write object data
