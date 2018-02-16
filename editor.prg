@@ -116,7 +116,7 @@ const
     // ui
     MAX_UI_DRAWINGS = 128;
     MAX_UI_TEXTS    = 128;
-    MAX_UI_GROUPS = 8;
+    MAX_UI_GROUPS = 16;
     MAX_UI_GROUP_BUTTONS    = 16;
     MAX_UI_GROUP_CHECKBOXES = 8;
     MAX_UI_GROUP_DIALS      = 8;
@@ -181,7 +181,7 @@ const
     OPT_EDIT_OBJECT         = 22;
     OPT_NEW_OBJECT          = 23;
     OPT_SAVE_OBJECT         = 24;
-    OPT_DISCARD             = 25;
+    OPT_DISCARD_OBJECT      = 25;
     UI_OPTION_COUNT = 26;
 
     TF_LEVEL_FILE_NAME  = 0;
@@ -190,13 +190,15 @@ const
     UI_TEXTFIELD_COUNT = 3;
 
     // ui groups
-    GROUP_MAIN_BG              = 0;
-    GROUP_MAIN_MENU            = 1;
-    GROUP_STRING_PROMPT_DIALOG = 2;
-    GROUP_EDITOR_BG            = 3;
-    GROUP_EDITOR_PALETTE       = 4;
-    GROUP_EDITOR_INFO          = 5;
-    GROUP_EDITOR_OBJECT_EDIT   = 6;
+    GROUP_MAIN_BG               = 0;
+    GROUP_MAIN_MENU             = 1;
+    GROUP_STRING_PROMPT_DIALOG  = 2;
+    GROUP_EDITOR_BG             = 3;
+    GROUP_EDITOR_PALETTE        = 4;
+    GROUP_EDITOR_INFO           = 5;
+    GROUP_OBJECT_EDITOR_BG      = 6;
+    GROUP_OBJECT_EDITOR_BUTTONS = 7;
+    GROUP_OBJECT_EDITOR_WIDGETS = 8;
 
 /* -----------------------------------------------------------------------------
  * Global variables
@@ -309,12 +311,8 @@ global
     __objectDataCount;
     struct __objectData[MAX_OBJECT_DATA - 1]
         string name;
-        angle;
-        size;
-        z;
-        gfxIndex;
-        material;
-        collidable;
+        angle, size, z;
+        gfxIndex, material, collidable;
         pointsCount;
     end
 
@@ -415,10 +413,17 @@ global
         objectBrushSelected;
         mode;
         struct object
-            fileName;
-            angle, size, z;
-            gfxIndex, material, collidable;
-            changesSaved;
+            dirty;
+            struct edit
+                string name;
+                angle, size, z;
+                gfxIndex, material, collidable;
+            end
+            struct saved
+                string name;
+                angle, size, z;
+                gfxIndex, material, collidable;
+            end
         end
     end
 
@@ -452,7 +457,7 @@ global
         "EDIT",            OPT_EDIT_OBJECT,
         "NEW OBJECT",      OPT_NEW_OBJECT,
         "SAVE CHANGES",    OPT_SAVE_OBJECT,
-        "DISCARD CHANGES", OPT_DISCARD;
+        "DISCARD CHANGES", OPT_DISCARD_OBJECT;
 
 
 
@@ -625,24 +630,29 @@ begin
             case UI_EDITOR_OBJECT_EDIT_MODE:
                 x = 240;
                 y = 210;
-                a = WrapAngle360(__uiEditor.object.angle);
-                s = __uiEditor.object.size;
+                a = WrapAngle360(__uiEditor.object.edit.angle);
+                s = __uiEditor.object.edit.size;
                 RenderImageOneFrame(
                     x, y,
                     UI_Z_UNDER - 1,
                     GFX_OBJECTS,
-                    __uiEditor.object.gfxIndex,
+                    __uiEditor.object.edit.gfxIndex,
                     a, s,
                     FLAG_NORMAL);
-                if (__uiEditor.object.collidable == true)
+                if (__uiEditor.object.edit.collidable == true)
                     RenderGfxPointsOneFrame(
                         x * GPR, y * GPR, 
                         GFX_OBJECTS, 
-                        __uiEditor.object.gfxIndex,
+                        __uiEditor.object.edit.gfxIndex,
                         a, s, GPR,
                         COLOR_WHITE, 
                         OPACITY_SOLID, 
                         REGION_FULL_SCREEN, false);
+                end
+                if (IsEditorObjectDirty())
+                    ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
+                    ConfigureUI_ObjectEditorButtons();
+                    ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                 end
             end
         end
@@ -676,7 +686,9 @@ begin
             // TODO: implement.
         end
         case UI_EDITOR_OBJECT_EDIT_MODE:
-            HideUIGroup(GROUP_EDITOR_OBJECT_EDIT);
+            HideUIGroup(GROUP_OBJECT_EDITOR_BG);
+            HideUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
+            HideUIGroup(GROUP_OBJECT_EDITOR_WIDGETS);
         end
     end
 end
@@ -698,16 +710,13 @@ begin
             // TODO: implement.
         end
         case UI_EDITOR_OBJECT_EDIT_MODE:
+            ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
+            ConfigureUI_ObjectEditorButtons();
+            ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
             __camera.moveMode = NULL;
-            __uiEditor.object.fileName     = "";
-            __uiEditor.object.angle        = 0;
-            __uiEditor.object.size         = 100;
-            __uiEditor.object.z            = 0;
-            __uiEditor.object.gfxIndex     = 1;
-            __uiEditor.object.material     = 0;
-            __uiEditor.object.collidable   = true;
-            __uiEditor.object.changesSaved = false;
-            ShowUIGroup(GROUP_EDITOR_OBJECT_EDIT);
+            ShowUIGroup(GROUP_OBJECT_EDITOR_BG);
+            ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
+            ShowUIGroup(GROUP_OBJECT_EDITOR_WIDGETS);
         end
     end
 end
@@ -761,7 +770,7 @@ private
     dialDelay;
     dialDelta;
     j;
-    text;
+    string text;
 begin
     alive = true;
     __ui.buttonClicked        = NULL;
@@ -778,7 +787,10 @@ begin
                     end
                 end
                 case TF_OBJECT_FILE_NAME:
-                    // TODO: implement.
+                    // TODO: Validate file name doesn't already exist.
+                    if (__ui.submittedText != "")
+                        __uiEditor.object.edit.name = __ui.submittedText;
+                    end
                 end
                 case TF_PALETTE_SEARCH:
                     // TODO: implement.
@@ -822,10 +834,12 @@ begin
                     // TODO: implement.
                 end
                 case OPT_OBJECT_EDITOR:
+                    ResetEditorObject();
                     ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
                 end
                 // PALETTE
                 case OPT_EDIT_OBJECT:
+                    SetEditorObjectFromData(__uiEditor.objectBrushSelected);
                     ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
                 end
                 case OPT_SCROLL_UP:
@@ -862,13 +876,22 @@ begin
                     end
                 end
                 // OBJECT EDITOR
-                case OPT_DISCARD:
-                    // TODO: reset obj struct
-                    ChangeEditorMode(UI_EDITOR_VIEW_MODE);
+                case OPT_SAVE_OBJECT:
+                    SaveEditorObjectChanges();
+                    ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
+                    ConfigureUI_ObjectEditorButtons();
+                    ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
+                end
+                case OPT_DISCARD_OBJECT:
+                    DiscardEditorObjectChanges();
+                    ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
+                    ConfigureUI_ObjectEditorButtons();
+                    ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                 end
             end
             __ui.buttonClicked = NULL;
         end
+        // TODO: Move this generic dial code somewhere else. Perhaps UIRenderer is appropriate?
         if (__ui.dial.active)
             if (__ui.dial.state != 0)
                 switch (__ui.dial.state)
@@ -921,6 +944,102 @@ end
 
     // EDITOR SPECIFIC ---------------------------------------------------------
 /* -----------------------------------------------------------------------------
+ * Object Editor functionality
+ * ---------------------------------------------------------------------------*/
+function CopyEditorObjectSavedFromEdit()
+begin
+    __uiEditor.object.saved.name       = __uiEditor.object.edit.name;
+    __uiEditor.object.saved.angle      = __uiEditor.object.edit.angle;
+    __uiEditor.object.saved.size       = __uiEditor.object.edit.size;
+    __uiEditor.object.saved.z          = __uiEditor.object.edit.z;
+    __uiEditor.object.saved.gfxIndex   = __uiEditor.object.edit.gfxIndex;
+    __uiEditor.object.saved.material   = __uiEditor.object.edit.material;
+    __uiEditor.object.saved.collidable = __uiEditor.object.edit.collidable;
+end
+
+function ResetEditorObject()
+begin
+    __uiEditor.object.edit.name       = "";
+    __uiEditor.object.edit.angle      = 0;
+    __uiEditor.object.edit.size       = 100;
+    __uiEditor.object.edit.z          = 0;
+    __uiEditor.object.edit.gfxIndex   = 1;
+    __uiEditor.object.edit.material   = 0;
+    __uiEditor.object.edit.collidable = true;
+    CopyEditorObjectSavedFromEdit();
+end
+
+function SetEditorObjectFromData(objectIndex)
+begin
+    __uiEditor.object.edit.name       = __objectData[__uiEditor.objectBrushSelected].name;
+    __uiEditor.object.edit.angle      = __objectData[__uiEditor.objectBrushSelected].angle;
+    __uiEditor.object.edit.size       = __objectData[__uiEditor.objectBrushSelected].size;
+    __uiEditor.object.edit.z          = __objectData[__uiEditor.objectBrushSelected].z;
+    __uiEditor.object.edit.gfxIndex   = __objectData[__uiEditor.objectBrushSelected].gfxIndex;
+    __uiEditor.object.edit.material   = __objectData[__uiEditor.objectBrushSelected].material;
+    __uiEditor.object.edit.collidable = __objectData[__uiEditor.objectBrushSelected].collidable;
+    CopyEditorObjectSavedFromEdit();
+end
+
+function IsEditorObjectDirty()
+begin
+    UpdateEditorObjectDirty();
+    return (__uiEditor.object.dirty);
+end
+
+function UpdateEditorObjectDirty()
+begin
+    __uiEditor.object.dirty = 
+        __uiEditor.object.saved.name          != __uiEditor.object.edit.name
+        || __uiEditor.object.saved.angle      != __uiEditor.object.edit.angle
+        || __uiEditor.object.saved.size       != __uiEditor.object.edit.size
+        || __uiEditor.object.saved.z          != __uiEditor.object.edit.z
+        || __uiEditor.object.saved.gfxIndex   != __uiEditor.object.edit.gfxIndex
+        || __uiEditor.object.saved.material   != __uiEditor.object.edit.material
+        || __uiEditor.object.saved.collidable != __uiEditor.object.edit.collidable;
+end
+
+function CanSaveEditorObjectChanges()
+begin
+    return (IsEditorObjectDirty() 
+        && ValidateEditorObjectFileName(__uiEditor.object.edit.name));
+end
+
+function ValidateEditorObjectFileName(string name)
+begin
+    return (name != "");
+end
+
+function SaveEditorObjectChanges()
+begin
+    CopyEditorObjectSavedFromEdit();
+    SaveObject(
+        __uiEditor.object.saved.name,
+        __uiEditor.object.saved.angle,
+        __uiEditor.object.saved.size,
+        __uiEditor.object.saved.z,
+        __uiEditor.object.saved.gfxIndex,
+        __uiEditor.object.saved.material,
+        __uiEditor.object.saved.collidable);
+    UpdateEditorObjectDirty();
+end
+
+function DiscardEditorObjectChanges()
+begin
+    __uiEditor.object.edit.name       = __uiEditor.object.saved.name;
+    __uiEditor.object.edit.angle      = __uiEditor.object.saved.angle;
+    __uiEditor.object.edit.size       = __uiEditor.object.saved.size;
+    __uiEditor.object.edit.z          = __uiEditor.object.saved.z;
+    __uiEditor.object.edit.gfxIndex   = __uiEditor.object.saved.gfxIndex;
+    __uiEditor.object.edit.material   = __uiEditor.object.saved.material;
+    __uiEditor.object.edit.collidable = __uiEditor.object.saved.collidable;
+    UpdateEditorObjectDirty();
+end
+
+
+
+    // EDITOR SPECIFIC ---------------------------------------------------------
+/* -----------------------------------------------------------------------------
  * Level Editor UI Configuration
  * ---------------------------------------------------------------------------*/
 function ConfigureUI()
@@ -936,9 +1055,11 @@ begin
     ConfigureUI_EditorBg();
     ConfigureUI_EditorPalette();
     ConfigureUI_EditorInfo();
-    ConfigureUI_EditorObjectEdit();
+    ConfigureUI_ObjectEditorBg();
+    ConfigureUI_ObjectEditorButtons();
+    ConfigureUI_ObjectEditorWidgets();
 
-    __uiGroupsCount = 7;
+    __uiGroupsCount = 9;
 end
 
 function ConfigureUI_MainBg()
@@ -1180,14 +1301,9 @@ begin
     end
 end
 
-function ConfigureUI_EditorObjectEdit()
+function ConfigureUI_ObjectEditorBg()
 private
-    ui = GROUP_EDITOR_OBJECT_EDIT;
-    w, h;
-    bw, bh, by;
-    buttonOffsetY;
-    tx;
-    textOffsetY;
+    ui = GROUP_OBJECT_EDITOR_BG;
 begin
     // BG
     AddImageToUIGroup(ui,
@@ -1195,7 +1311,21 @@ begin
         __regions[REGION_EDITOR_VIEWPORT].y + (__regions[REGION_EDITOR_VIEWPORT].height / 2), 
         UI_Z_UNDER,
         GFX_UI, 1, 0, 100, FLAG_NORMAL);
+end
+
+function ConfigureUI_ObjectEditorButtons()
+private
+    ui = GROUP_OBJECT_EDITOR_BUTTONS;
+    bw, bh, by;
+    buttonOffsetY;
+    w, h;
+    textOffsetY;
+    canSave;
+    canDiscard;
+begin
     // SIDE PANEL BUTTONS
+    canSave = CanSaveEditorObjectChanges();
+    canDiscard = IsEditorObjectDirty();
     bw = (UI_PW) - (UI_UNIT * 1);
     bh = (UI_UNIT * 8);
     by = (UI_UNIT / 2);
@@ -1203,17 +1333,17 @@ begin
     AddButtonToUIGroup(ui,
         UI_PX + (UI_UNIT / 2) - 1, by + (buttonOffsetY * 0), bw, bh,
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, OPT_SAVE_OBJECT, ENABLED);
+        FONT_SYSTEM, OPT_SAVE_OBJECT, canSave);
+    // TODO: Change enabled value based on whether object has changes or not.
     AddButtonToUIGroup(ui,
         UI_PX + (UI_UNIT / 2) - 1, by + (buttonOffsetY * 1), bw, bh,
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, OPT_DISCARD, ENABLED);
+        FONT_SYSTEM, OPT_DISCARD_OBJECT, canDiscard);
     // FILENAME
-    w = bw - (UI_UNIT / 2);
+    w = (UI_PW) - (UI_UNIT * 1) - (UI_UNIT / 2);
     h = (UI_UNIT * 4) + (UI_UNIT / 2);
     x = SCREEN_WIDTH - (UI_PW) + (UI_UNIT / 2);
-    y = by + (buttonOffsetY * 2) + (buttonOffsetY / 2) + (UI_UNIT);
-    tx = (UI_PX) + (UI_UNIT * 16) + (UI_UNIT / 2);
+    y = (UI_PAL_Y) - (UI_UNIT * 9);
     textOffsetY = (UI_UNIT * 8);
     AddTextToUIGroup(ui,
         x + (UI_PW / 2), y - (textOffsetY / 2) + (UI_UNIT),
@@ -1221,8 +1351,19 @@ begin
         "File Name:", false);
     AddTextFieldToUIGroup(ui,
         x, y, w, h,
-        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", TF_OBJECT_FILE_NAME, INACTIVE, ENABLED);
+        COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, 
+        __uiEditor.object.edit.name, TF_OBJECT_FILE_NAME, INACTIVE, ENABLED);
+end
+
+function ConfigureUI_ObjectEditorWidgets()
+private
+    ui = GROUP_OBJECT_EDITOR_WIDGETS;
+    tx;
+    textOffsetY;
+begin
     // SIDE PANEL WIDGETS
+    tx = (UI_PX) + (UI_UNIT * 16) + (UI_UNIT / 2);
+    textOffsetY = (UI_UNIT * 8);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 0),
         FONT_SYSTEM, FONT_ANCHOR_TOP_RIGHT, 
@@ -1230,7 +1371,7 @@ begin
     AddDialToUIGroup(ui,
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 0) + (UI_UNIT * 1),
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, &__uiEditor.object.gfxIndex, 1, 2, true,
+        FONT_SYSTEM, &__uiEditor.object.edit.gfxIndex, 1, 2, true,
         100, 25, 1, 1, ENABLED);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 1),
@@ -1239,7 +1380,7 @@ begin
     AddDialToUIGroup(ui,
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 1) + (UI_UNIT * 1),
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, &__uiEditor.object.material, 0, MATERIAL_COUNT - 1, true,
+        FONT_SYSTEM, &__uiEditor.object.edit.material, 0, MATERIAL_COUNT - 1, true,
         25, 5, 1, 10, ENABLED);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 2),
@@ -1248,7 +1389,7 @@ begin
     AddDialToUIGroup(ui,
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 2) + (UI_UNIT * 1),
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, &__uiEditor.object.angle, 0, 360000, true,
+        FONT_SYSTEM, &__uiEditor.object.edit.angle, 0, 360000, true,
         2, 1, -1000, -5000, ENABLED);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 3),
@@ -1257,7 +1398,7 @@ begin
     AddDialToUIGroup(ui,
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 3) + (UI_UNIT * 1),
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, &__uiEditor.object.size, 0, 1000, false,
+        FONT_SYSTEM, &__uiEditor.object.edit.size, 0, 1000, false,
         25, 5, 1, 10, ENABLED);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 4),
@@ -1266,7 +1407,7 @@ begin
     AddDialToUIGroup(ui,
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 4) + (UI_UNIT * 1),
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, &__uiEditor.object.z, -100, 100, false,
+        FONT_SYSTEM, &__uiEditor.object.edit.z, -100, 100, false,
         25, 5, 1, 10, ENABLED);
     AddTextToUIGroup(ui,
         tx, (UI_PAL_Y) + (textOffsetY * 5),
@@ -1275,7 +1416,7 @@ begin
     AddCheckboxToUIGroup(ui, 
         tx + (UI_UNIT * 4), (UI_PAL_Y) + (textOffsetY * 5),
         COLOR_SCHEME_BLUE,
-        &__uiEditor.object.collidable, ENABLED);
+        &__uiEditor.object.edit.collidable, ENABLED);
 end
 
 
@@ -1947,6 +2088,7 @@ begin
         __uiGroups[ui].checkboxes[i].var             = NULL;
         __uiGroups[ui].checkboxes[i].enabled         = 0;
     end
+    __uiGroups[ui].dialsCount = 0;
     for (i = 0; i < MAX_UI_GROUP_DIALS - 1; ++i)
         __uiGroups[ui].dials[i].x               = 0;
         __uiGroups[ui].dials[i].y               = 0;
@@ -2136,10 +2278,14 @@ begin
     fread(offset obj_size,       sizeof(obj_size),       fileHandle);
     fread(offset obj_z,          sizeof(obj_z),          fileHandle);
     fread(offset obj_gfxIndex,   sizeof(obj_gfxIndex),   fileHandle);
+
+    // TODO: write and read these variables instead of having them hard coded.
     //fread(offset obj_material,   sizeof(obj_material),   fileHandle);
     //fread(offset obj_collidable, sizeof(obj_collidable), fileHandle);
+    obj_material = MATERIAL_CONCRETE;
+    obj_collidable = true;
 
-    // cut off file extension
+    // NOTE: cut off file extension
     strdel(fileName, 0, 4);
 
     // pass data to global struct
