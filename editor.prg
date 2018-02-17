@@ -1188,10 +1188,12 @@ begin
     AddTextFieldToUIGroup(ui,
         x, y, w, h,
         COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", TF_PALETTE_SEARCH, INACTIVE, ENABLED);
+
     // PALETTE BG
     AddDrawingToUIGroup(ui,
         SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT / 2), UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2), SCREEN_WIDTH - (UI_UNIT / 2) - 1, SCREEN_HEIGHT - (UI_UNIT / 2) - 1,
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
+
     // PALETTE LINES
     AddDrawingToUIGroup(ui,
         SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT * 2) + pbSize, UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2), 
@@ -1202,6 +1204,7 @@ begin
             SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT / 2), UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2) + (pbSize * i), SCREEN_WIDTH - (UI_UNIT / 2) - 1, UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2) + (pbSize * i),
             DRAW_LINE, COLOR_BLUE - 6, OPACITY_SOLID);
     end
+
     // PALETTE BOXES
     for (i = 0; i < UI_EDITOR_PALETTE_SIZE; ++i)
         objectDataIndex = (__uiEditor.palettePage * UI_EDITOR_PALETTE_SIZE) + i;
@@ -1236,6 +1239,7 @@ begin
             x + (pbSize / 2) + (UI_UNIT / 2), y + (pbSize / 2) + (UI_UNIT), UI_Z_ABOVE,
             pbFileIndex, pbGfxIndex, __objectData[objectDataIndex].angle, size, FLAG_NORMAL);
     end
+
     // SCROLL BAR
     AddDrawingToUIGroup(ui,
         SCREEN_WIDTH - (UI_UNIT * 4) - (UI_UNIT / 2) - 1, UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2), SCREEN_WIDTH - (UI_UNIT / 2) - 1, SCREEN_HEIGHT - (UI_UNIT / 2) - 1,
@@ -1296,6 +1300,7 @@ begin
             x + (UI_UNIT * 4), y + (UI_UNIT * 11), 
             FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
             &__objectData[i].z, true);
+
         // PREVIEW BOX
         bw = (UI_UNIT * 22);
         bh = bw;
@@ -1370,6 +1375,7 @@ begin
         x, y, w, h,
         COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, 
         __uiEditor.object.edit.name, TF_OBJECT_FILE_NAME, INACTIVE, ENABLED);
+
     // SIDE PANEL WIDGETS
     tx = (UI_PX) + (UI_UNIT * 16) + (UI_UNIT / 2);
     AddTextToUIGroup(ui,
