@@ -430,6 +430,10 @@ global
                 gfxIndex, material, collidable;
             end
         end
+        struct brush
+            angleOffset;
+            sizeOffset;
+        end
     end
 
     struct __uiButtons[UI_ACTION_COUNT - 1]
@@ -564,8 +568,7 @@ end
  * ---------------------------------------------------------------------------*/
 process EditorController()
 private
-    a;
-    s;
+    a, s;
 begin
     // initialization
     alive = true;
@@ -595,17 +598,17 @@ begin
                         __camera.moveMode = NULL;
                         // manipulate angle
                         if (key(_a))
-                            a += 4000;
+                            __uiEditor.brush.angleOffset += 4000;
                         end
                         if (key(_d))
-                            a -= 4000;
+                            __uiEditor.brush.angleOffset -= 4000;
                         end
                         // manipulate size
                         if (key(_w))
-                            s += 1;
+                            __uiEditor.brush.sizeOffset += 1;
                         end
                         if (key(_s))
-                            s -= 1;
+                            __uiEditor.brush.sizeOffset -= 1;
                         end
                     else
                         __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
@@ -617,8 +620,8 @@ begin
                         __objectData[__uiEditor.objectBrushSelected].z, 
                         GFX_OBJECTS,
                         __objectData[__uiEditor.objectBrushSelected].gfxIndex,
-                        WrapAngle360(__objectData[__uiEditor.objectBrushSelected].angle + a),
-                        __objectData[__uiEditor.objectBrushSelected].size + s,
+                        WrapAngle360(__objectData[__uiEditor.objectBrushSelected].angle + __uiEditor.brush.angleOffset),
+                        __objectData[__uiEditor.objectBrushSelected].size + __uiEditor.brush.sizeOffset,
                         FLAG_TRANSPARENT);
                     // LMB: place brush
                     if (__mouse.leftClicked
@@ -627,8 +630,8 @@ begin
                             (scroll[0].x0 + 0 + mouse.x) * GPR, 
                             (scroll[0].y0 - 20 + mouse.y) * GPR, 
                             __objectData[__uiEditor.objectBrushSelected].z,
-                            WrapAngle360(__objectData[__uiEditor.objectBrushSelected].angle + a),
-                            __objectData[__uiEditor.objectBrushSelected].size + s,
+                            WrapAngle360(__objectData[__uiEditor.objectBrushSelected].angle + __uiEditor.brush.angleOffset),
+                            __objectData[__uiEditor.objectBrushSelected].size + __uiEditor.brush.sizeOffset,
                             __uiEditor.objectBrushSelected);
                     end
                     // RMB: deselect
@@ -671,12 +674,6 @@ begin
                 if (IsEditorObjectDirty())
                     ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                     ConfigureUI_ObjectEditorButtons();
-                    /*
-                    SetTextFieldValue(
-                        GROUP_OBJECT_EDITOR_WIDGETS, 
-                        TF_OBJECT_FILE_NAME, 
-                        __uiEditor.object.edit.name);
-                        */
                     ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                 end
             end
@@ -725,8 +722,14 @@ begin
             __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
         end
         case UI_EDITOR_OBJECT_BRUSH_MODE:
-            __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
+            ClearData();
+            LoadData();
+            ClearUIGroup(GROUP_EDITOR_PALETTE);
+            ConfigureUI_EditorPalette();
             ShowUIGroup(GROUP_EDITOR_PALETTE);
+            __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
+            __uiEditor.brush.angleOffset = 0;
+            __uiEditor.brush.sizeOffset = 0;
         end
         case UI_EDITOR_ENTITY_BRUSH_MODE:
             // TODO: implement.
@@ -741,10 +744,10 @@ begin
                 GROUP_OBJECT_EDITOR_WIDGETS, 
                 TF_OBJECT_FILE_NAME, 
                 __uiEditor.object.edit.name);
-            __camera.moveMode = NULL;
             ShowUIGroup(GROUP_OBJECT_EDITOR_BG);
             ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
             ShowUIGroup(GROUP_OBJECT_EDITOR_WIDGETS);
+            __camera.moveMode = NULL;
             // Set the text field to the correct value.
         end
     end
@@ -2334,6 +2337,20 @@ begin
     for (i = 0; i < __objectDataCount; ++i)
         LoadObject(i, dirinfo.name[i]);
     end
+end
+
+function ClearData()
+begin
+    for (i = 0; i < __objectDataCount; ++i)
+        __objectData[i].name       = "";
+        __objectData[i].angle      = 0;
+        __objectData[i].size       = 100;
+        __objectData[i].z          = 0;
+        __objectData[i].gfxIndex   = 1;
+        __objectData[i].material   = 0;
+        __objectData[i].collidable = true;
+    end
+    __objectDataCount = 0;
 end
 
 function LoadObject(objectIndex, string fileName)
