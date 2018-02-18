@@ -805,7 +805,6 @@ begin
     __ui.action = NULL;
     repeat
         if (__ui.action != NULL)
-            // TODO: handle __ui.action
             switch (__ui.action)
                 // MAIN MENU
                 case ACT_GOTO_NEW_LEVEL:
@@ -822,7 +821,8 @@ begin
                 case ACT_CREATE_NEW_LEVEL:
                     // TODO: Validate file name doesn't already exist.
                     text = GetTextFieldValue(GROUP_STRING_PROMPT_DIALOG, TF_LEVEL_FILE_NAME);
-                    if (text != "")
+                    if (text != "" 
+                        && !ObjectFileExists(text))
                         EditorController();
                     end
                 end
@@ -888,13 +888,19 @@ begin
                 case ACT_SET_OBJECT_NAME:
                     // TODO: Validate file name doesn't already exist.
                     text = GetTextFieldValue(GROUP_OBJECT_EDITOR_WIDGETS, TF_OBJECT_FILE_NAME);
-                    if (text != "")
+                    if (text != "" 
+                        && !ObjectFileExists(text))
                         __uiEditor.object.edit.name = text;
                         ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                         ConfigureUI_ObjectEditorButtons();
                         ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                     else
-                        debug;
+                        __uiEditor.object.edit.name = __uiEditor.object.saved.name;
+                        SetTextFieldValue(
+                            GROUP_OBJECT_EDITOR_WIDGETS, 
+                            TF_OBJECT_FILE_NAME, 
+                            __uiEditor.object.edit.name);
+                        UpdateEditorObjectDirty();
                     end
                 end
                 case ACT_SAVE_OBJECT:
@@ -2353,6 +2359,17 @@ begin
     __objectDataCount = 0;
 end
 
+function ObjectFileExists(string fileName)
+begin
+    fileName = fileName + ".obj";
+    for (i = 0; i < dirinfo.files; ++i)
+        if (dirinfo.name[i] == fileName)
+            return (true);
+        end
+    end
+    return (false);
+end
+
 function LoadObject(objectIndex, string fileName)
 private
     fileHandle;
@@ -2393,8 +2410,8 @@ private
     fileHandle;
 begin
     // open file handle
-    fileName = DATA_OBJECTS_PATH + fileName + ".obj";
-    fileHandle = fopen(fileName, "w");
+    fileName = fileName + ".obj";
+    fileHandle = fopen(DATA_OBJECTS_PATH + fileName, "w");
 
     // write object data
     fwrite(offset obj_angle,      sizeof(obj_angle),      fileHandle);
