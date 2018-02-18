@@ -155,35 +155,39 @@ const
     UI_EDITOR_TERRAIN_BRUSH_MODE = 3;
     UI_EDITOR_OBJECT_EDIT_MODE   = 4;
 
-    // ui options
-    OPT_NEW_LEVEL           = 0;
-    OPT_LOAD_LEVEL          = 1;
-    OPT_MAIN_MENU           = 2;
-    OPT_EXIT                = 3;
-    OPT_SUBMIT              = 4;
-    OPT_SAVE_LEVEL          = 5;
-    OPT_VIEW                = 6;
-    OPT_OBJECT_BRUSH        = 7;
-    OPT_ENTITY_BRUSH        = 8;
-    OPT_TERRAIN_BRUSH       = 9;
-    OPT_OBJECT_EDITOR       = 10;
-    OPT_SCROLL_UP           = 11;
-    OPT_SCROLL_DOWN         = 12;
-    OPT_PALETTE_BOX_0       = 13;
-    OPT_PALETTE_BOX_1       = 14;
-    OPT_PALETTE_BOX_2       = 15;
-    OPT_PALETTE_BOX_3       = 16;
-    OPT_PALETTE_BOX_4       = 17;
-    OPT_PALETTE_BOX_5       = 18;
-    OPT_PALETTE_BOX_6       = 19;
-    OPT_PALETTE_BOX_7       = 20;
-    OPT_PALETTE_SEARCH      = 21;
-    OPT_EDIT_OBJECT         = 22;
-    OPT_NEW_OBJECT          = 23;
-    OPT_SAVE_OBJECT         = 24;
-    OPT_DISCARD_OBJECT      = 25;
-    UI_OPTION_COUNT = 26;
+    // ui actions
+    ACT_GOTO_NEW_LEVEL          = 0;
+    ACT_GOTO_LOAD_LEVEL         = 1;
+    ACT_GOTO_MAIN_MENU          = 2;
+    ACT_EXIT_APP                = 3;
+    ACT_CREATE_NEW_LEVEL        = 4;
+    ACT_SAVE_LEVEL              = 5;
+    ACT_LOAD_LEVEL              = 6;
+    ACT_GOTO_VIEW_MODE          = 7;
+    ACT_GOTO_OBJECT_BRUSH_MODE  = 8;
+    ACT_GOTO_ENTITY_BRUSH_MODE  = 9;
+    ACT_GOTO_TERRAIN_BRUSH_MODE = 10;
+    ACT_GOTO_OBJECT_EDITOR      = 11;
+    ACT_SCROLL_PALETTE_UP       = 12;
+    ACT_SCROLL_PALETTE_DOWN     = 13;
+    ACT_SELECT_PALETTE_0        = 14;
+    ACT_SELECT_PALETTE_1        = 15;
+    ACT_SELECT_PALETTE_2        = 16;
+    ACT_SELECT_PALETTE_3        = 17;
+    ACT_SELECT_PALETTE_4        = 18;
+    ACT_SELECT_PALETTE_5        = 19;
+    ACT_SELECT_PALETTE_6        = 20;
+    ACT_SELECT_PALETTE_7        = 21;
+    ACT_SEARCH_PALETTE          = 22;
+    ACT_SET_OBJECT_NAME         = 23;
+    ACT_NEW_OBJECT              = 24;
+    ACT_EDIT_OBJECT             = 25;
+    ACT_SAVE_OBJECT             = 26;
+    ACT_DISCARD_OBJECT          = 27;
+    UI_ACTION_COUNT = 28;
+    UI_BUTTON_COUNT = 28;
 
+    // ui text fields
     TF_LEVEL_FILE_NAME  = 0;
     TF_OBJECT_FILE_NAME = 1;
     TF_PALETTE_SEARCH   = 2;
@@ -326,6 +330,8 @@ global
 
     // ui
     struct __ui
+        action;
+        actionParam0;
         buttonHeldDown;
         buttonClicked;
         activeTextFieldId;
@@ -355,7 +361,7 @@ global
         struct buttons[MAX_UI_GROUP_BUTTONS - 1]
             x, y, width, height;
             colorScheme;
-            fontIndex, option;
+            fontIndex, action;
             enabled;
             string text;
         end
@@ -393,10 +399,10 @@ global
         end
         textFieldsCount;
         struct textFields[MAX_UI_GROUP_TEXTS - 1]
+            textFieldId;
             x, y, width, height;
             colorScheme;
             fontIndex, anchor;
-            textFieldId;
             active, enabled;
             string text;
         end
@@ -427,37 +433,48 @@ global
         end
     end
 
-    struct __uiOptions[UI_OPTION_COUNT - 1]
+    struct __uiButtons[UI_BUTTON_COUNT - 1]
+        action;
         string label;
-        index;
     end =
-    //  label              index
-        "NEW LEVEL",       OPT_NEW_LEVEL,
-        "LOAD LEVEL",      OPT_LOAD_LEVEL,
-        "CANCEL",          OPT_MAIN_MENU,
-        "EXIT",            OPT_EXIT,
-        "SUBMIT",          OPT_SUBMIT,
-        "SAVE LEVEL",      OPT_SAVE_LEVEL,
-        "VIEW MODE",       OPT_VIEW,
-        "OBJECTS",         OPT_OBJECT_BRUSH,
-        "ENTITIES",        OPT_ENTITY_BRUSH,
-        "TERRAIN",         OPT_TERRAIN_BRUSH,
-        "OBJ EDITOR",      OPT_OBJECT_EDITOR,
-        "^",               OPT_SCROLL_UP,
-        "v",               OPT_SCROLL_DOWN,
-        "",                OPT_PALETTE_BOX_0,
-        "",                OPT_PALETTE_BOX_1,
-        "",                OPT_PALETTE_BOX_2,
-        "",                OPT_PALETTE_BOX_3,
-        "",                OPT_PALETTE_BOX_4,
-        "",                OPT_PALETTE_BOX_5,
-        "",                OPT_PALETTE_BOX_6,
-        "",                OPT_PALETTE_BOX_7,
-        "SEARCH",          OPT_PALETTE_SEARCH,
-        "EDIT",            OPT_EDIT_OBJECT,
-        "NEW OBJECT",      OPT_NEW_OBJECT,
-        "SAVE CHANGES",    OPT_SAVE_OBJECT,
-        "DISCARD CHANGES", OPT_DISCARD_OBJECT;
+    //  action                       label
+        ACT_GOTO_NEW_LEVEL,          "NEW LEVEL",       
+        ACT_GOTO_LOAD_LEVEL,         "LOAD LEVEL",      
+        ACT_GOTO_MAIN_MENU,          "CANCEL",          
+        ACT_EXIT_APP,                "EXIT",            
+        ACT_CREATE_NEW_LEVEL,        "SUBMIT",          
+        ACT_SAVE_LEVEL,              "SAVE LEVEL",      
+        ACT_LOAD_LEVEL,              "LOAD LEVEL",      
+        ACT_GOTO_VIEW_MODE,          "VIEW MODE",       
+        ACT_GOTO_OBJECT_BRUSH_MODE,  "OBJECTS",         
+        ACT_GOTO_ENTITY_BRUSH_MODE,  "ENTITIES",        
+        ACT_GOTO_TERRAIN_BRUSH_MODE, "TERRAIN",         
+        ACT_GOTO_OBJECT_EDITOR,      "OBJ EDITOR",      
+        ACT_SCROLL_PALETTE_UP,       "^",               
+        ACT_SCROLL_PALETTE_DOWN,     "v",               
+        ACT_SELECT_PALETTE_0,        "",                
+        ACT_SELECT_PALETTE_1,        "",                
+        ACT_SELECT_PALETTE_2,        "",                
+        ACT_SELECT_PALETTE_3,        "",                
+        ACT_SELECT_PALETTE_4,        "",                
+        ACT_SELECT_PALETTE_5,        "",                
+        ACT_SELECT_PALETTE_6,        "",                
+        ACT_SELECT_PALETTE_7,        "",                
+        ACT_SEARCH_PALETTE,          "SEARCH",          
+        ACT_SET_OBJECT_NAME,         "",
+        ACT_NEW_OBJECT,              "NEW OBJECT",            
+        ACT_EDIT_OBJECT,             "EDIT",      
+        ACT_SAVE_OBJECT,             "SAVE CHANGES",    
+        ACT_DISCARD_OBJECT,          "DISCARD CHANGES";
+
+    struct __uiTextFields[UI_TEXTFIELD_COUNT - 1]
+        textFieldId;
+        action;
+    end =
+    //  textFieldId          action
+        TF_LEVEL_FILE_NAME,  ACT_CREATE_NEW_LEVEL,
+        TF_OBJECT_FILE_NAME, ACT_NEW_OBJECT,
+        TF_PALETTE_SEARCH,   ACT_SEARCH_PALETTE;
 
 
 
@@ -533,6 +550,7 @@ begin
     UIController();
     UIRenderer();
     MouseCursor();
+    EditorActionHandler();
 
     // ui main menu
     ShowUIGroup(GROUP_MAIN_BG);
@@ -624,8 +642,10 @@ begin
                 end
             end
             case UI_EDITOR_ENTITY_BRUSH_MODE:
+                // TODO: implement.
             end
             case UI_EDITOR_TERRAIN_BRUSH_MODE:
+                // TODO: implement.
             end
             case UI_EDITOR_OBJECT_EDIT_MODE:
                 x = 240;
@@ -773,56 +793,29 @@ begin
     until (alive == false)
 end
 
-process UIController()
+process EditorActionHandler()
 private
-    lastDialTick;
-    dialDelay;
-    dialDelta;
-    j;
     string text;
 begin
     alive = true;
-    __ui.buttonClicked        = NULL;
-    __ui.buttonHeldDown       = NULL;
-    __ui.submittedTextFieldId = NULL;
-    __ui.submittedText        = "";
+    __ui.action = NULL;
     repeat
-        if (__ui.submittedTextFieldId != NULL)
-            switch (__ui.submittedTextFieldId)
-                case TF_LEVEL_FILE_NAME:
-                    // TODO: Validate file name doesn't already exist.
-                    if (__ui.submittedText != "")
-                        EditorController();
-                    end
-                end
-                case TF_OBJECT_FILE_NAME:
-                    // TODO: Validate file name doesn't already exist.
-                    if (__ui.submittedText != "")
-                        __uiEditor.object.edit.name = __ui.submittedText;
-                    end
-                end
-                case TF_PALETTE_SEARCH:
-                    // TODO: implement.
-                end
-            end
-            __ui.submittedTextFieldId = NULL;
-            __ui.submittedText = "";
-        end
-        if (__ui.buttonClicked != NULL)
-            switch (__ui.buttonClicked)
+        if (__ui.action != NULL)
+            // TODO: handle __ui.action
+            switch (__ui.action)
                 // MAIN MENU
-                case OPT_NEW_LEVEL:
+                case ACT_GOTO_NEW_LEVEL:
                     HideUIGroup(GROUP_MAIN_MENU);
                     ShowUIGroup(GROUP_STRING_PROMPT_DIALOG);
                 end
-                case OPT_MAIN_MENU:
+                case ACT_GOTO_MAIN_MENU:
                     HideUIGroup(GROUP_STRING_PROMPT_DIALOG);
                     ShowUIGroup(GROUP_MAIN_MENU);
                 end
-                case OPT_EXIT:
+                case ACT_EXIT_APP:
                     exit("", 0);
                 end
-                case OPT_SUBMIT:
+                case ACT_CREATE_NEW_LEVEL:
                     // TODO: Validate file name doesn't already exist.
                     text = GetTextFieldValue(GROUP_STRING_PROMPT_DIALOG, TF_LEVEL_FILE_NAME);
                     if (text != "")
@@ -830,28 +823,28 @@ begin
                     end
                 end
                 // TOP BAR
-                case OPT_VIEW:
+                case ACT_GOTO_VIEW_MODE:
                     ChangeEditorMode(UI_EDITOR_VIEW_MODE);
                 end
-                case OPT_OBJECT_BRUSH:
+                case ACT_GOTO_OBJECT_BRUSH_MODE:
                     ChangeEditorMode(UI_EDITOR_OBJECT_BRUSH_MODE);
                 end
-                case OPT_ENTITY_BRUSH:
+                case ACT_GOTO_ENTITY_BRUSH_MODE:
                     // TODO: implement.
                 end
-                case OPT_TERRAIN_BRUSH:
+                case ACT_GOTO_TERRAIN_BRUSH_MODE:
                     // TODO: implement.
                 end
-                case OPT_OBJECT_EDITOR:
+                case ACT_GOTO_OBJECT_EDITOR:
                     ResetEditorObject();
                     ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
                 end
                 // PALETTE
-                case OPT_EDIT_OBJECT:
+                case ACT_EDIT_OBJECT:
                     SetEditorObjectFromData(__uiEditor.objectBrushSelected);
                     ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
                 end
-                case OPT_SCROLL_UP:
+                case ACT_SCROLL_PALETTE_UP:
                     if (__uiEditor.palettePage > 0)
                         __uiEditor.palettePage--;
                     end
@@ -859,7 +852,7 @@ begin
                     ConfigureUI_EditorPalette();
                     ShowUIGroup(GROUP_EDITOR_PALETTE);
                 end
-                case OPT_SCROLL_DOWN:
+                case ACT_SCROLL_PALETTE_DOWN:
                     if (__uiEditor.palettePage < (__objectDataCount / UI_EDITOR_PALETTE_SIZE))
                         __uiEditor.palettePage++;
                     end
@@ -867,9 +860,9 @@ begin
                     ConfigureUI_EditorPalette();
                     ShowUIGroup(GROUP_EDITOR_PALETTE);
                 end
-                case OPT_PALETTE_BOX_0..(OPT_PALETTE_BOX_0 + UI_EDITOR_PALETTE_SIZE - 1):
+                case ACT_SELECT_PALETTE_0..(ACT_SELECT_PALETTE_0 + UI_EDITOR_PALETTE_SIZE - 1):
                     i = (__uiEditor.palettePage * UI_EDITOR_PALETTE_SIZE) 
-                        + (__ui.buttonClicked - OPT_PALETTE_BOX_0);
+                        + (__ui.action - ACT_SELECT_PALETTE_0);
                     if (i == __objectDataCount)
                         // TODO: Implement new object function.
                         debug;
@@ -884,66 +877,34 @@ begin
                         ShowUIGroup(GROUP_EDITOR_INFO);
                     end
                 end
+                case ACT_SEARCH_PALETTE:
+                    // TODO: implement.
+                end
                 // OBJECT EDITOR
-                case OPT_SAVE_OBJECT:
+                case ACT_SET_OBJECT_NAME:
+                    // TODO: Validate file name doesn't already exist.
+                    text = GetTextFieldValue(GROUP_OBJECT_EDITOR_WIDGETS, TF_OBJECT_FILE_NAME);
+                    if (text != "")
+                        __uiEditor.object.edit.name = __ui.submittedText;
+                        ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
+                        ConfigureUI_ObjectEditorButtons();
+                        ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
+                    end
+                end
+                case ACT_SAVE_OBJECT:
                     SaveEditorObjectChanges();
                     ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                     ConfigureUI_ObjectEditorButtons();
                     ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                 end
-                case OPT_DISCARD_OBJECT:
+                case ACT_DISCARD_OBJECT:
                     DiscardEditorObjectChanges();
                     ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                     ConfigureUI_ObjectEditorButtons();
                     ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                 end
             end
-            __ui.buttonClicked = NULL;
-        end
-        // TODO: Move this generic dial code somewhere else. Perhaps UIRenderer is appropriate?
-        if (__ui.dial.active)
-            if (__ui.dial.state != 0)
-                switch (__ui.dial.state)
-                    case -2:
-                        dialDelay = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].delayFast;
-                        dialDelta = -__uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].deltaFast;
-                    end
-                    case -1:
-                        dialDelay = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].delaySlow;
-                        dialDelta = -__uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].deltaSlow;
-                    end
-                    case 1:
-                        dialDelay = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].delaySlow;
-                        dialDelta = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].deltaSlow;
-                    end
-                    case 2:
-                        dialDelay = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].delayFast;
-                        dialDelta = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].deltaFast;
-                    end
-                end
-                if (timer[0] > lastDialTick + dialDelay)
-                    i = __ui.dial.uiGroupIndex;
-                    j = __ui.dial.dialIndex;
-                    *__uiGroups[i].dials[j].var += dialDelta;
-                    if (*__uiGroups[i].dials[j].var < __uiGroups[i].dials[j].varMin)
-                        if (__uiGroups[i].dials[j].varWrapValue)
-                            *__uiGroups[i].dials[j].var = __uiGroups[i].dials[j].varMax;
-                        else
-                            *__uiGroups[i].dials[j].var = __uiGroups[i].dials[j].varMin;
-                        end
-                    end
-                    if (*__uiGroups[i].dials[j].var > __uiGroups[i].dials[j].varMax)
-                        if (__uiGroups[i].dials[j].varWrapValue)
-                            *__uiGroups[i].dials[j].var = __uiGroups[i].dials[j].varMin;
-                        else
-                            *__uiGroups[i].dials[j].var = __uiGroups[i].dials[j].varMax;
-                        end
-                    end
-                    lastDialTick = timer[0];
-                end
-            end
-        else
-            lastDialTick = 0;
+            __ui.action = NULL;
         end
         frame;
     until (alive == false)
@@ -1091,15 +1052,15 @@ begin
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 20, 200, 40,
         COLOR_SCHEME_BLUE,
-        FONT_MENU, OPT_NEW_LEVEL, ENABLED);
+        FONT_MENU, ACT_GOTO_NEW_LEVEL, ENABLED);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
         COLOR_SCHEME_BLUE,
-        FONT_MENU, OPT_LOAD_LEVEL, ENABLED);
+        FONT_MENU, ACT_GOTO_LOAD_LEVEL, ENABLED);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
         COLOR_SCHEME_BLUE,
-        FONT_MENU, OPT_EXIT, ENABLED);
+        FONT_MENU, ACT_EXIT_APP, ENABLED);
 end
 
 function ConfigureUI_StringPromptDialog()
@@ -1115,11 +1076,11 @@ begin
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
         COLOR_SCHEME_BLUE,
-        FONT_MENU, OPT_SUBMIT, ENABLED);
+        FONT_MENU, ACT_CREATE_NEW_LEVEL, ENABLED);
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
         COLOR_SCHEME_BLUE,
-        FONT_MENU, OPT_MAIN_MENU, ENABLED);
+        FONT_MENU, ACT_GOTO_MAIN_MENU, ENABLED);
 end
 
 function ConfigureUI_EditorBg()
@@ -1143,31 +1104,31 @@ begin
     AddButtonToUIGroup(ui,
         (buttonOffset * 0) + (UI_UNIT / 2), UI_UNIT / 2, bw, UI_UNIT * 4,
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, OPT_SAVE_LEVEL, ENABLED);
+        FONT_SYSTEM, ACT_SAVE_LEVEL, ENABLED);
     AddButtonToUIGroup(ui,
         (buttonOffset * 1) + (UI_UNIT / 2), UI_UNIT / 2, bw, UI_UNIT * 4,
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, OPT_LOAD_LEVEL, ENABLED);
+        FONT_SYSTEM, ACT_LOAD_LEVEL, ENABLED);
     AddButtonToUIGroup(ui,
         (buttonOffset * 2) + (UI_UNIT / 2), UI_UNIT / 2, bw, UI_UNIT * 4,
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, OPT_VIEW, ENABLED);
+        FONT_SYSTEM, ACT_GOTO_VIEW_MODE, ENABLED);
     AddButtonToUIGroup(ui,
         (buttonOffset * 3) + (UI_UNIT / 2), UI_UNIT / 2, bw, UI_UNIT * 4,
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, OPT_OBJECT_BRUSH, ENABLED);
+        FONT_SYSTEM, ACT_GOTO_OBJECT_BRUSH_MODE, ENABLED);
     AddButtonToUIGroup(ui,
         (buttonOffset * 4) + (UI_UNIT / 2), UI_UNIT / 2, bw, UI_UNIT * 4,
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, OPT_ENTITY_BRUSH, DISABLED);
+        FONT_SYSTEM, ACT_GOTO_ENTITY_BRUSH_MODE, DISABLED);
     AddButtonToUIGroup(ui,
         (buttonOffset * 5) + (UI_UNIT / 2), UI_UNIT / 2, bw, UI_UNIT * 4,
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, OPT_TERRAIN_BRUSH, DISABLED);
+        FONT_SYSTEM, ACT_GOTO_TERRAIN_BRUSH_MODE, DISABLED);
     AddButtonToUIGroup(ui,
         (buttonOffset * 6) + (UI_UNIT / 2), UI_UNIT / 2, bw, UI_UNIT * 4,
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, OPT_OBJECT_EDITOR, ENABLED);
+        FONT_SYSTEM, ACT_GOTO_OBJECT_EDITOR, ENABLED);
 end
 
 function ConfigureUI_EditorPalette()
@@ -1233,7 +1194,7 @@ begin
         AddButtonToUIGroup(ui,
             x + (UI_UNIT * 2), y + (UI_UNIT * 4), w, h,
             COLOR_SCHEME_BLUE,
-            FONT_SYSTEM, OPT_PALETTE_BOX_0 + i, ENABLED);
+            FONT_SYSTEM, ACT_SELECT_PALETTE_0 + i, ENABLED);
             size = CalculateFittedSize(pbFileIndex, pbGfxIndex, w, h);
         AddImageToUIGroup(ui,
             x + (pbSize / 2) + (UI_UNIT / 2), y + (pbSize / 2) + (UI_UNIT), UI_Z_ABOVE,
@@ -1247,11 +1208,11 @@ begin
     AddButtonToUIGroup(ui,
         SCREEN_WIDTH - (UI_UNIT * 4) - (UI_UNIT / 2) - 1, UI_PAL_Y + (UI_UNIT) + (UI_UNIT / 2), (UI_UNIT * 4), (UI_UNIT * 4),
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, OPT_SCROLL_UP, ENABLED);
+        FONT_SYSTEM, ACT_SCROLL_PALETTE_UP, ENABLED);
     AddButtonToUIGroup(ui,
         SCREEN_WIDTH - (UI_UNIT * 4) - (UI_UNIT / 2) - 1, SCREEN_HEIGHT - (UI_UNIT * 4) - (UI_UNIT / 2) - 1, (UI_UNIT * 4), (UI_UNIT * 4),
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, OPT_SCROLL_DOWN, ENABLED);
+        FONT_SYSTEM, ACT_SCROLL_PALETTE_DOWN, ENABLED);
 end
 
 function ConfigureUI_EditorInfo()
@@ -1275,7 +1236,7 @@ begin
         AddButtonToUIGroup(ui,
             x + w - (UI_UNIT * 16) - (UI_UNIT / 2), y, (UI_UNIT * 16), (UI_UNIT * 4),
             COLOR_SCHEME_BLUE,
-            FONT_SYSTEM, OPT_EDIT_OBJECT, ENABLED);
+            FONT_SYSTEM, ACT_EDIT_OBJECT, ENABLED);
         AddTextToUIGroup(ui,
             x, y + (UI_UNIT * 5), 
             FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
@@ -1346,12 +1307,11 @@ begin
     AddButtonToUIGroup(ui,
         UI_PX + (UI_UNIT / 2) - 1, by + (buttonOffsetY * 0), bw, bh,
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, OPT_SAVE_OBJECT, canSave);
-    // TODO: Change enabled value based on whether object has changes or not.
+        FONT_SYSTEM, ACT_SAVE_OBJECT, canSave);
     AddButtonToUIGroup(ui,
         UI_PX + (UI_UNIT / 2) - 1, by + (buttonOffsetY * 1), bw, bh,
         COLOR_SCHEME_BLUE,
-        FONT_SYSTEM, OPT_DISCARD_OBJECT, canDiscard);
+        FONT_SYSTEM, ACT_DISCARD_OBJECT, canDiscard);
 end
 
 function ConfigureUI_ObjectEditorWidgets()
@@ -1436,13 +1396,116 @@ end
 
 
 /* -----------------------------------------------------------------------------
+ * UI Input
+ * ---------------------------------------------------------------------------*/
+process UIController()
+private
+    j;
+    lastDialTick;
+    dialDelay;
+    dialDelta;
+begin
+    alive = true;
+    __ui.buttonClicked        = NULL;
+    __ui.buttonHeldDown       = NULL;
+    __ui.submittedTextFieldId = NULL;
+    __ui.submittedText        = "";
+    repeat
+        if (__ui.submittedTextFieldId != NULL)
+            DispatchAction(__uiTextFields[__ui.submittedTextFieldId].action, __ui.submittedText);
+            __ui.submittedTextFieldId = NULL;
+            __ui.submittedText = "";
+        end
+        if (__ui.buttonClicked != NULL)
+            DispatchAction(__ui.buttonClicked, "");
+            __ui.buttonClicked = NULL;
+        end
+        // TODO: Move this generic dial code somewhere else. Perhaps UIRenderer is appropriate?
+        if (__ui.dial.active)
+            if (__ui.dial.state != 0)
+                switch (__ui.dial.state)
+                    case -2:
+                        dialDelay = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].delayFast;
+                        dialDelta = -__uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].deltaFast;
+                    end
+                    case -1:
+                        dialDelay = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].delaySlow;
+                        dialDelta = -__uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].deltaSlow;
+                    end
+                    case 1:
+                        dialDelay = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].delaySlow;
+                        dialDelta = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].deltaSlow;
+                    end
+                    case 2:
+                        dialDelay = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].delayFast;
+                        dialDelta = __uiGroups[__ui.dial.uiGroupIndex].dials[__ui.dial.dialIndex].deltaFast;
+                    end
+                end
+                if (timer[0] > lastDialTick + dialDelay)
+                    i = __ui.dial.uiGroupIndex;
+                    j = __ui.dial.dialIndex;
+                    *__uiGroups[i].dials[j].var += dialDelta;
+                    if (*__uiGroups[i].dials[j].var < __uiGroups[i].dials[j].varMin)
+                        if (__uiGroups[i].dials[j].varWrapValue)
+                            *__uiGroups[i].dials[j].var = __uiGroups[i].dials[j].varMax;
+                        else
+                            *__uiGroups[i].dials[j].var = __uiGroups[i].dials[j].varMin;
+                        end
+                    end
+                    if (*__uiGroups[i].dials[j].var > __uiGroups[i].dials[j].varMax)
+                        if (__uiGroups[i].dials[j].varWrapValue)
+                            *__uiGroups[i].dials[j].var = __uiGroups[i].dials[j].varMin;
+                        else
+                            *__uiGroups[i].dials[j].var = __uiGroups[i].dials[j].varMax;
+                        end
+                    end
+                    lastDialTick = timer[0];
+                end
+            end
+        else
+            lastDialTick = 0;
+        end
+        frame;
+    until (alive == false)
+end
+
+function DispatchAction(actionId, actionParam0)
+begin
+    // TODO: Consider using an action queue to avoid overwriting an action.
+    __ui.action = actionId;
+    __ui.actionParam0 = actionParam0;
+end
+
+process MouseCursor()
+private
+    previousMouseLeft;
+    previousMouseRight;
+begin
+    // initialization
+    resolution = GPR;
+    SetGraphic(GFX_MAIN, 303);
+    z = -1000;
+    loop
+        x = mouse.x * GPR;
+        y = mouse.y * GPR;
+        __mouse.leftHeldDown = mouse.left;
+        __mouse.rightHeldDown = mouse.right;
+        __mouse.leftClicked = previousMouseLeft && !mouse.left;
+        __mouse.rightClicked = previousMouseRight && !mouse.right;
+        previousMouseLeft = mouse.left;
+        previousMouseRight = mouse.right;
+        frame;
+    end
+end
+
+
+
+/* -----------------------------------------------------------------------------
  * UI Rendering
  * ---------------------------------------------------------------------------*/
 process UIRenderer()
 begin
     alive = true;
-    __ui.buttonHeldDown = NULL;
-    __ui.buttonClicked = NULL;
     repeat
         RenderUIDrawings();
         RenderUITexts();
@@ -1491,14 +1554,14 @@ begin
                     if (__mouse.leftHeldDown)
                         c = __colorSchemes[k].color.pressed;
                         o = __colorSchemes[k].opacity.pressed;
-                        __ui.buttonHeldDown = __uiGroups[i].buttons[j].option;
+                        __ui.buttonHeldDown = __uiGroups[i].buttons[j].action;
                     end
                     if (!__mouse.leftHeldDown 
-                        && __ui.buttonHeldDown == __uiGroups[i].buttons[j].option)
+                        && __ui.buttonHeldDown == __uiGroups[i].buttons[j].action)
                         c = __colorSchemes[k].color.hover;
                         o = __colorSchemes[k].opacity.hover;
                         __ui.buttonHeldDown = NULL;
-                        __ui.buttonClicked = __uiGroups[i].buttons[j].option;
+                        __ui.buttonClicked = __uiGroups[i].buttons[j].action;
                     end
                 end
             else
@@ -1508,10 +1571,10 @@ begin
 
             RenderUIDrawing(DRAW_RECTANGLE_FILL, c, o, REGION_FULL_SCREEN, x, y, x + w, y + h);
 
-            if (__uiGroups[i].buttons[j].option == NULL)
+            if (__uiGroups[i].buttons[j].action == NULL)
                 __uiGroups[i].buttons[j].text = "[NULL]";
             else
-                __uiGroups[i].buttons[j].text = __uiOptions[__uiGroups[i].buttons[j].option].label;
+                __uiGroups[i].buttons[j].text = __uiButtons[__uiGroups[i].buttons[j].action].label;
             end
 
             RenderUIText(
@@ -1982,7 +2045,7 @@ end
  * ---------------------------------------------------------------------------*/
 function AddButtonToUIGroup(ui, x, y, width, height,
     colorScheme,
-    fontIndex, option, enabled)
+    fontIndex, action, enabled)
 begin
     i = __uiGroups[ui].buttonsCount;
     __uiGroups[ui].buttons[i].x = x;
@@ -1991,7 +2054,7 @@ begin
     __uiGroups[ui].buttons[i].height = height;
     __uiGroups[ui].buttons[i].colorScheme = colorScheme;
     __uiGroups[ui].buttons[i].fontIndex = fontIndex;
-    __uiGroups[ui].buttons[i].option = option;
+    __uiGroups[ui].buttons[i].action = action;
     __uiGroups[ui].buttons[i].enabled = enabled;
     __uiGroups[ui].buttonsCount++;
 end
@@ -2100,7 +2163,7 @@ begin
         __uiGroups[ui].buttons[i].height          = 0;
         __uiGroups[ui].buttons[i].colorScheme     = 0;
         __uiGroups[ui].buttons[i].fontIndex       = 0;
-        __uiGroups[ui].buttons[i].option          = 0;
+        __uiGroups[ui].buttons[i].action          = 0;
         __uiGroups[ui].buttons[i].text            = "";
         __uiGroups[ui].buttons[i].enabled         = 0;
     end
@@ -2160,6 +2223,7 @@ begin
     end
     __uiGroups[ui].textFieldsCount = 0;
     for (i = 0; i < MAX_UI_GROUP_TEXTS - 1; ++i)
+        __uiGroups[ui].textFields[i].textFieldId = NULL;
         __uiGroups[ui].textFields[i].x           = 0;
         __uiGroups[ui].textFields[i].y           = 0;
         __uiGroups[ui].textFields[i].width       = 0;
@@ -2167,7 +2231,6 @@ begin
         __uiGroups[ui].textFields[i].colorScheme = 0;
         __uiGroups[ui].textFields[i].fontIndex   = 0;
         __uiGroups[ui].textFields[i].anchor      = 0;
-        __uiGroups[ui].textFields[i].textFieldId = NULL;
         __uiGroups[ui].textFields[i].text        = "";
         __uiGroups[ui].textFields[i].active      = 0;
         __uiGroups[ui].textFields[i].enabled     = 0;
@@ -2202,33 +2265,6 @@ function HideAllUIGroups()
 begin
     for (i = 0; i < __uiGroupsCount; ++i)
         HideUIGroup(i);
-    end
-end
-
-
-
-/* -----------------------------------------------------------------------------
- * UI Mouse
- * ---------------------------------------------------------------------------*/
-process MouseCursor()
-private
-    previousMouseLeft;
-    previousMouseRight;
-begin
-    // initialization
-    resolution = GPR;
-    SetGraphic(GFX_MAIN, 303);
-    z = -1000;
-    loop
-        x = mouse.x * GPR;
-        y = mouse.y * GPR;
-        __mouse.leftHeldDown = mouse.left;
-        __mouse.rightHeldDown = mouse.right;
-        __mouse.leftClicked = previousMouseLeft && !mouse.left;
-        __mouse.rightClicked = previousMouseRight && !mouse.right;
-        previousMouseLeft = mouse.left;
-        previousMouseRight = mouse.right;
-        frame;
     end
 end
 
