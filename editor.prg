@@ -185,7 +185,6 @@ const
     ACT_SAVE_OBJECT             = 26;
     ACT_DISCARD_OBJECT          = 27;
     UI_ACTION_COUNT = 28;
-    UI_BUTTON_COUNT = 28;
 
     // ui text fields
     TF_LEVEL_FILE_NAME  = 0;
@@ -433,7 +432,7 @@ global
         end
     end
 
-    struct __uiButtons[UI_BUTTON_COUNT - 1]
+    struct __uiButtons[UI_ACTION_COUNT - 1]
         action;
         string label;
     end =
@@ -473,7 +472,7 @@ global
     end =
     //  textFieldId          action
         TF_LEVEL_FILE_NAME,  ACT_CREATE_NEW_LEVEL,
-        TF_OBJECT_FILE_NAME, ACT_NEW_OBJECT,
+        TF_OBJECT_FILE_NAME, ACT_SET_OBJECT_NAME,
         TF_PALETTE_SEARCH,   ACT_SEARCH_PALETTE;
 
 
