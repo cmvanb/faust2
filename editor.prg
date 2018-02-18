@@ -671,10 +671,12 @@ begin
                 if (IsEditorObjectDirty())
                     ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                     ConfigureUI_ObjectEditorButtons();
+                    /*
                     SetTextFieldValue(
                         GROUP_OBJECT_EDITOR_WIDGETS, 
                         TF_OBJECT_FILE_NAME, 
                         __uiEditor.object.edit.name);
+                        */
                     ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                 end
             end
@@ -884,23 +886,31 @@ begin
                     // TODO: Validate file name doesn't already exist.
                     text = GetTextFieldValue(GROUP_OBJECT_EDITOR_WIDGETS, TF_OBJECT_FILE_NAME);
                     if (text != "")
-                        __uiEditor.object.edit.name = __ui.submittedText;
+                        __uiEditor.object.edit.name = text;
                         ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                         ConfigureUI_ObjectEditorButtons();
                         ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
+                    else
+                        debug;
                     end
                 end
                 case ACT_SAVE_OBJECT:
                     SaveEditorObjectChanges();
                     ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
+                    ClearUIGroup(GROUP_OBJECT_EDITOR_WIDGETS);
                     ConfigureUI_ObjectEditorButtons();
+                    ConfigureUI_ObjectEditorWidgets();
                     ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
+                    ShowUIGroup(GROUP_OBJECT_EDITOR_WIDGETS);
                 end
                 case ACT_DISCARD_OBJECT:
                     DiscardEditorObjectChanges();
                     ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
+                    ClearUIGroup(GROUP_OBJECT_EDITOR_WIDGETS);
                     ConfigureUI_ObjectEditorButtons();
+                    ConfigureUI_ObjectEditorWidgets();
                     ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
+                    ShowUIGroup(GROUP_OBJECT_EDITOR_WIDGETS);
                 end
             end
             __ui.action = NULL;
@@ -1858,6 +1868,8 @@ begin
                     ho = __colorSchemes[k].opacity.highlight;
                     __uiGroups[i].textFields[j].text = UpdateTextField(__uiGroups[i].textFields[j].text);
                     if (key(_esc) || __mouse.rightClicked)
+                        __ui.submittedTextFieldId = __uiGroups[i].textFields[j].textFieldId;
+                        __ui.submittedText = __uiGroups[i].textFields[j].text;
                         __uiGroups[i].textFields[j].active = INACTIVE;
                     end
                     if (key(_del))
