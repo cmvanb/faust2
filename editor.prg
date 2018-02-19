@@ -310,6 +310,17 @@ global
     //  x    y   yOffset
         320, 10, 15;
 
+    // level
+    struct __levelData
+        name;
+        objectCount;
+        struct objects[MAX_LEVEL_OBJECTS - 1]
+            x, y, angle, size, z;
+            objectDataFileName;
+            objectDataIndex;
+        end
+    end
+
     // object
     __objectDataCount;
     struct __objectData[MAX_OBJECT_DATA - 1]
@@ -425,6 +436,11 @@ global
                 gfxIndex, material, collidable;
             end
             struct saved
+                string name;
+                angle, size, z;
+                gfxIndex, material, collidable;
+            end
+            struct view
                 string name;
                 angle, size, z;
                 gfxIndex, material, collidable;
@@ -722,8 +738,8 @@ begin
             __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
         end
         case UI_EDITOR_OBJECT_BRUSH_MODE:
-            ClearData();
-            LoadData();
+            ClearObjectData();
+            LoadObjectData();
             ClearUIGroup(GROUP_EDITOR_PALETTE);
             ConfigureUI_EditorPalette();
             ShowUIGroup(GROUP_EDITOR_PALETTE);
@@ -2329,6 +2345,35 @@ end
 
 function LoadData()
 begin
+    // clear structures first
+    ClearObjectData();
+    ClearLevelData();
+
+    // then load
+    LoadObjectData();
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Object Data
+ * ---------------------------------------------------------------------------*/
+function ClearObjectData()
+begin
+    for (i = 0; i < __objectDataCount; ++i)
+        __objectData[i].name       = "";
+        __objectData[i].angle      = 0;
+        __objectData[i].size       = 100;
+        __objectData[i].z          = 0;
+        __objectData[i].gfxIndex   = 1;
+        __objectData[i].material   = 0;
+        __objectData[i].collidable = true;
+    end
+    __objectDataCount = 0;
+end
+
+function LoadObjectData()
+begin
     // TODO: FIX THIS PATH HACK :( 
     // NOTE: DIV appears to have no way of retrieving the relative project path... see forum post:
     // http://div-arena.co.uk/forum2/viewthread.php?tid=288
@@ -2343,20 +2388,19 @@ begin
     for (i = 0; i < __objectDataCount; ++i)
         LoadObject(i, dirinfo.name[i]);
     end
+
+    // NOTE: make sure level objects are using the correct data indices of the freshly loaded object data
+    UpdateLevelDataObjects();
 end
 
-function ClearData()
+function GetObjectDataIndexFromName(string name)
 begin
     for (i = 0; i < __objectDataCount; ++i)
-        __objectData[i].name       = "";
-        __objectData[i].angle      = 0;
-        __objectData[i].size       = 100;
-        __objectData[i].z          = 0;
-        __objectData[i].gfxIndex   = 1;
-        __objectData[i].material   = 0;
-        __objectData[i].collidable = true;
+        if (__objectData[i].name == name)
+            return (i);
+        end
     end
-    __objectDataCount = 0;
+    return (NULL);
 end
 
 function ObjectFileExists(string fileName)
@@ -2423,6 +2467,68 @@ begin
 
     // close file handle
     fclose(fileHandle);
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Level Data
+ * ---------------------------------------------------------------------------*/
+function ClearLevelData()
+begin
+    __levelData.name = "";
+    for (i = 0; i < MAX_LEVEL_OBJECTS - 1; ++i)
+        RemoveObjectFromLevelData(i);
+    end
+    __levelData.objectCount = 0;
+end
+
+function LoadLevelData(string fileName)
+begin
+    // TODO: implement
+end
+
+function SaveLevelData(string fileName)
+begin
+    // TODO: implement
+end
+
+function AddObjectToLevelData(x, y, angle, size, z, objectDataIndex)
+begin
+    for (i = 0; i < __levelData.objectCount; ++i)
+        if (__levelData.objects[i].objectDataIndex == NULL)
+            break;
+        end
+    end
+    __levelData.objects[i].x = x;
+    __levelData.objects[i].y = y;
+    __levelData.objects[i].angle = angle;
+    __levelData.objects[i].size = size;
+    __levelData.objects[i].z = z;
+    __levelData.objects[i].objectDataFileName = __objectData[objectDataIndex].name;
+    __levelData.objects[i].objectDataIndex = objectDataIndex;
+    ++__levelData.objectCount;
+end
+
+function RemoveObjectFromLevelData(levelDataObjectIndex)
+begin
+    __levelData.objects[levelDataObjectIndex].x = 0;
+    __levelData.objects[levelDataObjectIndex].y = 0;
+    __levelData.objects[levelDataObjectIndex].angle = 0;
+    __levelData.objects[levelDataObjectIndex].size = 0;
+    __levelData.objects[levelDataObjectIndex].z = 0;
+    __levelData.objects[levelDataObjectIndex].objectDataFileName = "";
+    __levelData.objects[levelDataObjectIndex].objectDataIndex = NULL;
+    --__levelData.objectCount;
+    // NOTE: leaves a gap in the file structure
+end
+
+function UpdateLevelDataObjects()
+begin
+    for (i = 0; i < __levelData.objectCount; ++i)
+        __levelData.objects[i].objectDataIndex = 
+            GetObjectDataIndexFromName(__levelData.objects[i].objectDataFileName);
+    end
 end
 
 
