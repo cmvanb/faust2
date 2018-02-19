@@ -184,7 +184,8 @@ const
     ACT_EDIT_OBJECT             = 25;
     ACT_SAVE_OBJECT             = 26;
     ACT_DISCARD_OBJECT          = 27;
-    UI_ACTION_COUNT = 28;
+    ACT_DELETE_OBJECT           = 28;
+    UI_ACTION_COUNT = 29;
 
     // ui text fields
     TF_LEVEL_FILE_NAME  = 0;
@@ -406,6 +407,7 @@ global
             fontIndex, anchor;
             isInteger;
             string text;
+            var;
         end
         textFieldsCount;
         struct textFields[MAX_UI_GROUP_TEXTS - 1]
@@ -440,10 +442,12 @@ global
                 angle, size, z;
                 gfxIndex, material, collidable;
             end
-            struct view
+            struct hover
+                processId;
+            end
+            struct selected
+                processId;
                 string name;
-                angle, size, z;
-                gfxIndex, material, collidable;
             end
         end
         struct brush
@@ -484,7 +488,8 @@ global
         ACT_NEW_OBJECT,              "NEW OBJECT",            
         ACT_EDIT_OBJECT,             "EDIT",      
         ACT_SAVE_OBJECT,             "SAVE CHANGES",    
-        ACT_DISCARD_OBJECT,          "DISCARD CHANGES";
+        ACT_DISCARD_OBJECT,          "DISCARD CHANGES",
+        ACT_DELETE_OBJECT,           "DELETE";
 
     struct __uiTextFields[UI_TEXTFIELD_COUNT - 1]
         textFieldId;
@@ -561,6 +566,10 @@ begin
     InitGraphics();
     LoadResources();
     LoadData();
+
+    // ui vars
+    __uiEditor.object.hover.processId = NULL;
+    __uiEditor.object.selected.processId = NULL;
 
     // ui config
     ConfigureUI();
@@ -657,6 +666,28 @@ begin
                         ConfigureUI_EditorInfo();
                         ShowUIGroup(GROUP_EDITOR_INFO);
                     end
+                else
+                    // LMB while hovering over EditorObject: select
+                    if (__uiEditor.object.hover.processId != NULL)
+                        if (__mouse.leftClicked)
+                            __uiEditor.object.selected.processId = __uiEditor.object.hover.processId;
+                            i = __uiEditor.object.selected.processId.value;
+                            __uiEditor.object.selected.name = __objectData[i].name;
+                            ClearUIGroup(GROUP_EDITOR_INFO);
+                            ConfigureUI_EditorInfo();
+                            ShowUIGroup(GROUP_EDITOR_INFO);
+                        end
+                    end
+                    // RMB: deselect
+                    if (__uiEditor.object.selected.processId != NULL)
+                        if (__mouse.rightClicked)
+                            __uiEditor.object.selected.processId = NULL;
+                            __uiEditor.object.selected.name = "";
+                            ClearUIGroup(GROUP_EDITOR_INFO);
+                            ConfigureUI_EditorInfo();
+                            ShowUIGroup(GROUP_EDITOR_INFO);
+                        end
+                    end
                 end
             end
             case UI_EDITOR_ENTITY_BRUSH_MODE:
@@ -683,7 +714,7 @@ begin
                         GFX_OBJECTS, 
                         __uiEditor.object.edit.gfxIndex,
                         a, s, GPR,
-                        COLOR_WHITE, 
+                        COLOR_BLUE, 
                         OPACITY_SOLID, 
                         REGION_FULL_SCREEN, false);
                 end
@@ -756,6 +787,7 @@ begin
         case UI_EDITOR_OBJECT_EDIT_MODE:
             ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
             ConfigureUI_ObjectEditorButtons();
+            // Set the text field to the correct value.
             SetTextFieldValue(
                 GROUP_OBJECT_EDITOR_WIDGETS, 
                 TF_OBJECT_FILE_NAME, 
@@ -764,50 +796,90 @@ begin
             ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
             ShowUIGroup(GROUP_OBJECT_EDITOR_WIDGETS);
             __camera.moveMode = NULL;
-            // Set the text field to the correct value.
         end
     end
 end
 
-process EditorObject(x, y, z, angle, size, objectBrushIndex)
+process EditorObject(x, y, z, angle, size, objectDataIndex)
 private
     pointsCount;
-    isLogging = false;
     insideScrollWindow = false;
+    mouseHover = false;
+    isLogging = false;
+    w, h;
+    renderPoints;
+    pointsColor;
+    xd, yd;
+    moving = false;
 begin
     // initialization
+    value = objectDataIndex;
     alive = true;
     resolution = GPR;
     ctype = c_scroll;
-    SetGraphic(GFX_OBJECTS, __objectData[objectBrushIndex].gfxIndex);
-    pointsCount = __objectData[objectBrushIndex].pointsCount;
+    SetGraphic(GFX_OBJECTS, __objectData[value].gfxIndex);
+    pointsCount = __objectData[value].pointsCount;
     repeat
-        if (__uiEditor.mode != UI_EDITOR_OBJECT_EDIT_MODE)
-            insideScrollWindow = IsInsideScrollWindow(id, 0, REGION_EDITOR_VIEWPORT);
-            if (__objectData[objectBrushIndex].collidable 
+        insideScrollWindow = IsInsideScrollWindow(id, 0, REGION_EDITOR_VIEWPORT);
+        mouseHover = collision(type MouseCursor) && insideScrollWindow;
+        renderPoints = false;
+        if (__uiEditor.mode == UI_EDITOR_OBJECT_BRUSH_MODE)
+            if (__objectData[value].collidable 
                 && insideScrollWindow)
-                FindGfxPoints(id, pointsCount);
-                DrawGfxPointsOneFrame(pointsCount, COLOR_WHITE, OPACITY_SOLID, REGION_EDITOR_VIEWPORT, true);
+                // render collision points
+                renderPoints = true;
+                pointsColor = COLOR_BLUE;
             end
-            if (collision(type MouseCursor) && insideScrollWindow)
+            if (mouseHover)
+                // log info
                 if (!isLogging)
-                    LogValueFollowOffset(id, "x", &x, 0, 20);
-                    LogValueFollowOffset(id, "y", &y, 0, 30);
+                    LogValueFollowOffset(id, __objectData[value].name, &value, 0, 0);
                     isLogging = true;
                 end
-            else
-                if (isLogging)
-                    DeleteLocalLog(id);
-                    DeleteLocalLog(id);
-                    isLogging = false;
+                // this object is being hovered over
+                if (__uiEditor.object.hover.processId == NULL)
+                    __uiEditor.object.hover.processId = id;
                 end
             end
-        else
+            if (__uiEditor.object.hover.processId == id)
+                // TODO: If an object has no points, render an alternative highlight widget. Red circle?
+                // render selection widget
+                renderPoints = true;
+                pointsColor = COLOR_WHITE;
+            end
+            if (__uiEditor.object.selected.processId == id)
+                renderPoints = true;
+                pointsColor = COLOR_GREEN;
+                if (mouseHover 
+                    && __mouse.leftHeldDown
+                    && !moving)
+                    xd = x - (mouse.x * GPR);
+                    yd = y - (mouse.y * GPR);
+                    moving = true;
+                end
+                if (moving)
+                    // TODO: Account for WASD camera movement.
+                    x = xd + (mouse.x * GPR);
+                    y = yd + (mouse.y * GPR);
+                    if (!__mouse.leftHeldDown)
+                        moving = false;
+                    end
+                end
+            end
+        end
+        if (__uiEditor.mode != UI_EDITOR_OBJECT_BRUSH_MODE
+            || !mouseHover)
+            if (__uiEditor.object.hover.processId == id)
+                __uiEditor.object.hover.processId = NULL;
+            end
             if (isLogging)
-                DeleteLocalLog(id);
                 DeleteLocalLog(id);
                 isLogging = false;
             end
+        end
+        if (renderPoints)
+            FindGfxPoints(id, pointsCount);
+            DrawGfxPointsOneFrame(pointsCount, pointsColor, OPACITY_SOLID, REGION_EDITOR_VIEWPORT, true);
         end
         frame;
     until (alive == false)
@@ -859,11 +931,15 @@ begin
                     ResetEditorObject();
                     ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
                 end
-                // PALETTE
+                // INFO / PREVIEW BOX
                 case ACT_EDIT_OBJECT:
                     SetEditorObjectFromData(__uiEditor.objectBrushSelected);
                     ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
                 end
+                case ACT_DELETE_OBJECT:
+                    debug;
+                end
+                // PALETTE
                 case ACT_SCROLL_PALETTE_UP:
                     if (__uiEditor.palettePage > 0)
                         __uiEditor.palettePage--;
@@ -884,13 +960,15 @@ begin
                     i = (__uiEditor.palettePage * UI_EDITOR_PALETTE_SIZE) 
                         + (__ui.action - ACT_SELECT_PALETTE_0);
                     if (i == __objectDataCount)
-                        // TODO: Implement new object function.
-                        debug;
+                        ResetEditorObject();
+                        ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
                     else
                         if (__uiEditor.objectBrushSelected == i)
                             __uiEditor.objectBrushSelected = NULL;
                         else
                             __uiEditor.objectBrushSelected = i;
+                            __uiEditor.brush.angleOffset = 0;
+                            __uiEditor.brush.sizeOffset = 0;
                         end
                         ClearUIGroup(GROUP_EDITOR_INFO);
                         ConfigureUI_EditorInfo();
@@ -1255,22 +1333,58 @@ private
     w, h;
     bx, by; // box x, box y
     bw, bh; // box width, box height
+    string objName;
+    objAngle, objSize, objZ;
+    objGfxIndex, objMaterial, objCollidable;
+    buttonAction = NULL;
 begin
-    i = __uiEditor.objectBrushSelected;
-    if (i > NULL)
+    // NOTE: Guarantee that if __uiEditor.objectBrushSelected is NULL then
+    // __uiEditor.object.selected.processId is not NULL.
+    if (__uiEditor.objectBrushSelected == NULL
+        && __uiEditor.object.selected.processId == NULL)
+        return;
+    end
+
+    // VARS
+    x = SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT);
+    y = (UI_UNIT);
+    w = UI_PW - (UI_UNIT) - (UI_UNIT / 2);
+    h = UI_PAL_Y - (UI_UNIT * 2);
+    bw = (UI_UNIT * 22);
+    bh = bw;
+    bx = (x + w) - bw - (UI_UNIT / 2);
+    by = y + (UI_UNIT * 5);
+
+    // PREVIEW BG
+    AddDrawingToUIGroup(ui,
+        bx, by, bx + bw, by + bh,
+        DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
+    
+    // CONFIG BASED ON MODE
+    if (__uiEditor.objectBrushSelected > NULL)
+        i = __uiEditor.objectBrushSelected;
+        objName = __objectData[i].name;
+        buttonAction = ACT_EDIT_OBJECT;
+    else
+        i = __uiEditor.object.selected.processId.value;
+        objName = __uiEditor.object.selected.name;
+        buttonAction = ACT_DELETE_OBJECT;
+    end
+
+    // NAME
+    AddTextToUIGroup(ui,
+        x, y, 
+        FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
+        objName, false);
+
+    // BUTTON
+    AddButtonToUIGroup(ui,
+        x + w - (UI_UNIT * 16) - (UI_UNIT / 2), y, (UI_UNIT * 16), (UI_UNIT * 4),
+        COLOR_SCHEME_BLUE,
+        FONT_SYSTEM, buttonAction, ENABLED);
+
+    if (__uiEditor.objectBrushSelected > NULL)
         // INFO
-        x = SCREEN_WIDTH - (UI_PW) - 1 + (UI_UNIT);
-        y = (UI_UNIT);
-        w = UI_PW - (UI_UNIT) - (UI_UNIT / 2);
-        h = UI_PAL_Y - (UI_UNIT * 2);
-        AddTextToUIGroup(ui,
-            x, y, 
-            FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
-            __objectData[i].name, false);
-        AddButtonToUIGroup(ui,
-            x + w - (UI_UNIT * 16) - (UI_UNIT / 2), y, (UI_UNIT * 16), (UI_UNIT * 4),
-            COLOR_SCHEME_BLUE,
-            FONT_SYSTEM, ACT_EDIT_OBJECT, ENABLED);
         AddTextToUIGroup(ui,
             x, y + (UI_UNIT * 5), 
             FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
@@ -1296,18 +1410,12 @@ begin
             FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
             &__objectData[i].z, true);
 
-        // PREVIEW BOX
-        bw = (UI_UNIT * 22);
-        bh = bw;
-        bx = (x + w) - bw - (UI_UNIT / 2);
-        by = y + (UI_UNIT * 5);
-        AddDrawingToUIGroup(ui,
-            bx, by, bx + bw, by + bh,
-            DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
+        // PREVIEW IMAGE
         size = CalculateFittedSize(GFX_OBJECTS, __objectData[i].gfxIndex, bw, bh);
         AddImageToUIGroup(ui,
             bx + (bw / 2), by + (bh / 2), UI_Z_ABOVE,
             GFX_OBJECTS, __objectData[i].gfxIndex, __objectData[i].angle, size, FLAG_NORMAL);
+    else 
     end
 end
 
@@ -1850,7 +1958,7 @@ begin
                     __uiGroups[i].texts[j].x,
                     __uiGroups[i].texts[j].y,
                     __uiGroups[i].texts[j].anchor,
-                    __uiGroups[i].texts[j].text);
+                    __uiGroups[i].texts[j].var);
             else
                 RenderUIText(
                     __uiGroups[i].texts[j].fontIndex,
@@ -2164,8 +2272,12 @@ begin
     __uiGroups[ui].texts[i].y = y;
     __uiGroups[ui].texts[i].fontIndex = fontIndex;
     __uiGroups[ui].texts[i].anchor = anchor;
-    __uiGroups[ui].texts[i].text = text;
     __uiGroups[ui].texts[i].isInteger = isInteger;
+    if (isInteger)
+        __uiGroups[ui].texts[i].var = text;
+    else
+        __uiGroups[ui].texts[i].text = text;
+    end
     __uiGroups[ui].textsCount++;
 end
 
@@ -2255,6 +2367,7 @@ begin
         __uiGroups[ui].texts[i].fontIndex = 0;
         __uiGroups[ui].texts[i].anchor    = 0;
         __uiGroups[ui].texts[i].text      = "";
+        __uiGroups[ui].texts[i].var       = 0;
         __uiGroups[ui].texts[i].isInteger = false;
     end
     __uiGroups[ui].textFieldsCount = 0;
@@ -2576,7 +2689,7 @@ begin
             case CAMERA_MOVE_FREE_LOOK:
                 if (key(_a))
                     controllerId.input.move.x = -controllerId.input.move.granularity;
-                else
+                else 
                     if (key(_d))
                         controllerId.input.move.x = +controllerId.input.move.granularity;
                     else
@@ -2726,7 +2839,7 @@ end
 /* -----------------------------------------------------------------------------
  * Drawing and writing functions
  * ---------------------------------------------------------------------------*/
-function DrawLine(x0, y0, x1, y1, color, opacity, region, scrollSpace)
+function Draw(drawType, x0, y0, x1, y1, color, opacity, region, scrollSpace)
 private
     sx, sy;
 begin
@@ -2738,7 +2851,14 @@ begin
     y0 = (y0 / GPR) + sy + __regions[region].y;
     x1 = (x1 / GPR) + sx + __regions[region].x;
     y1 = (y1 / GPR) + sy + __regions[region].y;
-    return (draw(DRAW_LINE, color, opacity, region, x0, y0, x1, y1));
+    return (draw(drawType, color, opacity, region, x0, y0, x1, y1));
+end
+
+process DrawOneFrame(drawType, x0, y0, x1, y1, color, opacity, region, scrollSpace)
+begin
+    value = Draw(drawType, x0, y0, x1, y1, color, opacity, region, scrollSpace);
+    frame;
+    delete_draw(value);
 end
 
 process DrawGfxPointsOneFrame(pointsCount, color, opacity, region, scrollSpace)
@@ -2751,7 +2871,8 @@ begin
         y0 = __gfxPoints[i].y;
         x1 = __gfxPoints[(i + 1) % pointsCount].x;
         y1 = __gfxPoints[(i + 1) % pointsCount].y;
-        drawings[i] = DrawLine(
+        drawings[i] = Draw(
+            DRAW_LINE,
             __gfxPoints[i].x, 
             __gfxPoints[i].y, 
             __gfxPoints[(i + 1) % pointsCount].x, 
