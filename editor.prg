@@ -675,8 +675,8 @@ begin
                         ShowUIGroup(GROUP_EDITOR_INFO);
                     end
                 else
-                    // LMB while hovering over EditorObject: select
                     if (__uiEditor.object.hover.processId != NULL)
+                        // LMB while hovering over EditorObject: select
                         if (__mouse.leftClicked)
                             __uiEditor.object.selected.processId = __uiEditor.object.hover.processId;
                             i = __uiEditor.object.selected.processId.value;
@@ -686,14 +686,19 @@ begin
                             ShowUIGroup(GROUP_EDITOR_INFO);
                         end
                     end
-                    // RMB: deselect
                     if (__uiEditor.object.selected.processId != NULL)
+                        // RMB: deselect
                         if (__mouse.rightClicked)
                             __uiEditor.object.selected.processId = NULL;
                             __uiEditor.object.selected.name = "";
                             ClearUIGroup(GROUP_EDITOR_INFO);
                             ConfigureUI_EditorInfo();
                             ShowUIGroup(GROUP_EDITOR_INFO);
+                        end
+                        // F: center on selected object
+                        if (key(_f))
+                            __camera.processId.x = __uiEditor.object.selected.processId.x;
+                            __camera.processId.y = __uiEditor.object.selected.processId.y;
                         end
                     end
                 end
