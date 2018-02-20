@@ -862,14 +862,13 @@ begin
                 if (mouseHover 
                     && __mouse.leftHeldDown
                     && !moving)
-                    xd = x - (mouse.x * GPR);
-                    yd = y - (mouse.y * GPR);
+                    xd = ((mouse.x + scroll[0].x0) * GPR) - x;
+                    yd = ((mouse.y + scroll[0].y0) * GPR) - y;
                     moving = true;
                 end
                 if (moving)
-                    // TODO: Account for WASD camera movement.
-                    x = xd + (mouse.x * GPR);
-                    y = yd + (mouse.y * GPR);
+                    x = ((mouse.x + scroll[0].x0) * GPR) - xd;
+                    y = ((mouse.y + scroll[0].y0) * GPR) - yd;
                     if (!__mouse.leftHeldDown)
                         moving = false;
                     end
