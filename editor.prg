@@ -428,8 +428,13 @@ global
     // EDITOR SPECIFIC ---------------------------------------------------------
     struct __uiEditor
         palettePage;
-        objectBrushSelected;
         mode;
+        struct brush
+            dataIndex;
+            angleOffset;
+            sizeOffset;
+            zOffset;
+        end
         struct object
             dirty;
             struct edit
@@ -449,10 +454,6 @@ global
                 processId;
                 string name;
             end
-        end
-        struct brush
-            angleOffset;
-            sizeOffset;
         end
     end
 
@@ -614,19 +615,19 @@ begin
             case UI_EDITOR_OBJECT_BRUSH_MODE:
                 if (__ui.activeTextFieldId != NULL)
                     __camera.moveMode = NULL;
-                    __uiEditor.objectBrushSelected = NULL;
+                    __uiEditor.brush.dataIndex = NULL;
                 else
                     __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
                 end
-                if (__uiEditor.objectBrushSelected > NULL)
+                if (__uiEditor.brush.dataIndex > NULL)
                     if (shift_status == 1 || shift_status == 2)
                         __camera.moveMode = NULL;
                         // manipulate angle
                         if (key(_a))
-                            __uiEditor.brush.angleOffset += 4000;
+                            __uiEditor.brush.angleOffset = WrapAngle360(__uiEditor.brush.angleOffset + 4000);
                         end
                         if (key(_d))
-                            __uiEditor.brush.angleOffset -= 4000;
+                            __uiEditor.brush.angleOffset = WrapAngle360(__uiEditor.brush.angleOffset - 4000);
                         end
                         // manipulate size
                         if (key(_w))
@@ -635,6 +636,13 @@ begin
                         if (key(_s))
                             __uiEditor.brush.sizeOffset -= 1;
                         end
+                        // manipulate z
+                        if (key(_q))
+                            __uiEditor.brush.zOffset += 1;
+                        end
+                        if (key(_e))
+                            __uiEditor.brush.zOffset -= 1;
+                        end
                     else
                         __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
                     end
@@ -642,11 +650,11 @@ begin
                     RenderImageOneFrame(
                         mouse.x, 
                         mouse.y, 
-                        __objectData[__uiEditor.objectBrushSelected].z, 
+                        __uiEditor.brush.zOffset,
                         GFX_OBJECTS,
-                        __objectData[__uiEditor.objectBrushSelected].gfxIndex,
-                        WrapAngle360(__objectData[__uiEditor.objectBrushSelected].angle + __uiEditor.brush.angleOffset),
-                        __objectData[__uiEditor.objectBrushSelected].size + __uiEditor.brush.sizeOffset,
+                        __objectData[__uiEditor.brush.dataIndex].gfxIndex,
+                        WrapAngle360(__uiEditor.brush.angleOffset),
+                        __uiEditor.brush.sizeOffset,
                         FLAG_TRANSPARENT);
                     // LMB: place brush
                     if (__mouse.leftClicked
@@ -654,14 +662,14 @@ begin
                         EditorObject(
                             (scroll[0].x0 + 0 + mouse.x) * GPR, 
                             (scroll[0].y0 - 20 + mouse.y) * GPR, 
-                            __objectData[__uiEditor.objectBrushSelected].z,
-                            WrapAngle360(__objectData[__uiEditor.objectBrushSelected].angle + __uiEditor.brush.angleOffset),
-                            __objectData[__uiEditor.objectBrushSelected].size + __uiEditor.brush.sizeOffset,
-                            __uiEditor.objectBrushSelected);
+                            __uiEditor.brush.zOffset,
+                            WrapAngle360(__uiEditor.brush.angleOffset),
+                            __uiEditor.brush.sizeOffset,
+                            __uiEditor.brush.dataIndex);
                     end
                     // RMB: deselect
                     if (__mouse.rightClicked)
-                        __uiEditor.objectBrushSelected = NULL;
+                        __uiEditor.brush.dataIndex = NULL;
                         ClearUIGroup(GROUP_EDITOR_INFO);
                         ConfigureUI_EditorInfo();
                         ShowUIGroup(GROUP_EDITOR_INFO);
@@ -744,7 +752,7 @@ begin
         case UI_EDITOR_VIEW_MODE:
         end
         case UI_EDITOR_OBJECT_BRUSH_MODE:
-            __uiEditor.objectBrushSelected = NULL;
+            __uiEditor.brush.dataIndex = NULL;
             HideUIGroup(GROUP_EDITOR_PALETTE);
             HideUIGroup(GROUP_EDITOR_INFO);
         end
@@ -777,6 +785,7 @@ begin
             __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
             __uiEditor.brush.angleOffset = 0;
             __uiEditor.brush.sizeOffset = 0;
+            __uiEditor.brush.zOffset = 0;
         end
         case UI_EDITOR_ENTITY_BRUSH_MODE:
             // TODO: implement.
@@ -942,7 +951,7 @@ begin
                 end
                 // INFO / PREVIEW BOX
                 case ACT_EDIT_OBJECT:
-                    SetEditorObjectFromData(__uiEditor.objectBrushSelected);
+                    SetEditorObjectFromData(__uiEditor.brush.dataIndex);
                     ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
                 end
                 case ACT_DELETE_OBJECT:
@@ -977,12 +986,13 @@ begin
                         ResetEditorObject();
                         ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
                     else
-                        if (__uiEditor.objectBrushSelected == i)
-                            __uiEditor.objectBrushSelected = NULL;
+                        if (__uiEditor.brush.dataIndex == i)
+                            __uiEditor.brush.dataIndex = NULL;
                         else
-                            __uiEditor.objectBrushSelected = i;
-                            __uiEditor.brush.angleOffset = 0;
-                            __uiEditor.brush.sizeOffset = 0;
+                            __uiEditor.brush.dataIndex = i;
+                            __uiEditor.brush.angleOffset = __objectData[i].angle;
+                            __uiEditor.brush.sizeOffset = __objectData[i].size;
+                            __uiEditor.brush.zOffset = __objectData[i].z;
                         end
                         ClearUIGroup(GROUP_EDITOR_INFO);
                         ConfigureUI_EditorInfo();
@@ -1067,13 +1077,13 @@ end
 
 function SetEditorObjectFromData(objectIndex)
 begin
-    __uiEditor.object.edit.name       = __objectData[__uiEditor.objectBrushSelected].name;
-    __uiEditor.object.edit.angle      = __objectData[__uiEditor.objectBrushSelected].angle;
-    __uiEditor.object.edit.size       = __objectData[__uiEditor.objectBrushSelected].size;
-    __uiEditor.object.edit.z          = __objectData[__uiEditor.objectBrushSelected].z;
-    __uiEditor.object.edit.gfxIndex   = __objectData[__uiEditor.objectBrushSelected].gfxIndex;
-    __uiEditor.object.edit.material   = __objectData[__uiEditor.objectBrushSelected].material;
-    __uiEditor.object.edit.collidable = __objectData[__uiEditor.objectBrushSelected].collidable;
+    __uiEditor.object.edit.name       = __objectData[__uiEditor.brush.dataIndex].name;
+    __uiEditor.object.edit.angle      = __objectData[__uiEditor.brush.dataIndex].angle;
+    __uiEditor.object.edit.size       = __objectData[__uiEditor.brush.dataIndex].size;
+    __uiEditor.object.edit.z          = __objectData[__uiEditor.brush.dataIndex].z;
+    __uiEditor.object.edit.gfxIndex   = __objectData[__uiEditor.brush.dataIndex].gfxIndex;
+    __uiEditor.object.edit.material   = __objectData[__uiEditor.brush.dataIndex].material;
+    __uiEditor.object.edit.collidable = __objectData[__uiEditor.brush.dataIndex].collidable;
     CopyEditorObjectSavedFromEdit();
 end
 
@@ -1143,7 +1153,7 @@ function ConfigureUI()
 begin
     // ui vars
     __uiEditor.palettePage = 0;
-    __uiEditor.objectBrushSelected = NULL;
+    __uiEditor.brush.dataIndex = NULL;
 
     // construct ui groups
     ConfigureUI_MainBg();
@@ -1352,9 +1362,9 @@ private
     objGfxIndex, objMaterial, objCollidable;
     buttonAction = NULL;
 begin
-    // NOTE: Guarantee that if __uiEditor.objectBrushSelected is NULL then
+    // NOTE: Guarantee that if __uiEditor.brush.dataIndex is NULL then
     // __uiEditor.object.selected.processId is not NULL.
-    if (__uiEditor.objectBrushSelected == NULL
+    if (__uiEditor.brush.dataIndex == NULL
         && __uiEditor.object.selected.processId == NULL)
         return;
     end
@@ -1375,14 +1385,14 @@ begin
         DRAW_RECTANGLE_FILL, COLOR_BLUE - 5, OPACITY_SOLID);
     
     // CONFIG BASED ON MODE
-    if (__uiEditor.objectBrushSelected > NULL)
+    if (__uiEditor.brush.dataIndex > NULL)
         buttonAction = ACT_EDIT_OBJECT;
-        i = __uiEditor.objectBrushSelected;
+        i = __uiEditor.brush.dataIndex;
         objName     = __objectData[i].name;
-        objAngle    = &__objectData[i].angle;
-        objSize     = &__objectData[i].size;
-        objZ        = &__objectData[i].z;
         objGfxIndex = __objectData[i].gfxIndex;
+        objAngle    = &__uiEditor.brush.angleOffset;
+        objSize     = &__uiEditor.brush.sizeOffset;
+        objZ        = &__uiEditor.brush.zOffset;
     else
         buttonAction = ACT_DELETE_OBJECT;
         objName     = __uiEditor.object.selected.name;
