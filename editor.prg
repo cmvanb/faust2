@@ -619,7 +619,8 @@ begin
                 else
                     __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
                 end
-                if (__uiEditor.brush.dataIndex > NULL)
+                if (__uiEditor.brush.dataIndex > NULL
+                    || __uiEditor.object.selected.processId != NULL)
                     if (shift_status == 1 || shift_status == 2)
                         __camera.moveMode = NULL;
                         // manipulate angle
@@ -646,6 +647,8 @@ begin
                     else
                         __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
                     end
+                end
+                if (__uiEditor.brush.dataIndex > NULL)
                     // preview
                     RenderImageOneFrame(
                         mouse.x, 
@@ -681,12 +684,18 @@ begin
                             __uiEditor.object.selected.processId = __uiEditor.object.hover.processId;
                             i = __uiEditor.object.selected.processId.value;
                             __uiEditor.object.selected.name = __objectData[i].name;
+                            __uiEditor.brush.angleOffset = __uiEditor.object.selected.processId.angle;
+                            __uiEditor.brush.sizeOffset  = __uiEditor.object.selected.processId.size;
+                            __uiEditor.brush.zOffset     = __uiEditor.object.selected.processId.z;
                             ClearUIGroup(GROUP_EDITOR_INFO);
                             ConfigureUI_EditorInfo();
                             ShowUIGroup(GROUP_EDITOR_INFO);
                         end
                     end
                     if (__uiEditor.object.selected.processId != NULL)
+                        __uiEditor.object.selected.processId.angle = WrapAngle360(__uiEditor.brush.angleOffset);
+                        __uiEditor.object.selected.processId.size = __uiEditor.brush.sizeOffset;
+                        __uiEditor.object.selected.processId.z = __uiEditor.brush.zOffset;
                         // RMB: deselect
                         if (__mouse.rightClicked)
                             __uiEditor.object.selected.processId = NULL;
@@ -995,9 +1004,11 @@ begin
                         else
                             __uiEditor.brush.dataIndex = i;
                             __uiEditor.brush.angleOffset = __objectData[i].angle;
-                            __uiEditor.brush.sizeOffset = __objectData[i].size;
-                            __uiEditor.brush.zOffset = __objectData[i].z;
+                            __uiEditor.brush.sizeOffset  = __objectData[i].size;
+                            __uiEditor.brush.zOffset     = __objectData[i].z;
                         end
+                        __uiEditor.object.selected.processId = NULL;
+                        __uiEditor.object.selected.name = "";
                         ClearUIGroup(GROUP_EDITOR_INFO);
                         ConfigureUI_EditorInfo();
                         ShowUIGroup(GROUP_EDITOR_INFO);
