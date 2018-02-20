@@ -876,6 +876,7 @@ begin
                 DeleteLocalLog(id);
                 isLogging = false;
             end
+            moving = false;
         end
         if (renderPoints)
             FindGfxPoints(id, pointsCount);
@@ -883,6 +884,14 @@ begin
         end
         frame;
     until (alive == false)
+    if (__uiEditor.object.hover.processId == id)
+        __uiEditor.object.hover.processId = NULL;
+    end
+    if (isLogging)
+        DeleteLocalLog(id);
+        isLogging = false;
+    end
+    // TODO: Remove object from level data.
 end
 
 process EditorActionHandler()
@@ -937,7 +946,12 @@ begin
                     ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
                 end
                 case ACT_DELETE_OBJECT:
-                    debug;
+                    __uiEditor.object.selected.processId.alive = false;
+                    __uiEditor.object.selected.processId = NULL;
+                    __uiEditor.object.selected.name = "";
+                    ClearUIGroup(GROUP_EDITOR_INFO);
+                    ConfigureUI_EditorInfo();
+                    ShowUIGroup(GROUP_EDITOR_INFO);
                 end
                 // PALETTE
                 case ACT_SCROLL_PALETTE_UP:
@@ -1362,20 +1376,21 @@ begin
     
     // CONFIG BASED ON MODE
     if (__uiEditor.objectBrushSelected > NULL)
-        i = __uiEditor.objectBrushSelected;
-        objName = __objectData[i].name;
         buttonAction = ACT_EDIT_OBJECT;
+        i = __uiEditor.objectBrushSelected;
+        objName     = __objectData[i].name;
+        objAngle    = &__objectData[i].angle;
+        objSize     = &__objectData[i].size;
+        objZ        = &__objectData[i].z;
+        objGfxIndex = __objectData[i].gfxIndex;
     else
-        i = __uiEditor.object.selected.processId.value;
-        objName = __uiEditor.object.selected.name;
         buttonAction = ACT_DELETE_OBJECT;
+        objName     = __uiEditor.object.selected.name;
+        objAngle    = &__uiEditor.object.selected.processId.angle;
+        objSize     = &__uiEditor.object.selected.processId.size;
+        objZ        = &__uiEditor.object.selected.processId.z;
+        objGfxIndex = __uiEditor.object.selected.processId.graph;
     end
-
-    // NAME
-    AddTextToUIGroup(ui,
-        x, y, 
-        FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
-        objName, false);
 
     // BUTTON
     AddButtonToUIGroup(ui,
@@ -1383,40 +1398,43 @@ begin
         COLOR_SCHEME_BLUE,
         FONT_SYSTEM, buttonAction, ENABLED);
 
-    if (__uiEditor.objectBrushSelected > NULL)
-        // INFO
-        AddTextToUIGroup(ui,
-            x, y + (UI_UNIT * 5), 
-            FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
-            "A:", false);
-        AddTextToUIGroup(ui,
-            x + (UI_UNIT * 4), y + (UI_UNIT * 5), 
-            FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
-            &__objectData[i].angle, true);
-        AddTextToUIGroup(ui,
-            x, y + (UI_UNIT * 8), 
-            FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
-            "S:", false);
-        AddTextToUIGroup(ui,
-            x + (UI_UNIT * 4), y + (UI_UNIT * 8), 
-            FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
-            &__objectData[i].size, true);
-        AddTextToUIGroup(ui,
-            x, y + (UI_UNIT * 11), 
-            FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
-            "Z:", false);
-        AddTextToUIGroup(ui,
-            x + (UI_UNIT * 4), y + (UI_UNIT * 11), 
-            FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
-            &__objectData[i].z, true);
+    // NAME
+    AddTextToUIGroup(ui,
+        x, y, 
+        FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
+        objName, false);
 
-        // PREVIEW IMAGE
-        size = CalculateFittedSize(GFX_OBJECTS, __objectData[i].gfxIndex, bw, bh);
-        AddImageToUIGroup(ui,
-            bx + (bw / 2), by + (bh / 2), UI_Z_ABOVE,
-            GFX_OBJECTS, __objectData[i].gfxIndex, __objectData[i].angle, size, FLAG_NORMAL);
-    else 
-    end
+    // INFO
+    AddTextToUIGroup(ui,
+        x, y + (UI_UNIT * 5), 
+        FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
+        "A:", false);
+    AddTextToUIGroup(ui,
+        x + (UI_UNIT * 4), y + (UI_UNIT * 5), 
+        FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
+        objAngle, true);
+    AddTextToUIGroup(ui,
+        x, y + (UI_UNIT * 8), 
+        FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
+        "S:", false);
+    AddTextToUIGroup(ui,
+        x + (UI_UNIT * 4), y + (UI_UNIT * 8), 
+        FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
+        objSize, true);
+    AddTextToUIGroup(ui,
+        x, y + (UI_UNIT * 11), 
+        FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
+        "Z:", false);
+    AddTextToUIGroup(ui,
+        x + (UI_UNIT * 4), y + (UI_UNIT * 11), 
+        FONT_SYSTEM, FONT_ANCHOR_TOP_LEFT, 
+        objZ, true);
+
+    // PREVIEW IMAGE
+    size = CalculateFittedSize(GFX_OBJECTS, objGfxIndex, bw, bh);
+    AddImageToUIGroup(ui,
+        bx + (bw / 2), by + (bh / 2), UI_Z_ABOVE,
+        GFX_OBJECTS, objGfxIndex, *objAngle, size, FLAG_NORMAL);
 end
 
 function ConfigureUI_ObjectEditorBg()
