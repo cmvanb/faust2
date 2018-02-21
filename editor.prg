@@ -834,6 +834,7 @@ private
     pointsColor;
     xd, yd;
     moving = false;
+    levelDataObjectIndex;
 begin
     // initialization
     value = objectDataIndex;
@@ -842,7 +843,8 @@ begin
     ctype = c_scroll;
     SetGraphic(GFX_OBJECTS, __objectData[value].gfxIndex);
     pointsCount = __objectData[value].pointsCount;
-    // TODO: Add object to level data.
+    // update level data
+    levelDataObjectIndex = AddObjectToLevelData(x, y, angle, size, z, objectDataIndex);
     repeat
         insideScrollWindow = IsInsideScrollWindow(id, 0, REGION_EDITOR_VIEWPORT);
         mouseHover = collision(type MouseCursor) && insideScrollWindow;
@@ -914,7 +916,8 @@ begin
         DeleteLocalLog(id);
         isLogging = false;
     end
-    // TODO: Remove object from level data.
+    // update level data
+    RemoveObjectFromLevelData(levelDataObjectIndex);
 end
 
 process EditorActionHandler()
@@ -2651,7 +2654,7 @@ end
 
 function AddObjectToLevelData(x, y, angle, size, z, objectDataIndex)
 begin
-    for (i = 0; i < __levelData.objectCount; ++i)
+    for (i = 0; i < __levelData.objectCount + 1; ++i)
         if (__levelData.objects[i].objectDataIndex == NULL)
             break;
         end
@@ -2664,6 +2667,7 @@ begin
     __levelData.objects[i].objectDataFileName = __objectData[objectDataIndex].name;
     __levelData.objects[i].objectDataIndex = objectDataIndex;
     ++__levelData.objectCount;
+    return (i);
 end
 
 function RemoveObjectFromLevelData(levelDataObjectIndex)
