@@ -842,6 +842,7 @@ begin
     ctype = c_scroll;
     SetGraphic(GFX_OBJECTS, __objectData[value].gfxIndex);
     pointsCount = __objectData[value].pointsCount;
+    // TODO: Add object to level data.
     repeat
         insideScrollWindow = IsInsideScrollWindow(id, 0, REGION_EDITOR_VIEWPORT);
         mouseHover = collision(type MouseCursor) && insideScrollWindow;
@@ -938,7 +939,6 @@ begin
                     exit("", 0);
                 end
                 case ACT_CREATE_NEW_LEVEL:
-                    // TODO: Validate file name doesn't already exist.
                     text = GetTextFieldValue(GROUP_STRING_PROMPT_DIALOG, TF_LEVEL_FILE_NAME);
                     if (text != "" 
                         && !ObjectFileExists(text))
