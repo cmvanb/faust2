@@ -78,7 +78,9 @@ const
 
     // file paths
     DATA_OBJECTS_PATH = "assets/data/objects/";
+    DATA_LEVELS_PATH  = "assets/data/levels/";
     MAX_OBJECT_DATA = 256;
+    MAX_LEVEL_FILES = 18;
 
     // graphics settings
     SCREEN_MODE        = m640x400;
@@ -117,7 +119,7 @@ const
     MAX_UI_DRAWINGS = 128;
     MAX_UI_TEXTS    = 128;
     MAX_UI_GROUPS = 16;
-    MAX_UI_GROUP_BUTTONS    = 16;
+    MAX_UI_GROUP_BUTTONS    = 32;
     MAX_UI_GROUP_CHECKBOXES = 8;
     MAX_UI_GROUP_DIALS      = 8;
     MAX_UI_GROUP_DRAWINGS   = 32;
@@ -170,14 +172,7 @@ const
     ACT_GOTO_OBJECT_EDITOR      = 11;
     ACT_SCROLL_PALETTE_UP       = 12;
     ACT_SCROLL_PALETTE_DOWN     = 13;
-    ACT_SELECT_PALETTE_0        = 14;
-    ACT_SELECT_PALETTE_1        = 15;
-    ACT_SELECT_PALETTE_2        = 16;
-    ACT_SELECT_PALETTE_3        = 17;
-    ACT_SELECT_PALETTE_4        = 18;
-    ACT_SELECT_PALETTE_5        = 19;
-    ACT_SELECT_PALETTE_6        = 20;
-    ACT_SELECT_PALETTE_7        = 21;
+    ACT_SELECT_PALETTE          = 14; // 14 ~ 21 = 8
     ACT_SEARCH_PALETTE          = 22;
     ACT_SET_OBJECT_NAME         = 23;
     ACT_NEW_OBJECT              = 24;
@@ -185,7 +180,8 @@ const
     ACT_SAVE_OBJECT             = 26;
     ACT_DISCARD_OBJECT          = 27;
     ACT_DELETE_OBJECT           = 28;
-    UI_ACTION_COUNT = 29;
+    ACT_SELECT_LEVEL            = 29; // 29 ~ 46 = 18
+    UI_ACTION_COUNT = 47;
 
     // ui text fields
     TF_LEVEL_FILE_NAME  = 0;
@@ -197,12 +193,13 @@ const
     GROUP_MAIN_BG               = 0;
     GROUP_MAIN_MENU             = 1;
     GROUP_STRING_PROMPT_DIALOG  = 2;
-    GROUP_EDITOR_BG             = 3;
-    GROUP_EDITOR_PALETTE        = 4;
-    GROUP_EDITOR_INFO           = 5;
-    GROUP_OBJECT_EDITOR_BG      = 6;
-    GROUP_OBJECT_EDITOR_BUTTONS = 7;
-    GROUP_OBJECT_EDITOR_WIDGETS = 8;
+    GROUP_LOAD_LEVEL_DIALOG     = 3;
+    GROUP_EDITOR_BG             = 4;
+    GROUP_EDITOR_PALETTE        = 5;
+    GROUP_EDITOR_INFO           = 6;
+    GROUP_OBJECT_EDITOR_BG      = 7;
+    GROUP_OBJECT_EDITOR_BUTTONS = 8;
+    GROUP_OBJECT_EDITOR_WIDGETS = 9;
 
 /* -----------------------------------------------------------------------------
  * Global variables
@@ -312,8 +309,13 @@ global
         320, 10, 15;
 
     // level
+    __levelFileDataCount;
+    struct __levelFileData[MAX_LEVEL_FILES - 1]
+        string name;
+    end
+
     struct __levelData
-        name;
+        string name;
         objectCount;
         struct objects[MAX_LEVEL_OBJECTS - 1]
             x, y, angle, size, z;
@@ -476,21 +478,39 @@ global
         ACT_GOTO_OBJECT_EDITOR,      "OBJ EDITOR",      
         ACT_SCROLL_PALETTE_UP,       "^",               
         ACT_SCROLL_PALETTE_DOWN,     "v",               
-        ACT_SELECT_PALETTE_0,        "",                
-        ACT_SELECT_PALETTE_1,        "",                
-        ACT_SELECT_PALETTE_2,        "",                
-        ACT_SELECT_PALETTE_3,        "",                
-        ACT_SELECT_PALETTE_4,        "",                
-        ACT_SELECT_PALETTE_5,        "",                
-        ACT_SELECT_PALETTE_6,        "",                
-        ACT_SELECT_PALETTE_7,        "",                
+        ACT_SELECT_PALETTE,          "",                
+        ACT_SELECT_PALETTE + 1,      "",                
+        ACT_SELECT_PALETTE + 2,      "",                
+        ACT_SELECT_PALETTE + 3,      "",                
+        ACT_SELECT_PALETTE + 4,      "",                
+        ACT_SELECT_PALETTE + 5,      "",                
+        ACT_SELECT_PALETTE + 6,      "",                
+        ACT_SELECT_PALETTE + 7,      "",                
         ACT_SEARCH_PALETTE,          "SEARCH",          
         ACT_SET_OBJECT_NAME,         "",
         ACT_NEW_OBJECT,              "NEW OBJECT",            
         ACT_EDIT_OBJECT,             "EDIT",      
         ACT_SAVE_OBJECT,             "SAVE CHANGES",    
         ACT_DISCARD_OBJECT,          "DISCARD CHANGES",
-        ACT_DELETE_OBJECT,           "DELETE";
+        ACT_DELETE_OBJECT,           "DELETE",
+        ACT_SELECT_LEVEL,            "0",
+        ACT_SELECT_LEVEL + 1,        "1",
+        ACT_SELECT_LEVEL + 2,        "2",
+        ACT_SELECT_LEVEL + 3,        "3",
+        ACT_SELECT_LEVEL + 4,        "4",
+        ACT_SELECT_LEVEL + 5,        "5",
+        ACT_SELECT_LEVEL + 6,        "6",
+        ACT_SELECT_LEVEL + 7,        "7",
+        ACT_SELECT_LEVEL + 8,        "8",
+        ACT_SELECT_LEVEL + 9,        "9",
+        ACT_SELECT_LEVEL + 10,       "10",
+        ACT_SELECT_LEVEL + 11,       "11",
+        ACT_SELECT_LEVEL + 12,       "12",
+        ACT_SELECT_LEVEL + 13,       "13",
+        ACT_SELECT_LEVEL + 14,       "14",
+        ACT_SELECT_LEVEL + 15,       "15",
+        ACT_SELECT_LEVEL + 16,       "16",
+        ACT_SELECT_LEVEL + 17,       "17";
 
     struct __uiTextFields[UI_TEXTFIELD_COUNT - 1]
         textFieldId;
@@ -791,7 +811,6 @@ begin
             __camera.moveMode = CAMERA_MOVE_FREE_LOOK;
         end
         case UI_EDITOR_OBJECT_BRUSH_MODE:
-            ClearObjectData();
             LoadObjectData();
             ClearUIGroup(GROUP_EDITOR_PALETTE);
             ConfigureUI_EditorPalette();
@@ -934,8 +953,13 @@ begin
                     HideUIGroup(GROUP_MAIN_MENU);
                     ShowUIGroup(GROUP_STRING_PROMPT_DIALOG);
                 end
+                case ACT_GOTO_LOAD_LEVEL:
+                    HideUIGroup(GROUP_MAIN_MENU);
+                    ShowUIGroup(GROUP_LOAD_LEVEL_DIALOG);
+                end
                 case ACT_GOTO_MAIN_MENU:
                     HideUIGroup(GROUP_STRING_PROMPT_DIALOG);
+                    HideUIGroup(GROUP_LOAD_LEVEL_DIALOG);
                     ShowUIGroup(GROUP_MAIN_MENU);
                 end
                 case ACT_EXIT_APP:
@@ -945,8 +969,15 @@ begin
                     text = GetTextFieldValue(GROUP_STRING_PROMPT_DIALOG, TF_LEVEL_FILE_NAME);
                     if (text != "" 
                         && !ObjectFileExists(text))
+                        __levelData.name = text;
                         EditorController();
                     end
+                end
+                case ACT_SAVE_LEVEL:
+                    SaveLevelData(__levelData.name);
+                end
+                case ACT_LOAD_LEVEL:
+                    // TODO: implement.
                 end
                 // TOP BAR
                 case ACT_GOTO_VIEW_MODE:
@@ -995,9 +1026,9 @@ begin
                     ConfigureUI_EditorPalette();
                     ShowUIGroup(GROUP_EDITOR_PALETTE);
                 end
-                case ACT_SELECT_PALETTE_0..(ACT_SELECT_PALETTE_0 + UI_EDITOR_PALETTE_SIZE - 1):
+                case ACT_SELECT_PALETTE..(ACT_SELECT_PALETTE + UI_EDITOR_PALETTE_SIZE - 1):
                     i = (__uiEditor.palettePage * UI_EDITOR_PALETTE_SIZE) 
-                        + (__ui.action - ACT_SELECT_PALETTE_0);
+                        + (__ui.action - ACT_SELECT_PALETTE);
                     if (i == __objectDataCount)
                         ResetEditorObject();
                         ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
@@ -1056,6 +1087,12 @@ begin
                     ConfigureUI_ObjectEditorWidgets();
                     ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                     ShowUIGroup(GROUP_OBJECT_EDITOR_WIDGETS);
+                end
+                case ACT_SELECT_LEVEL..(ACT_SELECT_LEVEL + MAX_LEVEL_FILES - 1):
+                    i = (__ui.action - ACT_SELECT_LEVEL);
+                    LoadLevelData(__levelFileData[i].name);
+                    EditorController();
+                    PopulateEditorLevel();
                 end
             end
             __ui.action = NULL;
@@ -1177,6 +1214,7 @@ begin
     ConfigureUI_MainBg();
     ConfigureUI_MainMenu();
     ConfigureUI_StringPromptDialog();
+    ConfigureUI_LoadLevelDialog();
     ConfigureUI_EditorBg();
     ConfigureUI_EditorPalette();
     ConfigureUI_EditorInfo();
@@ -1221,16 +1259,87 @@ function ConfigureUI_StringPromptDialog()
 private
     ui = GROUP_STRING_PROMPT_DIALOG;
 begin
+    // BG & TITLE
+    AddDrawingToUIGroup(ui,
+        SCREEN_WIDTH / 6, 0, (SCREEN_WIDTH * 5) / 6, SCREEN_HEIGHT,
+        DRAW_RECTANGLE_FILL, COLOR_BLUE - 4, OPACITY_SOLID);
     AddTextToUIGroup(ui,
-        HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT,
+        HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT / 3,
+        FONT_MENU, FONT_ANCHOR_CENTERED, "NEW LEVEL", false);
+
+    // INPUT
+    AddTextToUIGroup(ui,
+        HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT - 50,
         FONT_MENU, FONT_ANCHOR_CENTERED, "Enter file name:", false);
     AddTextFieldToUIGroup(ui,
-        HALF_SCREEN_WIDTH - 150, HALF_SCREEN_HEIGHT + 20, 300, 30,
+        HALF_SCREEN_WIDTH - 150, HALF_SCREEN_HEIGHT - 30, 300, 30,
         COLOR_SCHEME_BLACK, FONT_SYSTEM, FONT_ANCHOR_CENTERED, "", TF_LEVEL_FILE_NAME, ACTIVE, ENABLED);
+    
+    // BUTTONS
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 70, 200, 40,
         COLOR_SCHEME_BLUE,
         FONT_MENU, ACT_CREATE_NEW_LEVEL, ENABLED);
+    AddButtonToUIGroup(ui,
+        HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
+        COLOR_SCHEME_BLUE,
+        FONT_MENU, ACT_GOTO_MAIN_MENU, ENABLED);
+end
+
+function ConfigureUI_LoadLevelDialog()
+private
+    ui = GROUP_LOAD_LEVEL_DIALOG;
+    struct lb
+        count;
+        rowCapacity;
+        rowCount;
+        cw;
+        rh;
+        columnCount;
+        w, h;
+        x, y;
+        c, r;
+    end
+begin
+    // BG & TITLE
+    AddDrawingToUIGroup(ui,
+        SCREEN_WIDTH / 6, 0, (SCREEN_WIDTH * 5) / 6, SCREEN_HEIGHT,
+        DRAW_RECTANGLE_FILL, COLOR_BLUE - 4, OPACITY_SOLID);
+    AddTextToUIGroup(ui,
+        HALF_SCREEN_WIDTH, HALF_SCREEN_HEIGHT / 3,
+        FONT_MENU, FONT_ANCHOR_CENTERED, "LOAD LEVEL", false);
+    
+    // LEVELS
+    lb.count = __levelFileDataCount;
+    lb.rowCapacity = 3;
+    lb.columnCount = (lb.count / lb.rowCapacity);
+    if (lb.count % lb.rowCapacity > 0)
+        ++lb.columnCount;
+    end
+    lb.w = 120;
+    lb.h = 30;
+    lb.cw = lb.w + 5;
+    lb.rh = lb.h + 5;
+    if (lb.count >= lb.rowCapacity)
+        lb.rowCount = lb.rowCapacity;
+    else
+        lb.rowCount = lb.count;
+    end
+    lb.x = HALF_SCREEN_WIDTH - ((lb.rowCount * lb.cw) / 2) + ((lb.cw - lb.w) / 2);
+    lb.y = (SCREEN_HEIGHT * 8 / 16) - ((lb.columnCount * lb.rh) / 2) + ((lb.rh - lb.h) / 2) - 5;
+    for (i = 0; i < lb.count; ++i)
+        lb.c = i % lb.rowCapacity;
+        lb.r = i / lb.rowCapacity;
+        __uiButtons[ACT_SELECT_LEVEL + i].label = __levelFileData[i].name;
+        AddButtonToUIGroup(ui,
+            lb.x + (lb.c * lb.cw),
+            lb.y + (lb.r * lb.rh),
+            lb.w, lb.h,
+            COLOR_SCHEME_BLUE,
+            FONT_SYSTEM, ACT_SELECT_LEVEL + i, ENABLED);
+    end
+
+    // BUTTONS
     AddButtonToUIGroup(ui,
         HALF_SCREEN_WIDTH - 100, HALF_SCREEN_HEIGHT + 120, 200, 40,
         COLOR_SCHEME_BLUE,
@@ -1348,7 +1457,7 @@ begin
         AddButtonToUIGroup(ui,
             x + (UI_UNIT * 2), y + (UI_UNIT * 4), w, h,
             COLOR_SCHEME_BLUE,
-            FONT_SYSTEM, ACT_SELECT_PALETTE_0 + i, ENABLED);
+            FONT_SYSTEM, ACT_SELECT_PALETTE + i, ENABLED);
             size = CalculateFittedSize(pbFileIndex, pbGfxIndex, w, h);
         AddImageToUIGroup(ui,
             x + (pbSize / 2) + (UI_UNIT / 2), y + (pbSize / 2) + (UI_UNIT), UI_Z_ABOVE,
@@ -2504,12 +2613,8 @@ end
 
 function LoadData()
 begin
-    // clear structures first
-    ClearObjectData();
-    ClearLevelData();
-
-    // then load
     LoadObjectData();
+    LoadLevelFileData();
 end
 
 
@@ -2533,6 +2638,8 @@ end
 
 function LoadObjectData()
 begin
+    ClearObjectData();
+
     // TODO: FIX THIS PATH HACK :( 
     // NOTE: DIV appears to have no way of retrieving the relative project path... see forum post:
     // http://div-arena.co.uk/forum2/viewthread.php?tid=288
@@ -2608,6 +2715,7 @@ begin
     fclose(fileHandle);
 end
 
+// TODO: Consider using the global struct being used in LoadObject here as well (for consistency).
 function SaveObject(string fileName, obj_angle, obj_size, obj_z, obj_gfxIndex, obj_material, obj_collidable)
 private
     fileHandle;
@@ -2631,6 +2739,39 @@ end
 
 
 /* -----------------------------------------------------------------------------
+ * Level File Data
+ * ---------------------------------------------------------------------------*/
+function ClearLevelFileData()
+begin
+    for (i = 0; i < __levelFileDataCount; ++i)
+        __levelFileData[i].name = "";
+    end
+    __levelFileDataCount = 0;
+end
+
+function LoadLevelFileData()
+begin
+    // Clear out struct before writing to it.
+    ClearLevelFileData();
+
+    // TODO: FIX THIS PATH HACK :( 
+    // NOTE: DIV appears to have no way of retrieving the relative project path... see forum post:
+    // http://div-arena.co.uk/forum2/viewthread.php?tid=288
+    // NOTE: If this is still a problem at build/release time, use a table of hardcoded paths.
+    chdir("C:\Projects\DIV\faust2\" + DATA_LEVELS_PATH);
+
+    // get list of object files in dirinfo struct
+    get_dirinfo("*.*", _normal);
+
+    __levelFileDataCount = dirinfo.files;
+    for (i = 0; i < __levelFileDataCount; ++i)
+        __levelFileData[i].name = dirinfo.name[i];
+    end
+end
+
+
+
+/* -----------------------------------------------------------------------------
  * Level Data
  * ---------------------------------------------------------------------------*/
 function ClearLevelData()
@@ -2643,13 +2784,86 @@ begin
 end
 
 function LoadLevelData(string fileName)
+private
+    fileHandle;
+    string lvlName;
+    lvlObjectCount;
+    lvlObjX, lvlObjY, lvlObjAngle, lvlObjSize, lvlObjZ, lvlObjFileName, lvlObjIndex;
 begin
-    // TODO: implement
+    // Clear out struct before writing to it.
+    ClearLevelData();
+
+    // open file handle
+    fileHandle = fopen(DATA_LEVELS_PATH + fileName, "r");
+
+    // read level meta data
+    fread(offset lvlName,        sizeof(lvlName),        fileHandle);
+    fread(offset lvlObjectCount, sizeof(lvlObjectCount), fileHandle);
+    __levelData.name        = lvlName;
+    __levelData.objectCount = lvlObjectCount;
+
+    // write level object data
+    for (i = 0; i < __levelData.objectCount; ++i)
+        fread(offset lvlObjX,        sizeof(lvlObjX),        fileHandle);
+        fread(offset lvlObjY,        sizeof(lvlObjY),        fileHandle);
+        fread(offset lvlObjAngle,    sizeof(lvlObjAngle),    fileHandle);
+        fread(offset lvlObjSize,     sizeof(lvlObjSize),     fileHandle);
+        fread(offset lvlObjZ,        sizeof(lvlObjZ),        fileHandle);
+        fread(offset lvlObjFileName, sizeof(lvlObjFileName), fileHandle);
+        fread(offset lvlObjIndex,    sizeof(lvlObjIndex),    fileHandle);
+        __levelData.objects[i].x                   = lvlObjX;
+        __levelData.objects[i].y                   = lvlObjY;
+        __levelData.objects[i].angle               = lvlObjAngle;
+        __levelData.objects[i].size                = lvlObjSize;
+        __levelData.objects[i].z                   = lvlObjZ;
+        __levelData.objects[i].objectDataIndex     = lvlObjIndex;
+        __levelData.objects[i].objectDataFileName  = lvlObjFileName;
+    end
+
+    // close file handle
+    fclose(fileHandle);
 end
 
 function SaveLevelData(string fileName)
+private
+    fileHandle;
+    string lvlName;
+    lvlObjectCount;
+    lvlObjX, lvlObjY, lvlObjAngle, lvlObjSize, lvlObjZ, lvlObjFileName, lvlObjIndex;
 begin
-    // TODO: implement
+    // open file handle
+    fileName = fileName + ".lvl";
+    fileHandle = fopen(DATA_LEVELS_PATH + fileName, "w");
+
+    // write level meta data
+    lvlName        = __levelData.name;
+    lvlObjectCount = __levelData.objectCount;
+    fwrite(offset lvlName,        sizeof(lvlName),        fileHandle);
+    fwrite(offset lvlObjectCount, sizeof(lvlObjectCount), fileHandle);
+
+    // write level object data
+    for (i = 0; i < __levelData.objectCount; ++i)
+        if (__levelData.objects[i].objectDataIndex == NULL)
+            continue;
+        end
+        lvlObjX         = __levelData.objects[i].x;
+        lvlObjY         = __levelData.objects[i].y;
+        lvlObjAngle     = __levelData.objects[i].angle;
+        lvlObjSize      = __levelData.objects[i].size;
+        lvlObjZ         = __levelData.objects[i].z;
+        lvlObjFileName  = __levelData.objects[i].objectDataFileName;
+        lvlObjIndex     = __levelData.objects[i].objectDataIndex;
+        fwrite(offset lvlObjX,        sizeof(lvlObjX),        fileHandle);
+        fwrite(offset lvlObjY,        sizeof(lvlObjY),        fileHandle);
+        fwrite(offset lvlObjAngle,    sizeof(lvlObjAngle),    fileHandle);
+        fwrite(offset lvlObjSize,     sizeof(lvlObjSize),     fileHandle);
+        fwrite(offset lvlObjZ,        sizeof(lvlObjZ),        fileHandle);
+        fwrite(offset lvlObjFileName, sizeof(lvlObjFileName), fileHandle);
+        fwrite(offset lvlObjIndex,    sizeof(lvlObjIndex),    fileHandle);
+    end
+
+    // close file handle
+    fclose(fileHandle);
 end
 
 function AddObjectToLevelData(x, y, angle, size, z, objectDataIndex)
@@ -2686,9 +2900,34 @@ end
 function UpdateLevelDataObjects()
 begin
     for (i = 0; i < __levelData.objectCount; ++i)
+        // TODO: Is objectDataIndex a necessary struct field?
         __levelData.objects[i].objectDataIndex = 
             GetObjectDataIndexFromName(__levelData.objects[i].objectDataFileName);
     end
+end
+
+
+
+    // EDITOR SPECIFIC ---------------------------------------------------------
+/* -----------------------------------------------------------------------------
+ * Level
+ * ---------------------------------------------------------------------------*/
+function PopulateEditorLevel()
+begin
+    for (i = 0; i < __levelData.objectCount; ++i)
+        // TODO: generate editor object from level data
+    end
+end
+
+
+
+/* -----------------------------------------------------------------------------
+ * Level
+ * ---------------------------------------------------------------------------*/
+function PopulateLevel()
+begin
+    // TODO: implement;
+    debug;
 end
 
 
