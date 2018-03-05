@@ -1502,8 +1502,7 @@ private
     objGfxIndex, objMaterial, objCollidable;
     buttonAction = NULL;
 begin
-    // NOTE: Guarantee that if __uiEditor.brush.dataIndex is NULL then
-    // __uiEditor.object.selected.processId is not NULL.
+    // one of these values cannot be NULL
     if (__uiEditor.brush.dataIndex == NULL
         && __uiEditor.object.selected.processId == NULL)
         return;
@@ -2670,7 +2669,7 @@ begin
         LoadObject(i, dirinfo.name[i]);
     end
 
-    // NOTE: make sure level objects are using the correct data indices of the freshly loaded object data
+    // make sure level objects are using the correct data indices of the freshly loaded object data
     LevelData_UpdateObjectsDataIndices();
 end
 
@@ -2711,7 +2710,7 @@ begin
     fread(offset obj_material,   sizeof(obj_material),   fileHandle);
     fread(offset obj_collidable, sizeof(obj_collidable), fileHandle);
 
-    // NOTE: cut off file extension
+    // cut off file extension
     strdel(fileName, 0, 4);
 
     // pass data to global struct
@@ -2730,7 +2729,6 @@ begin
     fclose(fileHandle);
 end
 
-// TODO: Consider using the global struct being used in LoadObject here as well (for consistency).
 function SaveObject(string fileName, obj_angle, obj_size, obj_z, obj_gfxIndex, obj_material, obj_collidable)
 private
     fileHandle;
@@ -3103,8 +3101,6 @@ end
  * ---------------------------------------------------------------------------*/
 process Physics(controllerId)
 begin
-    // NOTE: This seems wrong. Target move speed should be determined by the controller, not by the 
-    // physics component, even at initilization time.
     controllerId.physics.targetMoveSpeed = PHYSICS_MAX_MOVE_SPEED;
     repeat
         ApplyInputToVelocity(controllerId);
