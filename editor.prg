@@ -321,6 +321,7 @@ global
             x, y, angle, size, z;
             objectDataFileName;
             objectDataIndex;
+            processId;
         end
     end
 
@@ -682,13 +683,21 @@ begin
                     // LMB: place brush
                     if (__mouse.leftClicked
                         && RegionContainsPoint(REGION_EDITOR_VIEWPORT, mouse.x, mouse.y))
-                        EditorObject(
+                        i = EditorObject(
                             (scroll[0].x0 + 0 + mouse.x) * GPR, 
                             (scroll[0].y0 - 20 + mouse.y) * GPR, 
-                            __uiEditor.brush.zOffset,
                             WrapAngle360(__uiEditor.brush.angleOffset),
                             __uiEditor.brush.sizeOffset,
+                            __uiEditor.brush.zOffset,
                             __uiEditor.brush.dataIndex);
+                        LevelData_AddObject(
+                            (scroll[0].x0 + 0 + mouse.x) * GPR, 
+                            (scroll[0].y0 - 20 + mouse.y) * GPR, 
+                            WrapAngle360(__uiEditor.brush.angleOffset),
+                            __uiEditor.brush.sizeOffset,
+                            __uiEditor.brush.zOffset,
+                            __uiEditor.brush.dataIndex,
+                            i);
                     end
                     // RMB: deselect
                     if (__mouse.rightClicked)
@@ -716,6 +725,7 @@ begin
                         __uiEditor.object.selected.processId.angle = WrapAngle360(__uiEditor.brush.angleOffset);
                         __uiEditor.object.selected.processId.size = __uiEditor.brush.sizeOffset;
                         __uiEditor.object.selected.processId.z = __uiEditor.brush.zOffset;
+                        LevelData_UpdateObject(__uiEditor.object.selected.processId);
                         // RMB: deselect
                         if (__mouse.rightClicked)
                             __uiEditor.object.selected.processId = NULL;
@@ -760,7 +770,7 @@ begin
                         OPACITY_SOLID, 
                         REGION_FULL_SCREEN, false);
                 end
-                if (IsEditorObjectDirty())
+                if (ObjectEditor_IsEditDirty())
                     ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                     ConfigureUI_ObjectEditorButtons();
                     ShowUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
@@ -842,7 +852,7 @@ begin
     end
 end
 
-process EditorObject(x, y, z, angle, size, objectDataIndex)
+process EditorObject(x, y, angle, size, z, objectDataIndex)
 private
     pointsCount;
     insideScrollWindow = false;
@@ -853,7 +863,6 @@ private
     pointsColor;
     xd, yd;
     moving = false;
-    levelDataObjectIndex;
 begin
     // initialization
     value = objectDataIndex;
@@ -862,8 +871,6 @@ begin
     ctype = c_scroll;
     SetGraphic(GFX_OBJECTS, __objectData[value].gfxIndex);
     pointsCount = __objectData[value].pointsCount;
-    // update level data
-    levelDataObjectIndex = AddObjectToLevelData(x, y, angle, size, z, objectDataIndex);
     repeat
         insideScrollWindow = IsInsideScrollWindow(id, 0, REGION_EDITOR_VIEWPORT);
         mouseHover = collision(type MouseCursor) && insideScrollWindow;
@@ -879,6 +886,8 @@ begin
                 // log info
                 if (!isLogging)
                     LogValueFollowOffset(id, __objectData[value].name, &value, 0, 0);
+                    LogValueFollowOffset(id, "x", &x, 0, 0);
+                    LogValueFollowOffset(id, "y", &y, 0, 0);
                     isLogging = true;
                 end
                 // this object is being hovered over
@@ -905,6 +914,7 @@ begin
                 if (moving)
                     x = ((mouse.x + scroll[0].x0) * GPR) - xd;
                     y = ((mouse.y + scroll[0].y0) * GPR) - yd;
+                    LevelData_UpdateObject(id);
                     if (!__mouse.leftHeldDown)
                         moving = false;
                     end
@@ -917,6 +927,8 @@ begin
                 __uiEditor.object.hover.processId = NULL;
             end
             if (isLogging)
+                DeleteLocalLog(id);
+                DeleteLocalLog(id);
                 DeleteLocalLog(id);
                 isLogging = false;
             end
@@ -933,10 +945,10 @@ begin
     end
     if (isLogging)
         DeleteLocalLog(id);
+        DeleteLocalLog(id);
+        DeleteLocalLog(id);
         isLogging = false;
     end
-    // update level data
-    RemoveObjectFromLevelData(levelDataObjectIndex);
 end
 
 process EditorActionHandler()
@@ -974,7 +986,7 @@ begin
                     end
                 end
                 case ACT_SAVE_LEVEL:
-                    SaveLevelData(__levelData.name);
+                    LevelData_Save(__levelData.name);
                 end
                 case ACT_LOAD_LEVEL:
                     // TODO: implement.
@@ -993,15 +1005,16 @@ begin
                     // TODO: implement.
                 end
                 case ACT_GOTO_OBJECT_EDITOR:
-                    ResetEditorObject();
+                    ObjectEditor_ResetEdit();
                     ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
                 end
                 // INFO / PREVIEW BOX
                 case ACT_EDIT_OBJECT:
-                    SetEditorObjectFromData(__uiEditor.brush.dataIndex);
+                    ObjectEditor_SetEditFromData(__uiEditor.brush.dataIndex);
                     ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
                 end
                 case ACT_DELETE_OBJECT:
+                    LevelData_RemoveObject(__uiEditor.object.selected.processId);
                     __uiEditor.object.selected.processId.alive = false;
                     __uiEditor.object.selected.processId = NULL;
                     __uiEditor.object.selected.name = "";
@@ -1030,7 +1043,7 @@ begin
                     i = (__uiEditor.palettePage * UI_EDITOR_PALETTE_SIZE) 
                         + (__ui.action - ACT_SELECT_PALETTE);
                     if (i == __objectDataCount)
-                        ResetEditorObject();
+                        ObjectEditor_ResetEdit();
                         ChangeEditorMode(UI_EDITOR_OBJECT_EDIT_MODE);
                     else
                         if (__uiEditor.brush.dataIndex == i)
@@ -1067,11 +1080,11 @@ begin
                             GROUP_OBJECT_EDITOR_WIDGETS, 
                             TF_OBJECT_FILE_NAME, 
                             __uiEditor.object.edit.name);
-                        UpdateEditorObjectDirty();
+                        ObjectEditor_UpdateEditDirty();
                     end
                 end
                 case ACT_SAVE_OBJECT:
-                    SaveEditorObjectChanges();
+                    ObjectEditor_SaveChanges();
                     ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                     ClearUIGroup(GROUP_OBJECT_EDITOR_WIDGETS);
                     ConfigureUI_ObjectEditorButtons();
@@ -1080,7 +1093,7 @@ begin
                     ShowUIGroup(GROUP_OBJECT_EDITOR_WIDGETS);
                 end
                 case ACT_DISCARD_OBJECT:
-                    DiscardEditorObjectChanges();
+                    ObjectEditor_DiscardChanges();
                     ClearUIGroup(GROUP_OBJECT_EDITOR_BUTTONS);
                     ClearUIGroup(GROUP_OBJECT_EDITOR_WIDGETS);
                     ConfigureUI_ObjectEditorButtons();
@@ -1090,7 +1103,7 @@ begin
                 end
                 case ACT_SELECT_LEVEL..(ACT_SELECT_LEVEL + MAX_LEVEL_FILES - 1):
                     i = (__ui.action - ACT_SELECT_LEVEL);
-                    LoadLevelData(__levelFileData[i].name);
+                    LevelData_Load(__levelFileData[i].name);
                     EditorController();
                     PopulateEditorLevel();
                 end
@@ -1107,7 +1120,7 @@ end
 /* -----------------------------------------------------------------------------
  * Object Editor functionality
  * ---------------------------------------------------------------------------*/
-function CopyEditorObjectSavedFromEdit()
+function ObjectEditor_CopySavedFromEdit()
 begin
     __uiEditor.object.saved.name       = __uiEditor.object.edit.name;
     __uiEditor.object.saved.angle      = __uiEditor.object.edit.angle;
@@ -1118,7 +1131,7 @@ begin
     __uiEditor.object.saved.collidable = __uiEditor.object.edit.collidable;
 end
 
-function ResetEditorObject()
+function ObjectEditor_ResetEdit()
 begin
     __uiEditor.object.edit.name       = "";
     __uiEditor.object.edit.angle      = 0;
@@ -1127,28 +1140,28 @@ begin
     __uiEditor.object.edit.gfxIndex   = 1;
     __uiEditor.object.edit.material   = 0;
     __uiEditor.object.edit.collidable = true;
-    CopyEditorObjectSavedFromEdit();
+    ObjectEditor_CopySavedFromEdit();
 end
 
-function SetEditorObjectFromData(objectIndex)
+function ObjectEditor_SetEditFromData(objectDataIndex)
 begin
-    __uiEditor.object.edit.name       = __objectData[__uiEditor.brush.dataIndex].name;
-    __uiEditor.object.edit.angle      = __objectData[__uiEditor.brush.dataIndex].angle;
-    __uiEditor.object.edit.size       = __objectData[__uiEditor.brush.dataIndex].size;
-    __uiEditor.object.edit.z          = __objectData[__uiEditor.brush.dataIndex].z;
-    __uiEditor.object.edit.gfxIndex   = __objectData[__uiEditor.brush.dataIndex].gfxIndex;
-    __uiEditor.object.edit.material   = __objectData[__uiEditor.brush.dataIndex].material;
-    __uiEditor.object.edit.collidable = __objectData[__uiEditor.brush.dataIndex].collidable;
-    CopyEditorObjectSavedFromEdit();
+    __uiEditor.object.edit.name       = __objectData[objectDataIndex].name;
+    __uiEditor.object.edit.angle      = __objectData[objectDataIndex].angle;
+    __uiEditor.object.edit.size       = __objectData[objectDataIndex].size;
+    __uiEditor.object.edit.z          = __objectData[objectDataIndex].z;
+    __uiEditor.object.edit.gfxIndex   = __objectData[objectDataIndex].gfxIndex;
+    __uiEditor.object.edit.material   = __objectData[objectDataIndex].material;
+    __uiEditor.object.edit.collidable = __objectData[objectDataIndex].collidable;
+    ObjectEditor_CopySavedFromEdit();
 end
 
-function IsEditorObjectDirty()
+function ObjectEditor_IsEditDirty()
 begin
-    UpdateEditorObjectDirty();
+    ObjectEditor_UpdateEditDirty();
     return (__uiEditor.object.dirty);
 end
 
-function UpdateEditorObjectDirty()
+function ObjectEditor_UpdateEditDirty()
 begin
     __uiEditor.object.dirty = 
         __uiEditor.object.saved.name          != __uiEditor.object.edit.name
@@ -1160,21 +1173,21 @@ begin
         || __uiEditor.object.saved.collidable != __uiEditor.object.edit.collidable;
 end
 
-function CanSaveEditorObjectChanges()
+function ObjectEditor_CanSaveEdit()
 begin
-    return (IsEditorObjectDirty() 
-        && ValidateEditorObjectFileName(__uiEditor.object.edit.name));
+    return (ObjectEditor_IsEditDirty() 
+        && ObjectEditor_ValidateFileName(__uiEditor.object.edit.name));
 end
 
-function ValidateEditorObjectFileName(string name)
+function ObjectEditor_ValidateFileName(string name)
 begin
     // TODO: Check whether a file already exists with the same file name.
     return (name != "");
 end
 
-function SaveEditorObjectChanges()
+function ObjectEditor_SaveChanges()
 begin
-    CopyEditorObjectSavedFromEdit();
+    ObjectEditor_CopySavedFromEdit();
     SaveObject(
         __uiEditor.object.saved.name,
         __uiEditor.object.saved.angle,
@@ -1183,10 +1196,10 @@ begin
         __uiEditor.object.saved.gfxIndex,
         __uiEditor.object.saved.material,
         __uiEditor.object.saved.collidable);
-    UpdateEditorObjectDirty();
+    ObjectEditor_UpdateEditDirty();
 end
 
-function DiscardEditorObjectChanges()
+function ObjectEditor_DiscardChanges()
 begin
     __uiEditor.object.edit.name       = __uiEditor.object.saved.name;
     __uiEditor.object.edit.angle      = __uiEditor.object.saved.angle;
@@ -1195,7 +1208,7 @@ begin
     __uiEditor.object.edit.gfxIndex   = __uiEditor.object.saved.gfxIndex;
     __uiEditor.object.edit.material   = __uiEditor.object.saved.material;
     __uiEditor.object.edit.collidable = __uiEditor.object.saved.collidable;
-    UpdateEditorObjectDirty();
+    ObjectEditor_UpdateEditDirty();
 end
 
 
@@ -1595,8 +1608,8 @@ private
     canDiscard;
 begin
     // SIDE PANEL BUTTONS
-    canSave = CanSaveEditorObjectChanges();
-    canDiscard = IsEditorObjectDirty();
+    canSave = ObjectEditor_CanSaveEdit();
+    canDiscard = ObjectEditor_IsEditDirty();
     bw = (UI_PW) - (UI_UNIT * 1);
     bh = (UI_UNIT * 8);
     by = (UI_UNIT / 2);
@@ -2615,10 +2628,12 @@ function LoadData()
 begin
     LoadObjectData();
     LoadLevelFileData();
+    LevelData_Clear();
 end
 
 
 
+// TODO: Refactor function names to use ObjectData_ prefix.
 /* -----------------------------------------------------------------------------
  * Object Data
  * ---------------------------------------------------------------------------*/
@@ -2656,7 +2671,7 @@ begin
     end
 
     // NOTE: make sure level objects are using the correct data indices of the freshly loaded object data
-    UpdateLevelDataObjects();
+    LevelData_UpdateObjectsDataIndices();
 end
 
 function GetObjectDataIndexFromName(string name)
@@ -2751,7 +2766,7 @@ end
 
 function LoadLevelFileData()
 begin
-    // Clear out struct before writing to it.
+    // clear out struct before writing to it
     ClearLevelFileData();
 
     // TODO: FIX THIS PATH HACK :( 
@@ -2774,26 +2789,37 @@ end
 /* -----------------------------------------------------------------------------
  * Level Data
  * ---------------------------------------------------------------------------*/
-function ClearLevelData()
+function LevelData_Clear()
 begin
     __levelData.name = "";
     for (i = 0; i < MAX_LEVEL_OBJECTS - 1; ++i)
-        RemoveObjectFromLevelData(i);
+        LevelData_ClearObjectIndex(i);
     end
     __levelData.objectCount = 0;
 end
 
-function LoadLevelData(string fileName)
+function LevelData_ClearObjectIndex(i)
+begin
+    __levelData.objects[i].x                  = 0;
+    __levelData.objects[i].y                  = 0;
+    __levelData.objects[i].angle              = 0;
+    __levelData.objects[i].size               = 0;
+    __levelData.objects[i].z                  = 0;
+    __levelData.objects[i].objectDataFileName = "";
+    __levelData.objects[i].objectDataIndex    = NULL;
+    __levelData.objects[i].processId          = NULL;
+end
+
+function LevelData_Load(string fileName)
 private
     fileHandle;
     string lvlName;
     lvlObjectCount;
     lvlObjX, lvlObjY, lvlObjAngle, lvlObjSize, lvlObjZ, lvlObjFileName, lvlObjIndex;
 begin
-    // Clear out struct before writing to it.
-    ClearLevelData();
+    // clear out struct before writing to it
+    LevelData_Clear();
 
-    // open file handle
     fileHandle = fopen(DATA_LEVELS_PATH + fileName, "r");
 
     // read level meta data
@@ -2802,7 +2828,7 @@ begin
     __levelData.name        = lvlName;
     __levelData.objectCount = lvlObjectCount;
 
-    // write level object data
+    // read level object data
     for (i = 0; i < __levelData.objectCount; ++i)
         fread(offset lvlObjX,        sizeof(lvlObjX),        fileHandle);
         fread(offset lvlObjY,        sizeof(lvlObjY),        fileHandle);
@@ -2810,28 +2836,26 @@ begin
         fread(offset lvlObjSize,     sizeof(lvlObjSize),     fileHandle);
         fread(offset lvlObjZ,        sizeof(lvlObjZ),        fileHandle);
         fread(offset lvlObjFileName, sizeof(lvlObjFileName), fileHandle);
-        fread(offset lvlObjIndex,    sizeof(lvlObjIndex),    fileHandle);
         __levelData.objects[i].x                   = lvlObjX;
         __levelData.objects[i].y                   = lvlObjY;
         __levelData.objects[i].angle               = lvlObjAngle;
         __levelData.objects[i].size                = lvlObjSize;
         __levelData.objects[i].z                   = lvlObjZ;
-        __levelData.objects[i].objectDataIndex     = lvlObjIndex;
         __levelData.objects[i].objectDataFileName  = lvlObjFileName;
     end
 
-    // close file handle
     fclose(fileHandle);
+
+    LevelData_UpdateObjectsDataIndices();
 end
 
-function SaveLevelData(string fileName)
+function LevelData_Save(string fileName)
 private
     fileHandle;
     string lvlName;
     lvlObjectCount;
     lvlObjX, lvlObjY, lvlObjAngle, lvlObjSize, lvlObjZ, lvlObjFileName, lvlObjIndex;
 begin
-    // open file handle
     fileName = fileName + ".lvl";
     fileHandle = fopen(DATA_LEVELS_PATH + fileName, "w");
 
@@ -2844,7 +2868,7 @@ begin
     // write level object data
     for (i = 0; i < __levelData.objectCount; ++i)
         if (__levelData.objects[i].objectDataIndex == NULL)
-            continue;
+            debug;
         end
         lvlObjX         = __levelData.objects[i].x;
         lvlObjY         = __levelData.objects[i].y;
@@ -2852,55 +2876,90 @@ begin
         lvlObjSize      = __levelData.objects[i].size;
         lvlObjZ         = __levelData.objects[i].z;
         lvlObjFileName  = __levelData.objects[i].objectDataFileName;
-        lvlObjIndex     = __levelData.objects[i].objectDataIndex;
         fwrite(offset lvlObjX,        sizeof(lvlObjX),        fileHandle);
         fwrite(offset lvlObjY,        sizeof(lvlObjY),        fileHandle);
         fwrite(offset lvlObjAngle,    sizeof(lvlObjAngle),    fileHandle);
         fwrite(offset lvlObjSize,     sizeof(lvlObjSize),     fileHandle);
         fwrite(offset lvlObjZ,        sizeof(lvlObjZ),        fileHandle);
         fwrite(offset lvlObjFileName, sizeof(lvlObjFileName), fileHandle);
-        fwrite(offset lvlObjIndex,    sizeof(lvlObjIndex),    fileHandle);
     end
 
-    // close file handle
     fclose(fileHandle);
 end
 
-function AddObjectToLevelData(x, y, angle, size, z, objectDataIndex)
+function LevelData_AddObject(x, y, angle, size, z, objectDataIndex, processId)
 begin
     for (i = 0; i < __levelData.objectCount + 1; ++i)
         if (__levelData.objects[i].objectDataIndex == NULL)
             break;
         end
     end
-    __levelData.objects[i].x = x;
-    __levelData.objects[i].y = y;
-    __levelData.objects[i].angle = angle;
-    __levelData.objects[i].size = size;
-    __levelData.objects[i].z = z;
+    __levelData.objects[i].x                  = x;
+    __levelData.objects[i].y                  = y;
+    __levelData.objects[i].angle              = angle;
+    __levelData.objects[i].size               = size;
+    __levelData.objects[i].z                  = z;
     __levelData.objects[i].objectDataFileName = __objectData[objectDataIndex].name;
-    __levelData.objects[i].objectDataIndex = objectDataIndex;
+    __levelData.objects[i].objectDataIndex    = objectDataIndex;
+    __levelData.objects[i].processId          = processId;
     ++__levelData.objectCount;
     return (i);
 end
 
-function RemoveObjectFromLevelData(levelDataObjectIndex)
+function LevelData_RemoveObject(processId)
+private
+    levelDataObjectIndex;
 begin
-    __levelData.objects[levelDataObjectIndex].x = 0;
-    __levelData.objects[levelDataObjectIndex].y = 0;
-    __levelData.objects[levelDataObjectIndex].angle = 0;
-    __levelData.objects[levelDataObjectIndex].size = 0;
-    __levelData.objects[levelDataObjectIndex].z = 0;
-    __levelData.objects[levelDataObjectIndex].objectDataFileName = "";
-    __levelData.objects[levelDataObjectIndex].objectDataIndex = NULL;
+    levelDataObjectIndex = LevelData_GetObjectIndex(processId);
+    if (levelDataObjectIndex == NULL)
+        debug;
+    end
+    LevelData_ClearObjectIndex(levelDataObjectIndex);
+    // compress objects struct by 1 place
+    for (i = levelDataObjectIndex; i < __levelData.objectCount - 1; ++i)
+        __levelData.objects[i].x                  = __levelData.objects[i + 1].x;
+        __levelData.objects[i].y                  = __levelData.objects[i + 1].y;
+        __levelData.objects[i].angle              = __levelData.objects[i + 1].angle;
+        __levelData.objects[i].size               = __levelData.objects[i + 1].size;
+        __levelData.objects[i].z                  = __levelData.objects[i + 1].z;
+        __levelData.objects[i].objectDataFileName = __levelData.objects[i + 1].objectDataFileName;
+        __levelData.objects[i].objectDataIndex    = __levelData.objects[i + 1].objectDataIndex;
+        __levelData.objects[i].processId          = __levelData.objects[i + 1].processId;
+    end
+    // clear last index
+    LevelData_ClearObjectIndex(__levelData.objectCount);
     --__levelData.objectCount;
-    // NOTE: leaves a gap in the file structure
 end
 
-function UpdateLevelDataObjects()
+function LevelData_UpdateObject(processId)
+begin
+    i = LevelData_GetObjectIndex(processId);
+    if (i == NULL)
+        debug;
+    end
+    __levelData.objects[i].x                  = processId.x;
+    __levelData.objects[i].y                  = processId.y;
+    __levelData.objects[i].angle              = processId.angle;
+    __levelData.objects[i].size               = processId.size;
+    __levelData.objects[i].z                  = processId.z;
+    __levelData.objects[i].objectDataFileName = __objectData[processId.value].name;
+    __levelData.objects[i].objectDataIndex    = GetObjectDataIndexFromName(__objectData[processId.value].name);
+    __levelData.objects[i].processId          = processId;
+end
+
+function LevelData_GetObjectIndex(processId)
 begin
     for (i = 0; i < __levelData.objectCount; ++i)
-        // TODO: Is objectDataIndex a necessary struct field?
+        if (__levelData.objects[i].processId == processId)
+            return (i);
+        end
+    end
+    return (NULL);
+end
+
+function LevelData_UpdateObjectsDataIndices()
+begin
+    for (i = 0; i < __levelData.objectCount; ++i)
         __levelData.objects[i].objectDataIndex = 
             GetObjectDataIndexFromName(__levelData.objects[i].objectDataFileName);
     end
@@ -2913,9 +2972,17 @@ end
  * Level
  * ---------------------------------------------------------------------------*/
 function PopulateEditorLevel()
+private
+    objectDataIndex;
 begin
     for (i = 0; i < __levelData.objectCount; ++i)
-        // TODO: generate editor object from level data
+        __levelData.objects[i].processId = EditorObject(
+            __levelData.objects[i].x,
+            __levelData.objects[i].y,
+            __levelData.objects[i].angle,
+            __levelData.objects[i].size,
+            __levelData.objects[i].z,
+            __levelData.objects[i].objectDataIndex);
     end
 end
 
